@@ -19,7 +19,7 @@ export function createAuth(env: Env, request?: Request) {
   ];
 
   return betterAuth({
-    appName: "WikiTrade",
+    appName: "WikiMasters",
     baseURL,
     secret: env.BETTER_AUTH_SECRET,
     trustedOrigins,
@@ -36,7 +36,7 @@ export function createAuth(env: Env, request?: Request) {
     },
     plugins: [
       passkey({
-        rpName: "WikiTrade",
+        rpName: "WikiMasters",
         rpID,
         origin: env.PASSKEY_ORIGIN || undefined,
         registration: {
@@ -91,4 +91,4 @@ export function createAuth(env: Env, request?: Request) {
   });
 }
 
-export type WikiTradeAuth = ReturnType<typeof createAuth>;
+export type WikiMastersAuth = ReturnType<typeof createAuth>;

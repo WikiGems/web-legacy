@@ -11,6 +11,10 @@
         "pkg-path": "nodejs",
         "version": "24.21.0"
       },
+      "solana-cli": {
+        "pkg-path": "solana-cli",
+        "version": "4.0.3"
+      },
       "turso-cli": {
         "pkg-path": "turso-cli",
         "version": "1.0.34"
@@ -198,6 +202,93 @@
       ],
       "outputs": {
         "out": "/nix/store/gxq2cd70i077rah1d4hkzc1lpq8q4pv8-nodejs-24.21.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "solana-cli",
+      "broken": false,
+      "derivation": "/nix/store/1k8djmf7kkk5vsvasf47b1qysh57lrwc-solana-cli-4.0.3.drv",
+      "description": "Web-Scale Blockchain for fast, secure, scalable, decentralized apps and marketplaces",
+      "install_id": "solana-cli",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=55bfb4d7437bd4e09ab7cba58a43bd68eb310044",
+      "name": "solana-cli-4.0.3",
+      "pname": "solana-cli",
+      "rev": "55bfb4d7437bd4e09ab7cba58a43bd68eb310044",
+      "rev_count": 1092090,
+      "rev_date": "2026-10-14T05:35:54Z",
+      "scrape_date": "2026-10-17T04:01:53.556765Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.0.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/28377a6wc4ap8r692xvkmbnj69vsdk4w-solana-cli-4.0.3"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "solana-cli",
+      "broken": false,
+      "derivation": "/nix/store/ag1dmsx250dcrjyjgxpwybiiwc7zlban-solana-cli-4.0.3.drv",
+      "description": "Web-Scale Blockchain for fast, secure, scalable, decentralized apps and marketplaces",
+      "install_id": "solana-cli",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=55bfb4d7437bd4e09ab7cba58a43bd68eb310044",
+      "name": "solana-cli-4.0.3",
+      "pname": "solana-cli",
+      "rev": "55bfb4d7437bd4e09ab7cba58a43bd68eb310044",
+      "rev_count": 1092090,
+      "rev_date": "2026-10-14T05:35:54Z",
+      "scrape_date": "2026-10-17T04:31:09.610065Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.0.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/vj47fni30kanf38l3bvi3b403jsc8f9p-solana-cli-4.0.3"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "solana-cli",
+      "broken": false,
+      "derivation": "/nix/store/d0fw36gy86fbznkcncc6wygf686kq68c-solana-cli-4.0.3.drv",
+      "description": "Web-Scale Blockchain for fast, secure, scalable, decentralized apps and marketplaces",
+      "install_id": "solana-cli",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=55bfb4d7437bd4e09ab7cba58a43bd68eb310044",
+      "name": "solana-cli-4.0.3",
+      "pname": "solana-cli",
+      "rev": "55bfb4d7437bd4e09ab7cba58a43bd68eb310044",
+      "rev_count": 1092090,
+      "rev_date": "2026-10-14T05:35:54Z",
+      "scrape_date": "2026-10-17T05:06:05.568800Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.0.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/qp25wkqsax2n8wbr1fkb4hl356124jbb-solana-cli-4.0.3"
       },
       "system": "x86_64-linux",
       "group": "toplevel",

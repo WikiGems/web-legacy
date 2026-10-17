@@ -1,89 +1,147 @@
 import { Schema } from "effect";
 
-export const SectorSchema = Schema.Literals([
-  "AI & compute",
-  "Energy",
-  "Digital assets",
-  "Rates",
-  "Consumer",
+export const RaritySchema = Schema.Literals([
+  "common",
+  "uncommon",
+  "rare",
+  "epic",
+  "legendary",
+  "mythic",
 ]);
 
-export const StanceSchema = Schema.Literals(["long", "short", "watch"]);
+export type Rarity = typeof RaritySchema.Type;
 
-export const AuthorSchema = Schema.Struct({
-  name: Schema.String,
-  handle: Schema.String,
-  initials: Schema.String,
-});
+export const CardStatusSchema = Schema.Literals(["claimed", "minted"]);
+export type CardStatus = typeof CardStatusSchema.Type;
 
-export const WikiEntrySchema = Schema.Struct({
+export const CardSchema = Schema.Struct({
   id: Schema.String,
-  ticker: Schema.String,
+  articleId: Schema.String,
   title: Schema.String,
-  standfirst: Schema.String,
-  sector: SectorSchema,
-  stance: StanceSchema,
-  conviction: Schema.Number,
-  price: Schema.Number,
-  change: Schema.Number,
-  updated: Schema.String,
-  contributors: Schema.Number,
-  readMinutes: Schema.Number,
-  tags: Schema.Array(Schema.String),
-  spark: Schema.Array(Schema.Number),
-  author: AuthorSchema,
+  description: Schema.String,
+  extract: Schema.String,
+  imageUrl: Schema.NullOr(Schema.String),
+  articleUrl: Schema.String,
+  category: Schema.String,
+  rarity: RaritySchema,
+  attack: Schema.Number,
+  defense: Schema.Number,
+  pageviews: Schema.Number,
+  status: CardStatusSchema,
+  mintAddress: Schema.NullOr(Schema.String),
+  txSignature: Schema.NullOr(Schema.String),
+  forTrade: Schema.Boolean,
+  ownerName: Schema.optionalKey(Schema.String),
+  createdAt: Schema.Number,
+  mintedAt: Schema.NullOr(Schema.Number),
 });
 
-export type Sector = typeof SectorSchema.Type;
-export type Stance = typeof StanceSchema.Type;
-export type Author = typeof AuthorSchema.Type;
-export type WikiEntry = typeof WikiEntrySchema.Type;
+export type Card = typeof CardSchema.Type;
 
-export const TickerSchema = Schema.Struct({
-  symbol: Schema.String,
-  price: Schema.String,
-  change: Schema.Number,
+export const ProfileSchema = Schema.Struct({
+  walletAddress: Schema.NullOr(Schema.String),
+  packStock: Schema.Number,
+  nextPackAt: Schema.NullOr(Schema.Number),
+  duelWins: Schema.Number,
+  duelLosses: Schema.Number,
 });
 
-export type Ticker = typeof TickerSchema.Type;
+export type Profile = typeof ProfileSchema.Type;
 
-export const SectorPulseSchema = Schema.Struct({
-  name: SectorSchema,
-  change: Schema.Number,
-  conviction: Schema.Number,
-  notes: Schema.Number,
-});
-
-export const PulseSchema = Schema.Struct({
-  asOf: Schema.String,
-  breadth: Schema.Number,
-  regime: Schema.String,
-  tickers: Schema.Array(TickerSchema),
-  sectors: Schema.Array(SectorPulseSchema),
+export const GameStateSchema = Schema.Struct({
+  user: Schema.Struct({
+    name: Schema.String,
+    email: Schema.String,
+  }),
+  profile: ProfileSchema,
+  cards: Schema.Array(CardSchema),
   stats: Schema.Struct({
-    theses: Schema.String,
-    contributors: Schema.String,
-    hitRate: Schema.String,
+    owned: Schema.Number,
+    minted: Schema.Number,
+    tradeable: Schema.Number,
+    rank: Schema.Number,
   }),
 });
 
-export type Pulse = typeof PulseSchema.Type;
+export type GameState = typeof GameStateSchema.Type;
 
-export const WikiResponseSchema = Schema.Struct({
-  entries: Schema.Array(WikiEntrySchema),
-  pulse: PulseSchema,
+export const OpenPackResponseSchema = Schema.Struct({
+  cards: Schema.Array(CardSchema),
+  packStock: Schema.Number,
+  nextPackAt: Schema.NullOr(Schema.Number),
 });
 
-export type WikiResponse = typeof WikiResponseSchema.Type;
+export type OpenPackResponse = typeof OpenPackResponseSchema.Type;
 
-export const WatchlistResponseSchema = Schema.Struct({
-  entryIds: Schema.Array(Schema.String),
+export const MarketResponseSchema = Schema.Struct({
+  cards: Schema.Array(CardSchema),
 });
 
-export type WatchlistResponse = typeof WatchlistResponseSchema.Type;
+export type MarketResponse = typeof MarketResponseSchema.Type;
 
-export const ToggleWatchlistSchema = Schema.Struct({
-  entryId: Schema.String,
+export const TradeSchema = Schema.Struct({
+  id: Schema.String,
+  status: Schema.Literals(["proposed", "settled", "declined", "cancelled"]),
+  offeredCard: CardSchema,
+  requestedCard: CardSchema,
+  proposerName: Schema.String,
+  counterpartyName: Schema.String,
+  createdAt: Schema.Number,
+});
+
+export type Trade = typeof TradeSchema.Type;
+
+export const TradesResponseSchema = Schema.Struct({
+  incoming: Schema.Array(TradeSchema),
+  outgoing: Schema.Array(TradeSchema),
+});
+
+export type TradesResponse = typeof TradesResponseSchema.Type;
+
+export const LeaderboardEntrySchema = Schema.Struct({
+  rank: Schema.Number,
+  name: Schema.String,
+  cards: Schema.Number,
+  minted: Schema.Number,
+  duelWins: Schema.Number,
+});
+
+export const LeaderboardResponseSchema = Schema.Struct({
+  entries: Schema.Array(LeaderboardEntrySchema),
+});
+
+export type LeaderboardResponse = typeof LeaderboardResponseSchema.Type;
+
+export const WalletChallengeSchema = Schema.Struct({
+  message: Schema.String,
+  nonce: Schema.String,
+  expiresAt: Schema.Number,
+});
+
+export type WalletChallenge = typeof WalletChallengeSchema.Type;
+
+export const WalletLinkSchema = Schema.Struct({
+  walletAddress: Schema.String,
+  signature: Schema.String,
+});
+
+export const MintConfirmSchema = Schema.Struct({
+  mintAddress: Schema.String,
+  signature: Schema.String,
+  walletAddress: Schema.String,
+});
+
+export const ToggleTradeSchema = Schema.Struct({
+  forTrade: Schema.Boolean,
+});
+
+export const CreateTradeSchema = Schema.Struct({
+  offeredCardId: Schema.String,
+  requestedCardId: Schema.String,
+});
+
+export const DuelResultSchema = Schema.Struct({
+  won: Schema.Boolean,
 });
 
 export const OnboardingRequestSchema = Schema.Struct({
@@ -102,3 +160,29 @@ export const ApiErrorSchema = Schema.Struct({
   error: Schema.String,
   code: Schema.optionalKey(Schema.String),
 });
+
+export interface FeaturedArticle {
+  articleId: string;
+  title: string;
+  description: string;
+  extract: string;
+  imageUrl: string | null;
+  articleUrl: string;
+  category: string;
+  pageviews: number;
+  wikiSlug: string;
+}
+
+export interface CardDraft {
+  articleId: string;
+  title: string;
+  description: string;
+  extract: string;
+  imageUrl: string | null;
+  articleUrl: string;
+  category: string;
+  rarity: Rarity;
+  attack: number;
+  defense: number;
+  pageviews: number;
+}

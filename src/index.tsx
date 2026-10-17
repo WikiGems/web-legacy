@@ -1,7 +1,6 @@
 /* @refresh reload */
-import "@fontsource-variable/instrument-sans";
-import "@fontsource-variable/fraunces";
-import "@fontsource-variable/fraunces/wght-italic.css";
+import "@fontsource-variable/outfit";
+import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
 import { render } from "solid-js/web";
 import App from "./App";

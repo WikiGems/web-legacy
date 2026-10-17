@@ -1,43 +1,47 @@
 import { A } from "@solidjs/router";
-import { Brand } from "./Nav";
 import { Icon } from "./Icon";
+import { Logo } from "./Logo";
 
 export function Footer() {
   return (
     <footer class="site-footer">
-      <div class="shell footer-grid">
+      <div class="page-shell footer-grid">
         <div class="footer-brand">
-          <Brand />
+          <Logo />
           <p>
-            An open research desk for people who would rather show their work than sell a signal.
+            The Wikipedia trading card game. Every article is a card. Every card is 1 of 1.
+            Collect, duel, and trade the sum of human knowledge.
           </p>
-          <div class="footer-badge">
-            <Icon name="fingerprint" size={16} />
-            Passkeys, not passwords
+          <div class="footer-sol">
+            <Icon name="bolt" size={14} /> Built on Solana · Devnet
           </div>
         </div>
         <div class="footer-col">
-          <p class="eyebrow">The desk</p>
-          <A href="/#wiki">Research wiki</A>
-          <A href="/#pulse">Market pulse</A>
-          <A href="/desk">Your desk</A>
+          <p class="eyebrow">The game</p>
+          <A href="/play">Open packs</A>
+          <A href="/play">Your album</A>
+          <A href="/play">Duel</A>
+          <A href="/play">Trade</A>
         </div>
         <div class="footer-col">
-          <p class="eyebrow">The method</p>
-          <A href="/#method">How it works</A>
-          <A href="/#manifesto">Editorial code</A>
-          <A href="/#join">Become a contributor</A>
+          <p class="eyebrow">The archive</p>
+          <a href="https://www.wikipedia.org/" target="_blank" rel="noreferrer">Wikipedia</a>
+          <a href="https://www.wikimedia.org/" target="_blank" rel="noreferrer">Wikimedia</a>
+          <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">
+            CC BY-SA 4.0
+          </a>
+          <a href="https://solana.com/" target="_blank" rel="noreferrer">Solana</a>
         </div>
-        <div class="footer-col footer-meta">
+        <div class="footer-col footer-col--meta">
           <p class="eyebrow">Colophon</p>
-          <p>Built with SolidJS, Effect &amp; Bun.</p>
-          <p>Auth by Better Auth. Data on Turso.</p>
-          <p>Shipped with Cloudflare Workers.</p>
+          <p>SolidJS + Effect + Better Auth.</p>
+          <p>Turso for the archive. Cloudflare for the doors.</p>
+          <p>Passkeys, not passwords.</p>
         </div>
       </div>
-      <div class="shell footer-bottom">
-        <p>© 2026 WikiTrade. Research is not investment advice.</p>
-        <p class="mono">WIKI / TRADE · 42.008° N, 87.684° W</p>
+      <div class="page-shell footer-bottom">
+        <p>© 2026 WikiMasters. A fan-made game. Not affiliated with the Wikimedia Foundation.</p>
+        <p class="mono">ONE ARTICLE · ONE CARD · ONE OF ONE</p>
       </div>
     </footer>
   );

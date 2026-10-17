@@ -1,14 +1,14 @@
 {
-  "name": "wikitrade",
+  "name": "wikimasters",
   "private": true,
   "type": "module",
   "version": "0.1.0",
-  "description": "WikiTrade \u2014 collaborative market intelligence, secured by passkeys.",
+  "description": "WikiMasters \u2014 the Wikipedia trading card game. One article, one 1-of-1 card, minted on Solana.",
   "scripts": {
     "dev": "bun run scripts/dev.ts",
     "dev:web": "vite --port 5173",
     "dev:worker": "wrangler dev --port 8787",
-    "dev:db": "turso dev --db-file .data/wikitrade.db --port 8080",
+    "dev:db": "turso dev --db-file .data/wikimasters.db --port 8080",
     "build": "vite build",
     "preview": "vite preview --port 4173",
     "deploy": "bun run build && wrangler deploy",
@@ -16,20 +16,29 @@
     "db:generate": "bun run scripts/generate-auth-schema.ts",
     "test:e2e": "bun run scripts/smoke.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "test:mint": "bun run scripts/mint-e2e.ts",
+    "test:trade": "bun run scripts/trade-e2e.ts"
   },
   "dependencies": {
     "@better-auth/passkey": "1.7.10",
-    "@fontsource-variable/fraunces": "5.3.0",
-    "@fontsource-variable/instrument-sans": "5.3.0",
+    "@fontsource-variable/inter": "5.3.0",
     "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@fontsource-variable/outfit": "5.3.0",
     "@libsql/client": "0.18.0",
     "@libsql/kysely-libsql": "0.4.1",
+    "@metaplex-foundation/mpl-core": "1.10.0",
+    "@metaplex-foundation/umi": "1.6.0",
+    "@metaplex-foundation/umi-bundle-defaults": "1.6.0",
+    "@metaplex-foundation/umi-signer-wallet-adapters": "1.6.0",
+    "@solana/web3.js": "1.99.0",
     "@solidjs/router": "1.0.0",
     "better-auth": "1.7.10",
+    "bs58": "6.0.0",
     "effect": "4.0.5",
     "kysely": "0.29.6",
-    "solid-js": "1.9.17"
+    "solid-js": "1.9.17",
+    "tweetnacl": "1.0.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261016.1",

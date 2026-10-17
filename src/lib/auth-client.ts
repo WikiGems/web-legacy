@@ -5,5 +5,3 @@ export const authClient = createAuthClient({
   baseURL: window.location.origin,
   plugins: [passkeyClient()],
 });
-
-export type SessionData = NonNullable<ReturnType<typeof authClient.useSession> extends never ? never : any>;

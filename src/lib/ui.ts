@@ -10,10 +10,12 @@ export interface ToastMessage {
 }
 
 const [authMode, setAuthMode] = createSignal<AuthMode | null>(null);
+const [walletModalOpen, setWalletModalOpen] = createSignal(false);
 const [toasts, setToasts] = createSignal<ToastMessage[]>([]);
+const [walletLinkVersion, setWalletLinkVersion] = createSignal(0);
 let toastId = 0;
 
-export { authMode };
+export { authMode, walletModalOpen, walletLinkVersion };
 
 export function openAuth(mode: AuthMode = "signin") {
   setAuthMode(mode);
@@ -21,6 +23,18 @@ export function openAuth(mode: AuthMode = "signin") {
 
 export function closeAuth() {
   setAuthMode(null);
+}
+
+export function openWalletModal() {
+  setWalletModalOpen(true);
+}
+
+export function closeWalletModal() {
+  setWalletModalOpen(false);
+}
+
+export function noteWalletLinked() {
+  setWalletLinkVersion((version) => version + 1);
 }
 
 export function showToast(
@@ -32,7 +46,7 @@ export function showToast(
     ...current,
     { id, title, body: options.body, tone: options.tone ?? "info" },
   ]);
-  window.setTimeout(() => dismissToast(id), options.duration ?? 4200);
+  window.setTimeout(() => dismissToast(id), options.duration ?? 4600);
 }
 
 export function dismissToast(id: number) {

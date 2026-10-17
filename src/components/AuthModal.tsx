@@ -1,9 +1,11 @@
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import { authClient } from "../lib/auth-client";
-import { requestOnboardingContext, runApi } from "../lib/api";
+import { fetchOnboardingContext, runApi } from "../lib/api";
 import { authMode, closeAuth, openAuth, showToast } from "../lib/ui";
+import { CardBack } from "./GameCard";
 import { Icon } from "./Icon";
+import { Logo } from "./Logo";
 
 type Busy = "idle" | "signin" | "signup";
 
@@ -51,7 +53,7 @@ export function AuthModal() {
         return "The passkey prompt was cancelled. Nothing was created — try again when you are ready.";
       }
       if (value.name === "InvalidStateError") {
-        return "This device already has a passkey for WikiTrade. Sign in instead.";
+        return "This device already has a passkey for WikiMasters. Sign in instead.";
       }
       return value.message;
     }
@@ -66,8 +68,8 @@ export function AuthModal() {
     try {
       const result = await authClient.signIn.passkey({ autoFill: false });
       if (result?.error) throw new Error(result.error.message || "Passkey sign-in failed.");
-      showToast("Welcome back", { body: "Your desk is ready.", tone: "success" });
-      window.location.assign("/desk");
+      showToast("Welcome back, collector", { body: "Your album is waiting.", tone: "success" });
+      window.location.assign("/play");
     } catch (cause) {
       setError(friendlyError(cause));
       setBusy("idle");
@@ -80,7 +82,7 @@ export function AuthModal() {
     setError(null);
     setBusy("signup");
     try {
-      const context = await runApi(requestOnboardingContext(name(), email()));
+      const context = await runApi(fetchOnboardingContext(name(), email()));
       const result = await authClient.passkey.addPasskey({
         context: context.context,
         createSession: true,
@@ -89,11 +91,11 @@ export function AuthModal() {
       if (!result?.data) throw new Error("The passkey was not saved. Try again.");
 
       closeAuth();
-      showToast("Desk opened", {
-        body: "Your passkey is stored on this device. No password to remember.",
+      showToast("Collector card created", {
+        body: "Your passkey is on this device. No password, ever.",
         tone: "success",
       });
-      window.location.assign("/desk");
+      window.location.assign("/play");
     } catch (cause) {
       setError(friendlyError(cause));
       setBusy("idle");
@@ -111,38 +113,36 @@ export function AuthModal() {
           }}
         >
           <div class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-            <div class="auth-aside">
-              <span class="auth-aside-mark">
-                <Icon name="fingerprint" size={34} />
-              </span>
-              <p class="eyebrow">Identity, not passwords</p>
-              <h2>
-                One key.
-                <br />
-                Held by you.
-              </h2>
-              <p>
-                WikiTrade uses a passkey stored in your device’s secure enclave or password manager.
-                There is no password to phish, reuse, or leak.
-              </p>
-              <ul class="auth-points">
-                <li>
-                  <Icon name="check" size={15} /> Face ID, Touch ID, or security key
-                </li>
-                <li>
-                  <Icon name="check" size={15} /> Phishing-resistant by design
-                </li>
-                <li>
-                  <Icon name="check" size={15} /> Syncs with iCloud, Google, or 1Password
-                </li>
-              </ul>
-              <div class="auth-aside-foot mono">AUTH / WEBAUTHN / TURSO</div>
+            <div class="auth-visual">
+              <div class="auth-visual-cards" aria-hidden="true">
+                <CardBack size="sm" class="auth-card auth-card--one" />
+                <CardBack size="sm" class="auth-card auth-card--two" />
+                <CardBack size="sm" class="auth-card auth-card--three" />
+              </div>
+              <div class="auth-visual-copy">
+                <p class="eyebrow">The Wikipedia card game</p>
+                <h2>
+                  Every article.
+                  <br />
+                  <em>One card.</em>
+                </h2>
+                <p>
+                  Collect 1-of-1 cards pulled from Wikipedia, duel on what you know, and trade
+                  before someone else claims the page.
+                </p>
+              </div>
+              <div class="auth-visual-foot">
+                <Icon name="bolt" size={14} /> Passkey-native · No password
+              </div>
             </div>
 
             <div class="auth-main">
-              <button class="icon-button auth-close" onClick={closeAuth} aria-label="Close dialog">
-                <Icon name="close" />
-              </button>
+              <div class="auth-head">
+                <Logo />
+                <button class="icon-button auth-close" onClick={closeAuth} aria-label="Close dialog">
+                  <Icon name="close" />
+                </button>
+              </div>
 
               <div class="auth-tabs" role="tablist" aria-label="Authentication mode">
                 <button
@@ -165,7 +165,7 @@ export function AuthModal() {
                     openAuth("signup");
                   }}
                 >
-                  Create account
+                  Create collector
                 </button>
               </div>
 
@@ -173,54 +173,63 @@ export function AuthModal() {
                 when={isSignup()}
                 fallback={
                   <form onSubmit={signIn} class="auth-form">
-                    <p class="eyebrow">Welcome back</p>
-                    <h3 id="auth-title">Sign in to your desk.</h3>
+                    <h3 id="auth-title">Back to the archive.</h3>
                     <p class="auth-sub">
-                      Your browser will ask for the passkey tied to WikiTrade. No email needed.
+                      Use the passkey stored on this device. Your browser will ask for Face ID,
+                      Touch ID, or your security key.
                     </p>
 
-                    <button class="btn btn-ink btn-lg auth-submit" type="submit" disabled={busy() !== "idle" || !supported}>
-                      <Show when={busy() === "signin"} fallback={<><Icon name="key" size={18} /> Continue with passkey</>}>
+                    <button
+                      class="btn btn-primary btn-lg auth-submit"
+                      type="submit"
+                      disabled={busy() !== "idle" || !supported}
+                    >
+                      <Show
+                        when={busy() === "signin"}
+                        fallback={
+                          <>
+                            <Icon name="bolt" size={18} /> Continue with passkey
+                          </>
+                        }
+                      >
                         <span class="spinner" /> Waiting for your device…
                       </Show>
                     </button>
 
                     <Show when={!supported}>
                       <p class="auth-error">
-                        This browser does not support passkeys. Try a current version of Safari, Chrome,
-                        Edge, or Firefox.
+                        This browser does not support passkeys. Try the latest Safari, Chrome, Edge,
+                        or Firefox.
                       </p>
                     </Show>
-
                     <Show when={error()}>
                       <p class="auth-error" role="alert">
                         {error()}
                       </p>
                     </Show>
-
                     <p class="auth-fineprint">
-                      No account yet?{" "}
+                      New here?{" "}
                       <button type="button" class="text-link" onClick={() => openAuth("signup")}>
-                        Create one with a passkey
+                        Create a collector with a passkey
                       </button>
                     </p>
                   </form>
                 }
               >
                 <form onSubmit={signUp} class="auth-form">
-                  <p class="eyebrow">New contributor</p>
-                  <h3 id="auth-title">Open your research desk.</h3>
+                  <h3 id="auth-title">Claim your collector card.</h3>
                   <p class="auth-sub">
-                    Tell us who to credit. Your passkey is created next — there is no password step.
+                    Pick the name other collectors will see. Your passkey is created next — there is
+                    no password step.
                   </p>
 
                   <label class="field">
-                    <span>Display name</span>
+                    <span>Collector name</span>
                     <input
                       ref={nameInput}
                       value={name()}
                       onInput={(event) => setName(event.currentTarget.value)}
-                      placeholder="Mara Chen"
+                      placeholder="Ada Lovelace"
                       autocomplete="name"
                       required
                       minlength="2"
@@ -234,34 +243,43 @@ export function AuthModal() {
                       type="email"
                       value={email()}
                       onInput={(event) => setEmail(event.currentTarget.value)}
-                      placeholder="mara@example.com"
+                      placeholder="ada@example.com"
                       autocomplete="email"
                       required
                     />
-                    <small>Used only to identify your account. We do not send marketing.</small>
+                    <small>Used to identify your account. No marketing, no password.</small>
                   </label>
 
-                  <button class="btn btn-ink btn-lg auth-submit" type="submit" disabled={busy() !== "idle" || !supported}>
-                    <Show when={busy() === "signup"} fallback={<><Icon name="fingerprint" size={18} /> Create passkey</>}>
+                  <button
+                    class="btn btn-primary btn-lg auth-submit"
+                    type="submit"
+                    disabled={busy() !== "idle" || !supported}
+                  >
+                    <Show
+                      when={busy() === "signup"}
+                      fallback={
+                        <>
+                          <Icon name="bolt" size={18} /> Create passkey
+                        </>
+                      }
+                    >
                       <span class="spinner" /> Talking to your device…
                     </Show>
                   </button>
 
                   <Show when={!supported}>
                     <p class="auth-error">
-                      This browser does not support passkeys. Try a current version of Safari, Chrome,
-                      Edge, or Firefox.
+                      This browser does not support passkeys. Try the latest Safari, Chrome, Edge,
+                      or Firefox.
                     </p>
                   </Show>
-
                   <Show when={error()}>
                     <p class="auth-error" role="alert">
                       {error()}
                     </p>
                   </Show>
-
                   <p class="auth-fineprint">
-                    Already have a desk?{" "}
+                    Already collecting?{" "}
                     <button type="button" class="text-link" onClick={() => openAuth("signin")}>
                       Sign in with your passkey
                     </button>

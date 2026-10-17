@@ -1,35 +1,65 @@
-# WikiTrade
+# WikiMasters
 
-**Research in public. Conviction on record.**
+**Every article is a card. There is only one.**
 
-**Live:** [wikitrade.osbyrne.workers.dev](https://wikitrade.osbyrne.workers.dev)
+**Live:** [wikimasters.osbyrne.workers.dev](https://wikimasters.osbyrne.workers.dev)
 
-WikiTrade is a collaborative market-research wiki and paper-trading desk. Contributors publish
-ticker-linked theses, mark a stance and conviction, and save notes to a personal desk. Sign-in is
-passkey-first: there is no password field anywhere in the product.
+WikiMasters is a fan-made, browser-based trading card game built from Wikipedia. Open a pack and
+you get five real Wikipedia articles, each rendered as a unique card. There are no reprints and no
+duplicate supplies: one article equals one card, globally.
 
-The site pairs a SolidJS editorial front end with a Cloudflare Worker API, Better Auth passkeys, an
-Effect v4 domain layer, and a Turso/libSQL database for accounts, sessions, credentials, and each
-user's watchlist.
+Cards can be collected, used in quiz duels, and traded through the in-game exchange. Any unminted
+card can also be minted as a [Metaplex Core](https://www.metaplex.com/core) NFT on Solana, at which
+point the 1-of-1 lives in the player's own wallet rather than the game database.
 
-## The stack
+The project is a Solana-native reimagining of the WikiMasters loop: packs, album, duels, exchange,
+and a rarity and stats system derived from the real Wikipedia page.
+
+## The game
+
+- **Packs** — five unique articles per pack, one free pack every ten minutes, ten packs max.
+- **Album** — every card is a 1-of-1 claim. The archive refuses to issue an article twice.
+- **Rarity** — Common → Uncommon → Rare → Epic → Legendary → Mythic, based on real yearly pageviews.
+- **Stats** — attack is driven by readership; defense is driven by the depth of the article.
+- **Duels** — three questions generated from the descriptions of the cards in play.
+- **Exchange** — list unminted cards and swap them with other collectors. Ownership moves instantly.
+- **Mint** — connect Phantom, Solflare, or Backpack and mint an unminted card to your Solana wallet.
+
+### Solana ownership model
+
+A card starts as an in-game 1-of-1 claim. Minting is optional and non-custodial:
+
+1. The player connects a Solana wallet and signs a message. The Worker verifies the Ed25519 signature
+   and links the wallet address to the passkey account.
+2. The browser builds a Metaplex Core `create` transaction with the card's metadata URI. The player's
+   wallet signs and pays the devnet fee.
+3. The browser sends the confirmed transaction signature to the Worker.
+4. The Worker verifies the transaction through the Solana RPC, checks the asset address appears in
+   the transaction, and records the mint address in Turso.
+5. The card is marked **On-chain** and links to Solana Explorer.
+
+The live build targets **Solana Devnet**. Minting requires a small amount of devnet SOL. If the
+wallet has none, the UI links to the official faucet. In-game swaps remain available for unminted
+cards, so the complete game is playable without a wallet.
+
+## Stack
 
 | Layer | Choice |
 | --- | --- |
-| Runtime / package manager | [Bun](https://bun.sh) 1.4.2 (pinned by Flox) |
-| UI | [SolidJS](https://www.solidjs.com) 1.9 + `@solidjs/router` |
+| Runtime / package manager | Bun 1.4.2 (pinned by Flox) |
+| UI | SolidJS 1.9 + `@solidjs/router` |
 | Build | Vite 8 + `vite-plugin-solid` |
-| Domain / API composition | [Effect](https://effect.website) 4.0 |
-| Auth | [Better Auth](https://better-auth.com) 1.7 + `@better-auth/passkey` |
-| Database | [Turso](https://turso.tech) (libSQL) through Kysely |
+| Domain / API composition | Effect 4.0 |
+| Auth | Better Auth 1.7 + `@better-auth/passkey` |
+| Solana | `@solana/web3.js`, Umi, Metaplex Core |
+| Database | Turso / libSQL through Kysely |
 | Hosting | Cloudflare Workers + Workers Static Assets |
-| Toolchain pinning | [Flox](https://flox.dev) |
+| Toolchain pinning | Flox |
 
-`effect` is used for typed response decoding on the client and for the Worker's app-API control flow.
-The schemas in `shared/domain.ts` are the single source of truth for entries, pulses, watchlists, and
-onboarding requests.
+The domain layer uses Effect Schema for every client/server contract. API handlers are composed with
+`Effect.gen`, and the Solana verifier and Turso operations are wrapped in typed Effects.
 
-## Run it locally
+## Run locally
 
 ### 1. Activate the pinned environment
 
@@ -38,54 +68,68 @@ flox activate
 bun install
 ```
 
-Flox pins Bun, Node, the Turso CLI, and Wrangler. The application dependencies are locked separately
-in `bun.lock`.
+Flox pins Bun, Node, Turso CLI, Wrangler, and Solana CLI. Application dependencies are locked in
+`bun.lock`.
 
-### 2. Start the whole stack
+### 2. Start the game
 
 ```sh
 bun run dev
 ```
 
-This one command:
-
-1. starts `turso dev` on `127.0.0.1:8080` using `.data/wikitrade.db` (unless it is already running),
-2. applies the migrations,
-3. compiles the static front end once so Wrangler has an assets directory,
-4. starts the Worker with `wrangler dev` on `:8787`,
-5. starts Vite on `:5173` with `/api` proxied to the Worker.
+This command starts a local Turso server on `:8080`, applies migrations, starts Wrangler on `:8787`,
+and starts Vite on `:5173` with `/api` proxied to the Worker.
 
 Open **[http://localhost:5173](http://localhost:5173)**.
 
-> Use `localhost`, not `127.0.0.1`. WebAuthn binds the passkey to the `localhost` RP ID configured in
-> `.dev.vars`; the origin in the browser must match.
+Use `localhost`, not `127.0.0.1`: the passkey RP ID is bound to `localhost` in `.dev.vars`.
 
-The first time you click **Open your desk**, you will be asked for a display name and email. The
-browser then creates a discoverable passkey (Touch ID / Face ID / Windows Hello / security key or a
-synced password manager). A signed, ten-minute onboarding token ties the WebAuthn ceremony to the
-profile. The user row and passkey row are only created after the authenticator verifies, so a
-cancelled prompt leaves no orphan account.
+The game is fully testable without a wallet. The first account is created passkey-first. A virtual
+authenticator works in Chrome DevTools → **WebAuthn**, or via the included Playwright tests.
 
-To test without a physical authenticator, use Chrome DevTools → **WebAuthn** → **Enable virtual
-authenticator**, or run the included Playwright smoke test:
+### 3. Optional: local Solana validator for minting
+
+The mint flow can be tested end-to-end on a local validator with the Metaplex Core program cloned
+from mainnet. Flox installs `solana-test-validator`.
 
 ```sh
-bun run test:e2e
+solana-test-validator \
+  --reset \
+  --ledger .solana-ledger \
+  --rpc-port 8899 \
+  --clone-upgradeable-program CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d \
+  --url https://api.mainnet-beta.solana.com
 ```
 
-The smoke test uses the installed Google Chrome and a CTAP2 virtual authenticator to exercise sign-up,
-the Turso-backed watchlist, sign-out, and passkey sign-in.
+The dev server already proxies `/solana-rpc` to `127.0.0.1:8899` and `.env.development` points the
+client at that proxy. Production builds ignore `.env.development` and use
+`https://api.devnet.solana.com`.
 
-### Useful individual commands
+The local mint test uses a temporary signing bridge and a generated, locally funded wallet:
 
 ```sh
-bun run dev:db        # local Turso only
-bun run dev:worker    # Worker only (expects the local DB and dist/client)
-bun run dev:web       # Vite only
-bun run db:migrate    # apply migrations to TURSO_DATABASE_URL
-bun run db:generate   # emit a new auth migration (writes .generated.sql if 000 exists)
+bun run test:mint
+```
+
+It performs signup, pack opening, album selection, wallet linking, a real Metaplex Core mint, and the
+Worker's transaction verification. A second test exercises the complete two-user exchange:
+
+```sh
+bun run test:trade
+```
+
+### Useful commands
+
+```sh
+bun run dev            # local Turso + Wrangler + Vite
+bun run dev:db         # local Turso only
+bun run dev:worker     # Worker only
+bun run dev:web        # Vite only
+bun run db:migrate     # apply migrations to TURSO_DATABASE_URL
+bun run db:generate    # emit a fresh Better Auth schema migration for review
 bun run typecheck
 bun run build
+bun run test:e2e       # passkey + pack + album smoke test
 ```
 
 ## Configuration
@@ -95,42 +139,46 @@ Local secrets live in `.dev.vars` (ignored by git). Start from `.dev.vars.exampl
 | Variable | Purpose |
 | --- | --- |
 | `TURSO_DATABASE_URL` | `http://127.0.0.1:8080` locally, `libsql://…` in production |
-| `TURSO_AUTH_TOKEN` | Turso database token; empty locally |
-| `BETTER_AUTH_SECRET` | HMAC/session secret; at least 32 random bytes in production |
-| `BETTER_AUTH_URL` | Optional. Base auth origin. Derived from the request when omitted |
-| `PASSKEY_RP_ID` | Optional. RP ID. Derived from `BETTER_AUTH_URL`/request host when omitted |
-| `PASSKEY_ORIGIN` | Optional. Pins the expected WebAuthn origin. Request `Origin` is used when omitted |
-| `TRUSTED_ORIGINS` | Optional comma-separated extra origins for Better Auth |
+| `TURSO_AUTH_TOKEN` | Turso token; empty locally |
+| `BETTER_AUTH_SECRET` | Session/HMAC secret; at least 32 random bytes in production |
+| `BETTER_AUTH_URL` | Optional auth base URL; derived from the request when omitted |
+| `PASSKEY_RP_ID` | Optional WebAuthn RP ID; derived from the request host when omitted |
+| `PASSKEY_ORIGIN` | Optional pinned WebAuthn origin |
+| `SOLANA_RPC_URL` | Worker-side RPC used to verify mint transactions |
+| `SOLANA_CLUSTER` | `devnet`, `localnet`, or `mainnet-beta`, used for explorer links |
 
-Production derives the auth origin and RP ID from the incoming request, so a fresh `workers.dev`
-deployment works without hard-coding its hostname. Set `BETTER_AUTH_URL`, `PASSKEY_RP_ID`, and
-`PASSKEY_ORIGIN` if you attach a custom domain or want to pin the origin explicitly.
+Client-side configuration:
+
+```sh
+VITE_SOLANA_RPC_URL=/solana-rpc     # dev only; defaults to devnet in production
+VITE_SOLANA_CLUSTER=localnet        # dev only; defaults to devnet in production
+```
 
 ## Database
 
-The migrations are plain SQL and are applied exactly once, tracked in `_wikitrade_migrations`:
+The migrations are plain SQL and tracked exactly once in a private migration ledger table:
 
-- `migrations/000_better_auth.sql` — `user`, `session`, `account`, `verification`, `passkey`
-- `migrations/001_watchlist.sql` — the per-user saved-note table
+- `migrations/000_better_auth.sql` — user, session, account, verification, passkey
+- `migrations/001_game.sql` — profiles, packs, cards, trades
 
-Better Auth's schema is generated from the live auth configuration with
-`getMigrations(...).compileMigrations()`; the app table references `user(id)` with `on delete cascade`.
+Important invariants:
 
-`bun run db:generate` never overwrites the committed `000_better_auth.sql`: if it already exists, it writes
-`migrations/000_better_auth.generated.sql` for review.
+- `cards.articleId` is `UNIQUE`. This is the database-level guarantee that one Wikipedia article is
+  only ever one card.
+- Minted cards are locked from in-game trading; their ownership is now a wallet concern.
+- Pack stock and refill timing live on the user profile and are updated transactionally with a pack.
+- Trade settlement swaps both `cards.ownerUserId` values in one transaction.
 
-### Create the production Turso database
+### Provision production Turso
 
 ```sh
 turso auth login
-turso db create wikitrade
+turso db create wikimasters
 
-TURSO_URL="$(turso db show wikitrade --url)"
-TURSO_TOKEN="$(turso db tokens create wikitrade)"
+TURSO_URL="$(turso db show wikimasters --url)"
+TURSO_TOKEN="$(turso db tokens create wikimasters)"
 
-TURSO_DATABASE_URL="$TURSO_URL" \
-TURSO_AUTH_TOKEN="$TURSO_TOKEN" \
-bun run db:migrate
+TURSO_DATABASE_URL="$TURSO_URL" TURSO_AUTH_TOKEN="$TURSO_TOKEN" bun run db:migrate
 ```
 
 ## Deploy to Cloudflare
@@ -139,72 +187,52 @@ bun run db:migrate
 flox activate
 wrangler login
 
-wrangler secret put TURSO_DATABASE_URL
-wrangler secret put TURSO_AUTH_TOKEN
-# paste a value from: openssl rand -base64 32
-wrangler secret put BETTER_AUTH_SECRET
+wrangler secret put TURSO_DATABASE_URL --name wikimasters
+wrangler secret put TURSO_AUTH_TOKEN --name wikimasters
+wrangler secret put BETTER_AUTH_SECRET --name wikimasters
 
 bun run deploy
 ```
 
-The Wrangler config serves `dist/client` as static assets, sends `/api/*` to the Worker first, and
-uses the SPA fallback for client routes. Wrangler prints the deployed `https://…workers.dev` URL.
-Because auth origin/RP ID are request-derived, passkeys work on that URL immediately.
+`wrangler.jsonc` sets the devnet RPC and cluster as public Worker variables. The Worker serves
+`dist/client`, routes `/api/*` first, and falls back to the SPA for client routes. Auth origin and
+RP ID are derived from the incoming request, so passkeys work immediately on the generated
+`workers.dev` hostname. Set `BETTER_AUTH_URL` and `PASSKEY_RP_ID` explicitly for a custom domain.
 
-For a custom domain, add the route/domain in `wrangler.jsonc`, then set:
+The Content Security Policy allows Wikimedia images and the Solana devnet RPC while keeping scripts,
+fonts, and API calls same-origin.
+
+## Card generation
+
+`shared/featured.ts` contains 40 hand-picked Wikipedia articles with real yearly pageview counts,
+fetched from the Wikipedia REST and pageview APIs. Packs draw mostly from this set plus random live
+Wikipedia articles. `shared/card-engine.ts` derives rarity, attack, defense, and category.
+
+Regenerate the featured set with:
 
 ```sh
-wrangler secret put BETTER_AUTH_URL     # https://trade.example.com
-wrangler secret put PASSKEY_RP_ID       # trade.example.com
-wrangler secret put PASSKEY_ORIGIN      # https://trade.example.com
-bun run deploy
+bun run scripts/fetch-featured.ts
 ```
 
-Cloudflare's runtime needs the `nodejs_compat` flag, which is already enabled. The Wrangler version
-pinned in Flox (4.148.0) supports the compatibility date in `wrangler.jsonc` (2026-10-13).
+Article text is available under CC BY-SA 4.0. Card images come from Wikimedia Commons. WikiMasters is
+an independent fan project and is not affiliated with the Wikimedia Foundation.
 
 ## Project map
 
 ```
-src/                  SolidJS app
-  pages/Landing.tsx   editorial landing page
-  pages/Desk.tsx      authenticated watchlist, passkeys, account
-  components/         nav, auth modal, ticker, cards, icons, charts
-  lib/api.ts          Effect v4 fetch/decode pipelines
-  lib/auth-client.ts  Better Auth Solid client + passkey plugin
-worker/
-  index.ts            Worker entry: auth, API, static assets
-  auth.ts             Better Auth + passkey-first registration
-  api.ts              Effect-composed app API and watchlist
-  onboarding.ts       signed HMAC onboarding context
-  db.ts               Kysely + libSQL/Turso dialect
-shared/
-  domain.ts           Effect Schema contracts
-  content.ts          editorial seed data
-migrations/           generated auth schema + watchlist
-scripts/              dev orchestrator, migration runner, schema generator, smoke test
-.flox/                pinned toolchain
+src/pages/Landing.tsx        marketing page and card showcase
+src/pages/Play.tsx           packs, album, exchange, duels, ranking
+src/components/GameCard.tsx  the card component
+src/components/CardModal.tsx card detail + mint flow
+src/components/PackOpening.tsx
+src/components/DuelGame.tsx
+src/lib/solana.ts            Phantom/Solflare/Backpack adapter, Umi mint, HTTP confirmation
+src/lib/wallet.ts            wallet state and connection
+worker/api.ts                Effect-composed game API
+worker/wiki.ts               Wikipedia article + pageview ingestion
+worker/solana.ts             server-side mint transaction verification
+shared/card-engine.ts        rarity, stats, categories
+shared/domain.ts             Effect schemas
+migrations/                  Better Auth + game schema
+scripts/                     dev orchestrator, migrations, e2e tests
 ```
-
-## Auth flow
-
-1. `POST /api/onboarding/context` validates the display name/email and returns an HMAC-signed,
-   ten-minute context token containing a new user ID.
-2. `authClient.passkey.addPasskey({ context, createSession: true })` requests registration options
-   from Better Auth and invokes the browser's WebAuthn ceremony.
-3. Better Auth's `registration.resolveUser` verifies the context for the options step.
-4. On verification, `registration.afterVerification` creates the Turso user row in the same
-   transaction as the passkey row, then Better Auth creates the session cookie.
-5. Sign-in uses a discoverable credential via `authClient.signIn.passkey()`; no email lookup is
-   needed. Additional passkeys can be added from the desk.
-
-The account email is never used to attach a new passkey to an existing account. A pre-existing email
-is rejected before the ceremony, which avoids account-takeover through a supplied email address.
-
-## Notes
-
-- Research is illustrative. Prices, conviction scores, and market data are editorial seed content,
-  not investment advice.
-- All UI copy, iconography, and chart rendering are local; fonts are self-hosted through Fontsource.
-- The site is responsive at 320 px and up, respects `prefers-reduced-motion`, and uses native dialog
-  semantics (`role="dialog"`, `aria-modal`, keyboard close) for the auth modal.

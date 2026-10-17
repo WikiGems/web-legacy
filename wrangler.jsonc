@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "wikitrade",
+  "name": "wikimasters",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-13",
   "compatibility_flags": ["nodejs_compat"],
@@ -12,6 +12,10 @@
   },
   "observability": {
     "enabled": true
+  },
+  "vars": {
+    "SOLANA_RPC_URL": "https://api.devnet.solana.com",
+    "SOLANA_CLUSTER": "devnet"
   },
   "workers_dev": true,
   "preview_urls": false

@@ -7,4 +7,6 @@ export interface Env {
   PASSKEY_RP_ID?: string;
   PASSKEY_ORIGIN?: string;
   TRUSTED_ORIGINS?: string;
+  SOLANA_RPC_URL?: string;
+  SOLANA_CLUSTER?: string;
 }

@@ -1,59 +1,26 @@
-import { A, useNavigate } from "@solidjs/router";
-import { createResource, createSignal, For, Show } from "solid-js";
+import { useNavigate } from "@solidjs/router";
+import { For, Show } from "solid-js";
 import { authClient } from "../lib/auth-client";
-import { fetchWatchlist, fetchWiki, runApi, toggleWatchlist } from "../lib/api";
-import { changeClass, formatChange, todayLabel } from "../lib/format";
-import { openAuth, showToast } from "../lib/ui";
-import { EntryCard, EntryRow } from "../components/EntryCard";
+import { openAuth } from "../lib/ui";
+import { showcaseCards } from "../lib/preview";
+import { RARITY_META, shortNumber } from "../../shared/card-engine";
+import type { Rarity } from "../../shared/domain";
 import { Footer } from "../components/Footer";
+import { GameCard } from "../components/GameCard";
 import { Icon } from "../components/Icon";
 import { Nav } from "../components/Nav";
-import { Sparkline } from "../components/Sparkline";
-import { TickerTape } from "../components/TickerTape";
-import type { WikiEntry } from "../../shared/domain";
+
+const rarityOrder: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
 
 export default function Landing() {
   const session = authClient.useSession();
   const navigate = useNavigate();
-  const [wiki] = createResource(() => runApi(fetchWiki()));
-  const [savedIds, setSavedIds] = createSignal<string[]>([]);
+  const cards = showcaseCards();
+  const heroCards = cards.slice(0, 5);
+  const spotlight = cards[4] ?? cards[0]!;
 
-  createResource(
-    () => (session().data?.user ? session().data!.user.id : undefined),
-    async () => {
-      const data = await runApi(fetchWatchlist());
-      setSavedIds([...data.entryIds]);
-      return data.entryIds;
-    },
-  );
-
-  const entries = () => wiki()?.entries ?? [];
-  const pulse = () => wiki()?.pulse;
-
-  async function toggleSave(entry: WikiEntry) {
-    if (!session().data) {
-      openAuth("signin");
-      return;
-    }
-    try {
-      const result = await runApi(toggleWatchlist(entry.id));
-      setSavedIds((current) =>
-        result.watching ? [...new Set([...current, entry.id])] : current.filter((id) => id !== entry.id),
-      );
-      showToast(result.watching ? "Saved to your desk" : "Removed from your desk", {
-        body: result.watching ? `${entry.ticker} · ${entry.title}` : undefined,
-        tone: "success",
-      });
-    } catch (error) {
-      showToast("Could not update your desk", {
-        body: error instanceof Error ? error.message : "Try again.",
-        tone: "error",
-      });
-    }
-  }
-
-  function openDesk() {
-    if (session().data) navigate("/desk");
+  function start() {
+    if (session().data?.user) navigate("/play");
     else openAuth("signup");
   }
 
@@ -61,350 +28,364 @@ export default function Landing() {
     <div class="page page--landing">
       <Nav />
       <main>
-        <section class="hero shell">
-          <div class="hero-copy">
-            <div class="hero-kicker">
-              <span class="rule" />
-              <span class="eyebrow">The open research desk · {todayLabel()}</span>
-            </div>
-            <h1>
-              Markets reward
-              <br />
-              the <em>well-read.</em>
-            </h1>
-            <p class="hero-lede">
-              WikiTrade is a collaborative research wiki and paper-trading desk. Write the thesis,
-              show your work, and let the record — not the loudest voice — build conviction.
-            </p>
-            <div class="hero-actions">
-              <button class="btn btn-ink btn-lg" onClick={openDesk}>
-                <Icon name="fingerprint" size={18} />
-                {session().data ? "Open your desk" : "Open your desk with a passkey"}
-              </button>
-              <a class="btn btn-outline btn-lg" href="#wiki">
-                Browse the wiki <Icon name="arrow-right" size={17} />
-              </a>
-            </div>
-            <div class="hero-proof">
-              <div class="author-stack" aria-hidden="true">
-                <span class="avatar avatar--stack">MC</span>
-                <span class="avatar avatar--stack">JB</span>
-                <span class="avatar avatar--stack">PN</span>
-                <span class="avatar avatar--stack">LO</span>
-              </div>
-              <p>
-                <strong>{pulse()?.stats.contributors ?? "8,431"}</strong> researchers.{" "}
-                <strong>{pulse()?.stats.theses ?? "1,204"}</strong> theses on the record.
-              </p>
-            </div>
+        <section class="lm-hero">
+          <div class="lm-hero-bg" aria-hidden="true">
+            <div class="lm-orb lm-orb--green" />
+            <div class="lm-orb lm-orb--violet" />
+            <div class="lm-grid" />
           </div>
-
-          <div class="hero-visual">
-            <div class="hero-note">
-              <div class="note-top">
-                <span class="mono">WIKITRADE / NOTE 042</span>
-                <span class="live-badge">
-                  <span class="live-dot" /> Updating
-                </span>
+          <div class="page-shell lm-hero-inner">
+            <div class="lm-hero-copy">
+              <div class="lm-kicker">
+                <span class="live-dot" />
+                The Wikipedia card game
+                <span class="lm-kicker-divider">/</span>
+                1 article = 1 card
               </div>
-              <p class="note-label">Today’s consensus</p>
-              <h2>“The AI trade is crowded.”</h2>
-              <p class="note-body">
-                Crowded is not the same as finished. The wiki is tracking where the marginal dollar
-                is actually going — and where the narrative has stopped paying.
+              <h1>
+                Every article
+                <br />
+                is a card.
+                <br />
+                <span>There is only one.</span>
+              </h1>
+              <p class="lm-lede">
+                Open packs of real Wikipedia articles. Collect 1-of-1 cards, duel on what you know,
+                and trade them as NFTs on Solana.
               </p>
-
-              <div class="note-chart">
-                <div class="note-chart-head">
-                  <span>
-                    <span class="mono">WIKI / CONVICTION</span>
-                    <strong>AI &amp; compute</strong>
-                  </span>
-                  <span class="note-conviction">82<small>/100</small></span>
-                </div>
-                <Sparkline
-                  values={[34, 38, 36, 44, 41, 48, 52, 49, 58, 61, 59, 67, 64, 72, 76, 74, 81, 79, 86]}
-                  height={84}
-                  positive
-                />
-                <div class="note-chart-axis mono">
-                  <span>JUL</span>
-                  <span>AUG</span>
-                  <span>SEP</span>
-                  <span>OCT</span>
-                </div>
+              <div class="lm-hero-actions">
+                <button class="btn btn-primary btn-xl" onClick={start}>
+                  <Icon name="pack" size={18} /> Start collecting
+                </button>
+                <a class="btn btn-outline btn-xl" href="#how">
+                  How it works <Icon name="arrow-right" size={16} />
+                </a>
               </div>
-
-              <div class="note-foot">
+              <div class="lm-hero-stats">
                 <div>
-                  <span class="mono">CONTRIBUTORS</span>
-                  <strong>38</strong>
+                  <strong>6.8M+</strong>
+                  <span>articles to collect</span>
                 </div>
                 <div>
-                  <span class="mono">LAST EDIT</span>
-                  <strong>14 min</strong>
+                  <strong>5</strong>
+                  <span>cards per pack</span>
                 </div>
                 <div>
-                  <span class="mono">STATUS</span>
-                  <strong class="accent">Long</strong>
+                  <strong>1/1</strong>
+                  <span>on-chain provenance</span>
                 </div>
               </div>
-
-              <span class="passkey-sticker">
-                <Icon name="key" size={14} /> Passkey secured
-              </span>
             </div>
 
-            <div class="hero-float">
-              <span class="hero-float-icon">
-                <Icon name="spark" size={15} />
-              </span>
-              <p>
-                <strong>+214</strong> desks saved this thesis today
-              </p>
-            </div>
-
-            <div class="hero-caption mono">FIG. 01 — CONSENSUS, WITH RECEIPTS</div>
-          </div>
-        </section>
-
-        <TickerTape tickers={pulse()?.tickers ?? []} />
-
-        <section class="wiki-section shell" id="wiki">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Live from the wiki</p>
-              <h2>Today’s working notes.</h2>
-            </div>
-            <p class="section-note">
-              Every note is versioned, source-linked, and open to challenge. The conviction number is
-              the community’s current read — not a promise.
-            </p>
-          </div>
-
-          <Show
-            when={!wiki.loading}
-            fallback={
-              <div class="entry-grid">
-                <For each={[0, 1, 2]}>
-                  {() => <div class="entry-card skeleton-card" aria-hidden="true" />}
+            <div class="lm-hero-stage" aria-label="Featured WikiMasters cards">
+              <div class="lm-card-fan">
+                <For each={heroCards}>
+                  {(card, index) => (
+                    <div class={`lm-fan-card lm-fan-card--${index() + 1}`}>
+                      <GameCard card={card} size="sm" />
+                    </div>
+                  )}
                 </For>
               </div>
-            }
-          >
-            <div class="entry-grid">
-              <For each={entries().slice(0, 3)}>
-                {(entry) => (
-                  <EntryCard
-                    entry={entry}
-                    saved={savedIds().includes(entry.id)}
-                    onToggle={toggleSave}
-                  />
-                )}
-              </For>
-            </div>
-          </Show>
-
-          <div class="wiki-foot">
-            <p class="mono">DISPLAYING 3 OF {entries().length || 5} OPEN NOTES · UPDATED CONTINUOUSLY</p>
-            <button
-              class="text-link strong"
-              onClick={() => {
-                if (session().data) navigate("/desk");
-                else openAuth("signup");
-              }}
-            >
-              Save notes to your desk <Icon name="arrow-up-right" size={15} />
-            </button>
-          </div>
-        </section>
-
-        <section class="manifesto" id="manifesto">
-          <div class="shell manifesto-inner">
-            <p class="manifesto-mark">“</p>
-            <blockquote>
-              The edge is not a secret. It is a <em>habit of attention</em> — shared early, tested
-              in public, and allowed to be wrong.
-            </blockquote>
-            <div class="manifesto-credit">
-              <span class="rule rule--light" />
-              <p>The WikiTrade editorial code, Article I</p>
+              <div class="lm-float lm-float--rarity">
+                <span class="rarity-pip" /> Mythic pull
+              </div>
+              <div class="lm-float lm-float--chain">
+                <Icon name="bolt" size={13} /> Minted on Solana
+              </div>
+              <div class="lm-float lm-float--one">
+                <strong>1 of 1</strong>
+                <span>no duplicates. ever.</span>
+              </div>
+              <p class="lm-stage-caption mono">THE ALBUM · LIVE PREVIEW</p>
             </div>
           </div>
         </section>
 
-        <section class="pulse-section shell" id="pulse">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Friday close</p>
-              <h2>The board.</h2>
-            </div>
-            <p class="section-note">
-              A snapshot of where research attention is concentrating. Conviction is the
-              contributor-weighted read; price is illustrative.
-            </p>
-          </div>
-
-          <div class="pulse-grid">
-            <div class="board-card">
-              <div class="board-head">
-                <span class="mono">SECTOR / CONVICTION</span>
-                <span class="mono">{pulse()?.asOf ?? "Loading tape…"}</span>
-              </div>
-              <Show when={pulse()}>
-                {(current) => (
-                  <div class="sector-list">
-                    <For each={current().sectors}>
-                      {(sector) => (
-                        <div class="sector-row">
-                          <div class="sector-name">
-                            <span class="sector-dot" />
-                            {sector.name}
-                            <span class="sector-notes mono">{sector.notes} notes</span>
-                          </div>
-                          <div class="sector-meter">
-                            <span style={{ width: `${sector.conviction}%` }} />
-                          </div>
-                          <div class="sector-value">
-                            <strong>{sector.conviction}</strong>
-                            <span class={changeClass(sector.change)}>{formatChange(sector.change)}</span>
-                          </div>
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                )}
-              </Show>
-              <div class="board-foot">
-                <span class="mono">BREADTH</span>
-                <div class="breadth">
-                  <div class="breadth-bar">
-                    <span style={{ width: `${pulse()?.breadth ?? 0}%` }} />
-                  </div>
-                  <strong>{pulse()?.breadth ?? "—"}%</strong>
+        <section class="lm-marquee" aria-label="Card previews">
+          <div class="lm-marquee-track">
+            <For each={[...cards, ...cards]}>
+              {(card) => (
+                <div class="lm-marquee-card">
+                  <GameCard card={card} size="xs" />
                 </div>
-              </div>
-            </div>
-
-            <div class="board-side">
-              <div class="regime-card">
-                <p class="eyebrow">Regime read</p>
-                <h3>{pulse()?.regime ?? "Reading the tape…"}</h3>
-                <p>
-                  Leadership is narrower than the index suggests. The wiki is overweight compute and
-                  grid infrastructure, underweight long duration.
-                </p>
-                <div class="regime-stats">
-                  <div>
-                    <span class="mono">HIT RATE</span>
-                    <strong>{pulse()?.stats.hitRate ?? "—"}</strong>
-                  </div>
-                  <div>
-                    <span class="mono">NET STANCE</span>
-                    <strong class="accent">Long</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div class="rank-card">
-                <div class="board-head">
-                  <span class="mono">MOST READ / 24H</span>
-                  <span class="mono">CONV.</span>
-                </div>
-                <Show when={pulse()}>
-                  <For each={entries().slice(0, 4)}>
-                    {(entry, index) => <EntryRow entry={entry} rank={index() + 1} />}
-                  </For>
-                </Show>
-              </div>
-            </div>
+              )}
+            </For>
           </div>
         </section>
 
-        <section class="method-section shell" id="method">
-          <div class="method-intro">
-            <p class="eyebrow">How the desk works</p>
+        <section class="lm-section page-shell" id="how">
+          <div class="lm-section-head">
+            <p class="eyebrow">The loop</p>
             <h2>
-              A paper trail
+              Open. Collect.
               <br />
-              for your <em>thinking.</em>
+              <em>Fight. Trade.</em>
             </h2>
             <p>
-              No anonymous calls. No screenshots of positions. A WikiTrade note is a claim with
-              sources, an update history, and a stake you can follow over time.
+              A collectible card game built from the largest encyclopedia ever written. The page you
+              pull is the page you own.
             </p>
           </div>
-
-          <div class="method-steps">
-            <article class="method-step">
-              <span class="method-number">01</span>
-              <div>
-                <h3>Write the note</h3>
-                <p>
-                  Start with a ticker, a stance, and the one sentence everyone else is missing.
-                  Attach sources. Set your conviction.
-                </p>
+          <div class="lm-feature-grid">
+            <article class="lm-feature lm-feature--wide">
+              <div class="lm-feature-icon"><Icon name="pack" size={24} /></div>
+              <span class="mono">01 / OPEN</span>
+              <h3>Five cards. Every ten minutes.</h3>
+              <p>
+                Every pack tears open five random Wikipedia articles. Familiar legends, obscure
+                rabbit holes, and everything between. Rarity is decided by how often the world reads
+                the page.
+              </p>
+              <div class="lm-mini-cards" aria-hidden="true">
+                <For each={cards.slice(0, 3)}>
+                  {(card) => <GameCard card={card} size="xs" />}
+                </For>
               </div>
-              <Icon name="arrow-up-right" size={20} class="method-arrow" />
             </article>
-            <article class="method-step">
-              <span class="method-number">02</span>
-              <div>
-                <h3>Let the wiki pressure-test it</h3>
-                <p>
-                  Contributors fork, challenge, and add evidence. Every edit is versioned. The
-                  conviction score moves with the argument, not the vibes.
-                </p>
-              </div>
-              <Icon name="arrow-up-right" size={20} class="method-arrow" />
+            <article class="lm-feature">
+              <div class="lm-feature-icon lm-feature-icon--violet"><Icon name="cards" size={24} /></div>
+              <span class="mono">02 / COLLECT</span>
+              <h3>One article. One card.</h3>
+              <p>
+                No duplicates. No reprints. Once an article is claimed, that card is gone from the
+                archive forever.
+              </p>
             </article>
-            <article class="method-step">
-              <span class="method-number">03</span>
-              <div>
-                <h3>Track the record</h3>
-                <p>
-                  Save notes to your desk and mark the trade. Over time, your wiki becomes a
-                  personal dataset of what you saw, when, and why.
-                </p>
+            <article class="lm-feature">
+              <div class="lm-feature-icon lm-feature-icon--orange"><Icon name="duel" size={24} /></div>
+              <span class="mono">03 / DUEL</span>
+              <h3>Know the page. Win the round.</h3>
+              <p>
+                Face another collector in three questions drawn from your cards. The deeper your
+                reading, the sharper your advantage.
+              </p>
+            </article>
+            <article class="lm-feature lm-feature--trade">
+              <div class="lm-feature-icon lm-feature-icon--blue"><Icon name="swap" size={24} /></div>
+              <span class="mono">04 / TRADE</span>
+              <h3>Turn a duplicate into a grail.</h3>
+              <p>
+                Put cards on the exchange, propose swaps, and build the album you actually want.
+                Mint finished cards to Solana for permanent provenance.
+              </p>
+              <div class="trade-swap-visual" aria-hidden="true">
+                <GameCard card={cards[1]!} size="xs" class="swap-left" />
+                <span class="swap-symbol"><Icon name="swap" size={18} /></span>
+                <GameCard card={cards[2]!} size="xs" class="swap-right" />
               </div>
-              <Icon name="arrow-up-right" size={20} class="method-arrow" />
             </article>
           </div>
         </section>
 
-        <section class="join-section shell" id="join">
-          <div class="join-card">
-            <div class="join-copy">
-              <p class="eyebrow">Your desk is waiting</p>
+        <section class="lm-spotlight" id="rarity">
+          <div class="page-shell lm-spotlight-grid">
+            <div class="lm-spotlight-art">
+              <div class="lm-spotlight-aura" />
+              <GameCard card={spotlight} size="lg" />
+              <span class="lm-spotlight-tag mono">CARD #{spotlight.articleId}</span>
+            </div>
+            <div class="lm-spotlight-copy">
+              <p class="eyebrow">The 1-of-1 rule</p>
               <h2>
-                Read widely.
+                The page is the
                 <br />
-                Write <em>precisely.</em>
+                <em>provenance.</em>
               </h2>
               <p>
-                Join {pulse()?.stats.contributors ?? "8,431"} researchers building the open record.
-                One passkey. No password. Nothing to remember.
+                A WikiMasters card is not a picture of an article. It is a claim on the page itself.
+                Rarity, attack, and defense are derived from real readership and the shape of the
+                article.
               </p>
-              <div class="join-actions">
-                <button class="btn btn-acid btn-lg" onClick={() => openAuth(session().data ? "signin" : "signup")}>
-                  <Icon name="fingerprint" size={18} />
-                  {session().data ? "Enter your desk" : "Create your passkey"}
-                </button>
-                <A href="/desk" class="btn btn-ghost btn-lg">
-                  Visit the desk <Icon name="arrow-right" size={17} />
-                </A>
+              <div class="lm-spotlight-meta">
+                <div>
+                  <span class="mono">YEARLY VIEWS</span>
+                  <strong>{shortNumber(spotlight.pageviews)}</strong>
+                </div>
+                <div>
+                  <span class="mono">ATTACK</span>
+                  <strong>{spotlight.attack.toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span class="mono">DEFENSE</span>
+                  <strong>{spotlight.defense.toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span class="mono">RARITY</span>
+                  <strong>{RARITY_META[spotlight.rarity].label}</strong>
+                </div>
+              </div>
+              <div class="lm-rarity-ladder">
+                <For each={rarityOrder}>
+                  {(rarity) => {
+                    const meta = RARITY_META[rarity];
+                    return (
+                      <div class="lm-rarity-row">
+                        <span class={`rarity-dot rarity-dot--${rarity}`} />
+                        <span>{meta.label}</span>
+                        <span class="mono">{meta.code}</span>
+                      </div>
+                    );
+                  }}
+                </For>
               </div>
             </div>
-            <div class="join-aside">
-              <div class="join-key">
-                <Icon name="fingerprint" size={42} />
-                <p class="mono">PASSKEY / WEBAUTHN</p>
-              </div>
+          </div>
+        </section>
+
+        <section class="lm-duel-section page-shell">
+          <div class="lm-duel-panel">
+            <div class="lm-duel-copy">
+              <p class="eyebrow">The duel</p>
+              <h2>
+                Your cards know
+                <br />
+                things. Do <em>you?</em>
+              </h2>
               <p>
-                Secured with Better Auth and stored in Turso. Your biometrics never leave your
-                device.
+                Three questions. Two collectors. One winner. Every duel is generated from the pages
+                in play, so reading your collection is genuinely an advantage.
               </p>
+              <button class="btn btn-primary" onClick={start}>
+                <Icon name="duel" size={17} /> Enter the duel
+              </button>
             </div>
+            <div class="lm-quiz">
+              <div class="lm-quiz-head">
+                <span class="lm-quiz-round mono">ROUND 2 / 3</span>
+                <span class="lm-quiz-score">1,840 <span>—</span> 1,610</span>
+              </div>
+              <p class="lm-quiz-question">
+                Which article is described as “a free online encyclopedia written and maintained by
+                a community of volunteer editors”?
+              </p>
+              <div class="lm-quiz-options">
+                <span>Encyclopædia Britannica</span>
+                <span class="is-correct">Wikipedia <Icon name="check" size={14} /></span>
+                <span>Wikimedia Commons</span>
+                <span>Wiktionary</span>
+              </div>
+              <div class="lm-quiz-foot">
+                <span>Your card: <strong>Wikipedia</strong></span>
+                <span class="mono">+240 PTS</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="lm-trade-section page-shell" id="trade">
+          <div class="lm-trade-copy">
+            <p class="eyebrow">The exchange</p>
+            <h2>
+              Trade the page.
+              <br />
+              <em>Keep the story.</em>
+            </h2>
+            <p>
+              Every card is unique, so every trade matters. Propose a swap, accept an offer, and
+              watch the ownership move. Mint to Solana when you want the claim to leave the game and
+              live in your wallet.
+            </p>
+            <div class="lm-trade-points">
+              <div><Icon name="check" size={15} /> In-game swaps settle instantly</div>
+              <div><Icon name="check" size={15} /> Minted cards become Metaplex Core NFTs</div>
+              <div><Icon name="check" size={15} /> No duplicate supply, no dilution</div>
+            </div>
+          </div>
+          <div class="lm-trade-board">
+            <div class="lm-trade-board-head">
+              <span class="mono">OPEN OFFERS</span>
+              <span class="live-badge"><span class="live-dot" /> LIVE</span>
+            </div>
+            <div class="lm-trade-row">
+              <GameCard card={cards[1]!} size="xs" />
+              <span class="trade-arrow"><Icon name="swap" size={18} /></span>
+              <GameCard card={cards[2]!} size="xs" />
+              <div class="lm-trade-row-info">
+                <strong>Moon</strong>
+                <span>for</span>
+                <strong>Bitcoin</strong>
+                <small>Offered by @lunar_collector · 3m ago</small>
+              </div>
+            </div>
+            <div class="lm-trade-row">
+              <GameCard card={cards[3]!} size="xs" />
+              <span class="trade-arrow"><Icon name="swap" size={18} /></span>
+              <GameCard card={cards[5] ?? cards[4]!} size="xs" />
+              <div class="lm-trade-row-info">
+                <strong>Octopus</strong>
+                <span>for</span>
+                <strong>Dune (novel)</strong>
+                <small>Offered by @deep_reader · 11m ago</small>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="lm-solana" id="solana">
+          <div class="page-shell lm-solana-inner">
+            <div class="lm-solana-copy">
+              <p class="eyebrow">On Solana</p>
+              <h2>
+                Cards that leave
+                <br />
+                the <em>building.</em>
+              </h2>
+              <p>
+                WikiMasters cards are born in the game and can become real Metaplex Core assets on
+                Solana. Connect Phantom, Solflare, or Backpack and mint a 1-of-1 collectible to your
+                own wallet. Your keys, your pages.
+              </p>
+              <div class="lm-solana-pills">
+                <span><Icon name="bolt" size={13} /> Metaplex Core</span>
+                <span><Icon name="wallet" size={13} /> Phantom / Solflare</span>
+                <span><Icon name="shield" size={13} /> Devnet</span>
+              </div>
+            </div>
+            <div class="lm-solana-proof">
+              <div class="lm-proof-row">
+                <span class="lm-proof-index mono">01</span>
+                <div>
+                  <h3>Pull a card</h3>
+                  <p>Five unique articles, one pack, every ten minutes.</p>
+                </div>
+              </div>
+              <div class="lm-proof-row">
+                <span class="lm-proof-index mono">02</span>
+                <div>
+                  <h3>Claim the 1-of-1</h3>
+                  <p>The archive locks the page to your collector account.</p>
+                </div>
+              </div>
+              <div class="lm-proof-row">
+                <span class="lm-proof-index mono">03</span>
+                <div>
+                  <h3>Mint the page</h3>
+                  <p>The article, stats, and edition are written into the NFT metadata.</p>
+                </div>
+              </div>
+              <Show when={spotlight.mintAddress}>
+                <div class="lm-proof-address mono">{spotlight.mintAddress}</div>
+              </Show>
+            </div>
+          </div>
+        </section>
+
+        <section class="lm-cta page-shell">
+          <div class="lm-cta-inner">
+            <p class="eyebrow">Your first pack is waiting</p>
+            <h2>
+              The sum of human
+              <br />
+              knowledge. <em>Collect it.</em>
+            </h2>
+            <p>
+              Create a passkey, open five cards, and see which page the archive gives you first.
+            </p>
+            <button class="btn btn-primary btn-xl" onClick={start}>
+              <Icon name="bolt" size={18} /> Create your collector
+            </button>
+            <span class="lm-cta-note">No wallet needed to start · Passkey login · 1/1 cards</span>
           </div>
         </section>
       </main>
