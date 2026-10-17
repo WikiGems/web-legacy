@@ -1,0 +1,11 @@
+schema-version = "1.18.0"
+
+[install]
+bun.pkg-path = "bun"
+bun.version = "1.4.2"
+nodejs.pkg-path = "nodejs"
+nodejs.version = "24.21.0"
+turso-cli.pkg-path = "turso-cli"
+turso-cli.version = "1.0.34"
+wrangler.pkg-path = "wrangler"
+wrangler.version = "4.148.0"

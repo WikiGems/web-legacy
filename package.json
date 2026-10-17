@@ -1,0 +1,44 @@
+{
+  "name": "wikitrade",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "WikiTrade \u2014 collaborative market intelligence, secured by passkeys.",
+  "scripts": {
+    "dev": "bun run scripts/dev.ts",
+    "dev:web": "vite --port 5173",
+    "dev:worker": "wrangler dev --port 8787",
+    "dev:db": "turso dev --db-file .data/wikitrade.db --port 8080",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "deploy": "bun run build && wrangler deploy",
+    "db:migrate": "bun run scripts/migrate.ts",
+    "db:generate": "bun run scripts/generate-auth-schema.ts",
+    "test:e2e": "bun run scripts/smoke.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@better-auth/passkey": "1.7.10",
+    "@fontsource-variable/fraunces": "5.3.0",
+    "@fontsource-variable/instrument-sans": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@libsql/client": "0.18.0",
+    "@libsql/kysely-libsql": "0.4.1",
+    "@solidjs/router": "1.0.0",
+    "better-auth": "1.7.10",
+    "effect": "4.0.5",
+    "kysely": "0.29.6",
+    "solid-js": "1.9.17"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261016.1",
+    "@types/bun": "1.4.3",
+    "playwright-core": "1.64.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vite-plugin-solid": "2.11.14",
+    "wrangler": "4.148.0"
+  },
+  "packageManager": "bun@1.4.2"
+}
