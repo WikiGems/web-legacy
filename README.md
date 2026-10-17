@@ -2,12 +2,7 @@
 
 **Every article is a card. There is only one.**
 
-**Live:** [wikigems-app.osbyrne.workers.dev](https://wikigems-app.osbyrne.workers.dev)
-
-> The bare `wikigems.osbyrne.workers.dev` host is protected by the account's Cloudflare Access
-> policy, so the public deployment uses the `-app` suffix. Disable Workers Access for that host in
-> the Cloudflare dashboard if you want the bare hostname instead.
-
+**Status:** not currently deployed. The previous Cloudflare and Turso resources have been removed.
 WikiGems is a fan-made, browser-based trading card game built from Wikipedia. Open a pack and
 you get five real Wikipedia articles, each rendered as a unique card. There are no reprints and no
 duplicate supplies: one article equals one card, globally.
@@ -185,15 +180,15 @@ TURSO_TOKEN="$(turso db tokens create wikigems)"
 TURSO_DATABASE_URL="$TURSO_URL" TURSO_AUTH_TOKEN="$TURSO_TOKEN" bun run db:migrate
 ```
 
-## Deploy to Cloudflare
+## Deployment notes (for future releases)
 
 ```sh
 flox activate
 wrangler login
 
-wrangler secret put TURSO_DATABASE_URL --name wikigems-app
-wrangler secret put TURSO_AUTH_TOKEN --name wikigems-app
-wrangler secret put BETTER_AUTH_SECRET --name wikigems-app
+wrangler secret put TURSO_DATABASE_URL --name wikigems
+wrangler secret put TURSO_AUTH_TOKEN --name wikigems
+wrangler secret put BETTER_AUTH_SECRET --name wikigems
 
 bun run deploy
 ```
