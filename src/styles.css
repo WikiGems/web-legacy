@@ -342,14 +342,14 @@ svg {
 
 /* ——— Brand ——— */
 
-.wm-brand {
+.wg-brand {
   display: inline-flex;
   align-items: center;
   gap: 9px;
   flex-shrink: 0;
 }
 
-.wm-brand-mark {
+.wg-brand-mark {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -369,15 +369,15 @@ svg {
   box-shadow: inset 0 0 18px rgba(86, 242, 170, 0.1);
 }
 
-.wm-brand-w {
+.wg-brand-w {
   margin-right: -1px;
 }
 
-.wm-brand-m {
+.wg-brand-g {
   color: var(--text);
 }
 
-.wm-wordmark {
+.wg-wordmark {
   font-family: var(--display);
   font-size: 1.28rem;
   font-weight: 650;
@@ -385,7 +385,7 @@ svg {
   color: var(--text);
 }
 
-.wm-wordmark > span {
+.wg-wordmark > span {
   color: var(--green);
 }
 
@@ -2928,7 +2928,7 @@ button.game-card:hover .game-card-art img {
   text-align: center;
 }
 
-.play-gate .wm-brand {
+.play-gate .wg-brand {
   justify-content: center;
 }
 
@@ -4528,7 +4528,7 @@ button.game-card:hover .game-card-art img {
     display: inline-flex;
   }
 
-  .wm-wordmark {
+  .wg-wordmark {
     font-size: 1.14rem;
   }
 
@@ -4775,7 +4775,7 @@ button.game-card:hover .game-card-art img {
     display: none;
   }
 
-  .play-brand .wm-wordmark {
+  .play-brand .wg-wordmark {
     display: none;
   }
 
@@ -4899,7 +4899,7 @@ button.game-card:hover .game-card-art img {
 }
 
 @media (max-width: 440px) {
-  .wm-brand-mark {
+  .wg-brand-mark {
     width: 34px;
     height: 34px;
   }

@@ -19,7 +19,7 @@ export function createAuth(env: Env, request?: Request) {
   ];
 
   return betterAuth({
-    appName: "WikiMasters",
+    appName: "WikiGems",
     baseURL,
     secret: env.BETTER_AUTH_SECRET,
     trustedOrigins,
@@ -36,7 +36,7 @@ export function createAuth(env: Env, request?: Request) {
     },
     plugins: [
       passkey({
-        rpName: "WikiMasters",
+        rpName: "WikiGems",
         rpID,
         origin: env.PASSKEY_ORIGIN || undefined,
         registration: {
@@ -91,4 +91,4 @@ export function createAuth(env: Env, request?: Request) {
   });
 }
 
-export type WikiMastersAuth = ReturnType<typeof createAuth>;
+export type WikiGemsAuth = ReturnType<typeof createAuth>;

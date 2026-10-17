@@ -169,7 +169,7 @@ console.log("Wallet linked, modal visible:", await page.locator(".card-modal").i
 
 await page.getByRole("button", { name: /Mint NFT on Solana/i }).click();
 await page.waitForTimeout(12000);
-await page.screenshot({ path: ".artifacts/wm-minted.png", fullPage: true });
+await page.screenshot({ path: ".artifacts/wg-minted.png", fullPage: true });
 const mintText = await page.locator(".minted-panel").count();
 console.log("Minted panel:", mintText);
 console.log("Card status:", await page.locator(".card-modal").innerText().then((text) => text.slice(0, 500)));

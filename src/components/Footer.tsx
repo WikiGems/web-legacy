@@ -40,7 +40,7 @@ export function Footer() {
         </div>
       </div>
       <div class="page-shell footer-bottom">
-        <p>© 2026 WikiMasters. A fan-made game. Not affiliated with the Wikimedia Foundation.</p>
+        <p>© 2026 WikiGems. A fan-made game. Not affiliated with the Wikimedia Foundation.</p>
         <p class="mono">ONE ARTICLE · ONE CARD · ONE OF ONE</p>
       </div>
     </footer>

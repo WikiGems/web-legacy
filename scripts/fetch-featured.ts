@@ -11,7 +11,7 @@ const titles = [
   "Mario", "The Lord of the Rings", "Sushi", "Saturn V", "Penguin",
 ];
 
-const UA = "WikiMastersClone/0.1 (https://github.com/osbyrne/wikimasters)";
+const UA = "WikiGemsClone/0.1 (https://github.com/osbyrne/wikigems)";
 const start = "20251001";
 const end = "20260930";
 

@@ -8,7 +8,7 @@ const env = {
   TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL ?? "http://127.0.0.1:8080",
   TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN ?? "",
   BETTER_AUTH_SECRET:
-    process.env.BETTER_AUTH_SECRET ?? "dev-only-wikimasters-secret-change-me-32-chars",
+    process.env.BETTER_AUTH_SECRET ?? "dev-only-wikigems-secret-change-me-32-chars",
   BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ?? "http://localhost:5173",
   PASSKEY_RP_ID: process.env.PASSKEY_RP_ID ?? "localhost",
   PASSKEY_ORIGIN: process.env.PASSKEY_ORIGIN ?? "http://localhost:5173",

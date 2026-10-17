@@ -66,7 +66,7 @@ try {
     console.log("→ local Turso already running");
   } else {
     console.log("→ starting local Turso on :8080");
-    start(["turso", "dev", "--db-file", ".data/wikimasters.db", "--port", "8080"], "turso");
+    start(["turso", "dev", "--db-file", ".data/wikigems.db", "--port", "8080"], "turso");
     await waitFor("http://127.0.0.1:8080/health", "local Turso");
   }
 
@@ -96,7 +96,7 @@ try {
   console.log("→ starting Vite on :5173");
   start(["bun", "run", "dev:web"], "vite");
 
-  console.log("\n  WikiMasters is live at http://localhost:5173");
+  console.log("\n  WikiGems is live at http://localhost:5173");
   console.log("  Use localhost (not 127.0.0.1) so WebAuthn can bind to the rpID.\n");
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);

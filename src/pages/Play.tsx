@@ -459,7 +459,7 @@ export default function Play() {
                         aria-label="Open a pack"
                       >
                         <span class="booster-notch booster-notch--top" />
-                        <span class="booster-brand">WIKIMASTERS</span>
+                        <span class="booster-brand">WIKIGEMS</span>
                         <span class="booster-emblem">W</span>
                         <span class="booster-copy">THE WIKIPEDIA CARD GAME</span>
                         <span class="booster-bottom">5 CARDS · 1 OF 1</span>

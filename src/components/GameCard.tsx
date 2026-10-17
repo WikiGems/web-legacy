@@ -101,7 +101,7 @@ export function CardBack(props: { size?: "xs" | "sm" | "md" | "lg"; class?: stri
     <div class={`card-back card-back--${props.size ?? "md"} ${props.class ?? ""}`} aria-hidden="true">
       <div class="card-back-inner">
         <span class="card-back-globe">W</span>
-        <span class="card-back-brand">WIKIMASTERS</span>
+        <span class="card-back-brand">WIKIGEMS</span>
         <span class="card-back-label">{props.label ?? "1 OF 1"}</span>
       </div>
     </div>

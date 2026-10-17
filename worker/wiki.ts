@@ -2,7 +2,7 @@ import { categoryFor } from "../shared/card-engine";
 import type { FeaturedArticle } from "../shared/domain";
 import { featuredArticles } from "../shared/featured";
 
-const USER_AGENT = "WikiMasters/0.1 (https://github.com/osbyrne/wikimasters)";
+const USER_AGENT = "WikiGems/0.1 (https://github.com/osbyrne/wikigems)";
 
 interface WikipediaSummary {
   pageid?: number;

@@ -163,7 +163,7 @@ export async function mintCardNft(
   }
 
   const asset = generateSigner(umi);
-  const name = truncateBytes(`WikiMasters: ${card.title}`, 32);
+  const name = truncateBytes(`WikiGems: ${card.title}`, 32);
   try {
     const signatureBytes = await create(umi, {
       asset,

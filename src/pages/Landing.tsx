@@ -77,7 +77,7 @@ export default function Landing() {
               </div>
             </div>
 
-            <div class="lm-hero-stage" aria-label="Featured WikiMasters cards">
+            <div class="lm-hero-stage" aria-label="Featured WikiGems cards">
               <div class="lm-card-fan">
                 <For each={heroCards}>
                   {(card, index) => (
@@ -193,7 +193,7 @@ export default function Landing() {
                 <em>provenance.</em>
               </h2>
               <p>
-                A WikiMasters card is not a picture of an article. It is a claim on the page itself.
+                A WikiGems card is not a picture of an article. It is a claim on the page itself.
                 Rarity, attack, and defense are derived from real readership and the shape of the
                 article.
               </p>
@@ -332,7 +332,7 @@ export default function Landing() {
                 the <em>building.</em>
               </h2>
               <p>
-                WikiMasters cards are born in the game and can become real Metaplex Core assets on
+                WikiGems cards are born in the game and can become real Metaplex Core assets on
                 Solana. Connect Phantom, Solflare, or Backpack and mint a 1-of-1 collectible to your
                 own wallet. Your keys, your pages.
               </p>

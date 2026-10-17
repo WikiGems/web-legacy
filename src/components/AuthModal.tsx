@@ -53,7 +53,7 @@ export function AuthModal() {
         return "The passkey prompt was cancelled. Nothing was created — try again when you are ready.";
       }
       if (value.name === "InvalidStateError") {
-        return "This device already has a passkey for WikiMasters. Sign in instead.";
+        return "This device already has a passkey for WikiGems. Sign in instead.";
       }
       return value.message;
     }

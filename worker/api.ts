@@ -20,7 +20,7 @@ import {
   draftFromArticle,
 } from "../shared/card-engine";
 import { featuredArticles } from "../shared/featured";
-import type { WikiMastersAuth } from "./auth";
+import type { WikiGemsAuth } from "./auth";
 import { createDb, type ProfileTable } from "./db";
 import type { Env } from "./env";
 import {
@@ -77,7 +77,7 @@ const decodeBody = <A>(
     ),
   );
 
-const requireSession = (auth: WikiMastersAuth, request: Request) =>
+const requireSession = (auth: WikiGemsAuth, request: Request) =>
   Effect.tryPromise({
     try: () => auth.api.getSession({ headers: request.headers }),
     catch: () => new HttpError(500, "Could not reach the session service."),
@@ -281,7 +281,7 @@ function artSvg(card: CardRow): string {
   <rect width="600" height="800" rx="34" fill="url(#glow)"/>
   <rect width="600" height="800" rx="34" fill="url(#dots)"/>
   <rect x="26" y="26" width="548" height="748" rx="24" fill="none" stroke="#0b1110" stroke-width="3" opacity="0.24"/>
-  <text x="52" y="86" font-family="monospace" font-size="20" letter-spacing="4" fill="#0b1110">WIKIMASTERS / 1 OF 1</text>
+  <text x="52" y="86" font-family="monospace" font-size="20" letter-spacing="4" fill="#0b1110">WIKIGEMS / 1 OF 1</text>
   <text x="548" y="86" text-anchor="end" font-family="monospace" font-size="24" font-weight="700" fill="#0b1110">${meta.code}</text>
   <circle cx="300" cy="272" r="104" fill="#0b1110" opacity="0.9"/>
   <text x="300" y="292" text-anchor="middle" font-family="Georgia, serif" font-size="88" font-weight="700" fill="${meta.color}">${safeXml(card.title.slice(0, 1).toUpperCase())}</text>
@@ -323,7 +323,7 @@ function tradeDtos(
   return output;
 }
 
-export async function handleApi(request: Request, env: Env, auth: WikiMastersAuth): Promise<Response> {
+export async function handleApi(request: Request, env: Env, auth: WikiGemsAuth): Promise<Response> {
   const url = new URL(request.url);
   const db = createDb(env);
 
@@ -333,7 +333,7 @@ export async function handleApi(request: Request, env: Env, auth: WikiMastersAut
     if (url.pathname === "/api/health" && request.method === "GET") {
       return privateJson({
         ok: true,
-        service: "wikimasters",
+        service: "wikigems",
         database: "turso",
         cluster: env.SOLANA_CLUSTER ?? "devnet",
       });
@@ -692,9 +692,9 @@ export async function handleApi(request: Request, env: Env, auth: WikiMastersAut
         const origin = new URL(request.url).origin;
         const image = card.imageUrl || `${origin}/api/cards/${card.id}/art.svg`;
         const metadata = {
-          name: `WikiMasters: ${card.title}`.slice(0, 32),
+          name: `WikiGems: ${card.title}`.slice(0, 32),
           symbol: "WIKI",
-          description: `${card.extract}\n\nA 1-of-1 WikiMasters card generated from the Wikipedia article "${card.title}". One article. One card. Minted on Solana.`,
+          description: `${card.extract}\n\nA 1-of-1 WikiGems card generated from the Wikipedia article "${card.title}". One article. One card. Minted on Solana.`,
           image,
           external_url: `${origin}/play?card=${card.id}`,
           attributes: [
@@ -807,7 +807,7 @@ export async function handleApi(request: Request, env: Env, auth: WikiMastersAut
       const profile = yield* dbOperation(() => ensureProfile(db, session.user.id));
       const nonce = crypto.randomUUID();
       const expiresAt = Date.now() + 5 * 60 * 1000;
-      const message = `WikiMasters wallet link\nAccount: ${session.user.email}\nWallet: ${wallet}\nNonce: ${nonce}`;
+      const message = `WikiGems wallet link\nAccount: ${session.user.email}\nWallet: ${wallet}\nNonce: ${nonce}`;
       yield* dbOperation(() =>
         db
           .updateTable("profiles")
@@ -829,7 +829,7 @@ export async function handleApi(request: Request, env: Env, auth: WikiMastersAut
       ) {
         return yield* Effect.fail(new HttpError(400, "The wallet challenge expired. Try again."));
       }
-      const message = `WikiMasters wallet link\nAccount: ${session.user.email}\nWallet: ${body.walletAddress}\nNonce: ${profile.walletNonce}`;
+      const message = `WikiGems wallet link\nAccount: ${session.user.email}\nWallet: ${body.walletAddress}\nNonce: ${profile.walletNonce}`;
       let valid = false;
       try {
         valid = nacl.sign.detached.verify(

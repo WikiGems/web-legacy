@@ -10,7 +10,7 @@ const migrationFiles = (await readdir("migrations"))
   .sort();
 
 await client.execute(`
-  create table if not exists "_wikitrade_migrations" (
+  create table if not exists "_wikigems_migrations" (
     "name" text not null primary key,
     "appliedAt" integer not null
   )
@@ -18,7 +18,7 @@ await client.execute(`
 
 const applied = new Set(
   (
-    await client.execute('select "name" from "_wikitrade_migrations" order by "name"')
+    await client.execute('select "name" from "_wikigems_migrations" order by "name"')
   ).rows.map((row) => String(row.name)),
 );
 
@@ -33,7 +33,7 @@ for (const file of migrationFiles) {
   console.log(`→ applying ${file}`);
   await client.executeMultiple(sql);
   await client.execute({
-    sql: 'insert into "_wikitrade_migrations" ("name", "appliedAt") values (?, ?)',
+    sql: 'insert into "_wikigems_migrations" ("name", "appliedAt") values (?, ?)',
     args: [file, Date.now()],
   });
   count += 1;

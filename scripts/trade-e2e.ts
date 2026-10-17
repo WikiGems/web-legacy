@@ -58,7 +58,7 @@ console.log("Listed by Bob:", listed?.title);
 
 await alice.page.getByRole("button", { name: /^Exchange/i }).first().click();
 await alice.page.waitForTimeout(500);
-await alice.page.screenshot({ path: ".artifacts/wm-exchange.png", fullPage: true });
+await alice.page.screenshot({ path: ".artifacts/wg-exchange.png", fullPage: true });
 
 const stateAlice = (await alice.page.evaluate(() => fetch("/api/game/state").then(r => r.json()))) as { cards: any[] };
 const offer = stateAlice.cards.find((card: any) => card.status === "claimed");
@@ -77,7 +77,7 @@ await bob.page.waitForTimeout(500);
 await bob.page.getByRole("button", { name: /^Exchange/i }).first().click();
 await bob.page.waitForTimeout(500);
 console.log("Incoming offers:", await bob.page.locator(".trade-offer").count());
-await bob.page.screenshot({ path: ".artifacts/wm-incoming.png", fullPage: true });
+await bob.page.screenshot({ path: ".artifacts/wg-incoming.png", fullPage: true });
 await bob.page.getByRole("button", { name: /^Accept$/ }).first().click();
 await bob.page.waitForTimeout(1500);
 
@@ -90,7 +90,7 @@ console.log("Bob owner of requested:", bobAfter.cards.find((c: any) => c.id === 
 
 await alice.page.getByRole("button", { name: /^Exchange/i }).first().click();
 await alice.page.waitForTimeout(500);
-await alice.page.screenshot({ path: ".artifacts/wm-after-trade.png", fullPage: true });
+await alice.page.screenshot({ path: ".artifacts/wg-after-trade.png", fullPage: true });
 
 await alice.context.close();
 await bob.context.close();

@@ -89,7 +89,7 @@ export function WalletModal() {
 
             <p class="wallet-lede">
               Link a devnet wallet to mint 1-of-1 cards as Metaplex Core NFTs. You pay the tiny
-              network fee; WikiMasters never holds your keys.
+              network fee; WikiGems never holds your keys.
             </p>
 
             <Show

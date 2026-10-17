@@ -1,10 +1,10 @@
-# WikiMasters
+# WikiGems
 
 **Every article is a card. There is only one.**
 
-**Live:** [wikimasters.osbyrne.workers.dev](https://wikimasters.osbyrne.workers.dev)
+**Live:** [wikigems-app.osbyrne.workers.dev](https://wikigems-app.osbyrne.workers.dev)
 
-WikiMasters is a fan-made, browser-based trading card game built from Wikipedia. Open a pack and
+WikiGems is a fan-made, browser-based trading card game built from Wikipedia. Open a pack and
 you get five real Wikipedia articles, each rendered as a unique card. There are no reprints and no
 duplicate supplies: one article equals one card, globally.
 
@@ -12,7 +12,7 @@ Cards can be collected, used in quiz duels, and traded through the in-game excha
 card can also be minted as a [Metaplex Core](https://www.metaplex.com/core) NFT on Solana, at which
 point the 1-of-1 lives in the player's own wallet rather than the game database.
 
-The project is a Solana-native reimagining of the WikiMasters loop: packs, album, duels, exchange,
+The project is a Solana-native reimagining of the WikiGems loop: packs, album, duels, exchange,
 and a rarity and stats system derived from the real Wikipedia page.
 
 ## The game
@@ -173,10 +173,10 @@ Important invariants:
 
 ```sh
 turso auth login
-turso db create wikimasters
+turso db create wikigems
 
-TURSO_URL="$(turso db show wikimasters --url)"
-TURSO_TOKEN="$(turso db tokens create wikimasters)"
+TURSO_URL="$(turso db show wikigems --url)"
+TURSO_TOKEN="$(turso db tokens create wikigems)"
 
 TURSO_DATABASE_URL="$TURSO_URL" TURSO_AUTH_TOKEN="$TURSO_TOKEN" bun run db:migrate
 ```
@@ -187,9 +187,9 @@ TURSO_DATABASE_URL="$TURSO_URL" TURSO_AUTH_TOKEN="$TURSO_TOKEN" bun run db:migra
 flox activate
 wrangler login
 
-wrangler secret put TURSO_DATABASE_URL --name wikimasters
-wrangler secret put TURSO_AUTH_TOKEN --name wikimasters
-wrangler secret put BETTER_AUTH_SECRET --name wikimasters
+wrangler secret put TURSO_DATABASE_URL --name wikigems-app
+wrangler secret put TURSO_AUTH_TOKEN --name wikigems-app
+wrangler secret put BETTER_AUTH_SECRET --name wikigems-app
 
 bun run deploy
 ```
@@ -214,7 +214,7 @@ Regenerate the featured set with:
 bun run scripts/fetch-featured.ts
 ```
 
-Article text is available under CC BY-SA 4.0. Card images come from Wikimedia Commons. WikiMasters is
+Article text is available under CC BY-SA 4.0. Card images come from Wikimedia Commons. WikiGems is
 an independent fan project and is not affiliated with the Wikimedia Foundation.
 
 ## Project map
