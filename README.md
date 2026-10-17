@@ -4,6 +4,10 @@
 
 **Live:** [wikigems-app.osbyrne.workers.dev](https://wikigems-app.osbyrne.workers.dev)
 
+> The bare `wikigems.osbyrne.workers.dev` host is protected by the account's Cloudflare Access
+> policy, so the public deployment uses the `-app` suffix. Disable Workers Access for that host in
+> the Cloudflare dashboard if you want the bare hostname instead.
+
 WikiGems is a fan-made, browser-based trading card game built from Wikipedia. Open a pack and
 you get five real Wikipedia articles, each rendered as a unique card. There are no reprints and no
 duplicate supplies: one article equals one card, globally.
