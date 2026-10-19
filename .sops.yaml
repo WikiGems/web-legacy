@@ -1,0 +1,4 @@
+# Public age recipients only. Private keys stay outside this repository.
+creation_rules:
+  - path_regex: ^secrets/development\.env$
+    age: age1cwqvhj0arczuj2z950txj83f3qv6f6q4ws4jj69r64s5atuq03fqc9zrnw

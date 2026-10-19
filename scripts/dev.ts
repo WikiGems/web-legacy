@@ -1,13 +1,13 @@
 /**
  * One-command local development:
- *   1. start a local Turso/libSQL server (if not already running)
+ *   1. use the configured Turso database, or start a local libSQL server
  *   2. apply migrations
  *   3. compile the static frontend once so Wrangler has an assets directory
  *   4. start the Worker on :8787 and Vite on :5173
  *
  * Vite proxies /api to the Worker, so cookies and WebAuthn stay same-origin.
  */
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 
 const children: Bun.Subprocess[] = [];
 let shuttingDown = false;
@@ -62,10 +62,16 @@ process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
 
 try {
-  if (await healthy("http://127.0.0.1:8080/health")) {
+  const databaseURL = process.env.TURSO_DATABASE_URL ?? "http://127.0.0.1:8080";
+  process.env.TURSO_DATABASE_URL = databaseURL;
+
+  if (databaseURL !== "http://127.0.0.1:8080") {
+    console.log(`→ using configured database: ${databaseURL}`);
+  } else if (await healthy("http://127.0.0.1:8080/health")) {
     console.log("→ local Turso already running");
   } else {
     console.log("→ starting local Turso on :8080");
+    mkdirSync(".data", { recursive: true });
     start(["turso", "dev", "--db-file", ".data/wikigems.db", "--port", "8080"], "turso");
     await waitFor("http://127.0.0.1:8080/health", "local Turso");
   }
@@ -94,7 +100,7 @@ try {
   await waitFor("http://127.0.0.1:8787/api/health", "Worker");
 
   console.log("→ starting Vite on :5173");
-  start(["bun", "run", "dev:web"], "vite");
+  start(["vite", "--port", "5173"], "vite");
 
   console.log("\n  WikiGems is live at http://localhost:5173");
   console.log("  Use localhost (not 127.0.0.1) so WebAuthn can bind to the rpID.\n");
