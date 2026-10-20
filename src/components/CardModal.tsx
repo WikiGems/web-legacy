@@ -1,7 +1,11 @@
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import type { Card } from "../../shared/domain";
-import { RARITY_META, explorerAddressUrl, explorerTxUrl, shortNumber } from "../../shared/card-engine";
+import {
+  RARITY_META,
+  explorerAddressUrl,
+  explorerTxUrl,
+} from "../../shared/card-engine";
 import { confirmCardMint, runApi, toggleCardTrade } from "../lib/api";
 import { SOLANA_CLUSTER, mintCardNft, WalletError } from "../lib/solana";
 import { showToast } from "../lib/ui";
@@ -65,7 +69,11 @@ export function CardModal(props: {
       if (cause instanceof WalletError && cause.code === "NO_SOL") {
         setError(cause.message);
       } else {
-        setError(cause instanceof Error ? cause.message : "The mint could not be completed.");
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "The mint could not be completed.",
+        );
       }
     } finally {
       setMinting(false);
@@ -75,11 +83,18 @@ export function CardModal(props: {
   async function toggleListing() {
     setListing(true);
     try {
-      const updated = await runApi(toggleCardTrade(props.card.id, !props.card.forTrade));
+      const updated = await runApi(
+        toggleCardTrade(props.card.id, !props.card.forTrade),
+      );
       props.onChanged(updated);
-      showToast(updated.forTrade ? "Card is open to trade" : "Card removed from the market", {
-        tone: "success",
-      });
+      showToast(
+        updated.forTrade
+          ? "Card is open to trade"
+          : "Card removed from the market",
+        {
+          tone: "success",
+        },
+      );
     } catch (cause) {
       showToast("Could not update the trade list", {
         body: cause instanceof Error ? cause.message : undefined,
@@ -105,48 +120,44 @@ export function CardModal(props: {
           if (event.target === event.currentTarget) props.onClose();
         }}
       >
-        <div class="card-modal" role="dialog" aria-modal="true" aria-labelledby="card-title">
-          <button class="icon-button card-modal-close" onClick={props.onClose} aria-label="Close card">
+        <div
+          class="card-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="card-title"
+        >
+          <button
+            class="icon-button card-modal-close"
+            onClick={props.onClose}
+            aria-label="Close card"
+          >
             <Icon name="close" />
           </button>
 
-          <div class="card-modal-art" style={`--rarity-color:${meta().color};--rarity-deep:${meta().deep}`}>
+          <div
+            class="card-modal-art"
+            style={`--rarity-color:${meta().color};--rarity-deep:${meta().deep}`}
+          >
             <GameCard card={props.card} size="lg" />
           </div>
 
           <div class="card-modal-info">
             <div class="card-modal-head">
               <div>
-                <p class="eyebrow">
-                  {props.card.category} · {shortNumber(props.card.pageviews)} yearly views
-                </p>
+                <p class="eyebrow">{props.card.category}</p>
                 <h2 id="card-title">{props.card.title}</h2>
                 <p class="card-modal-desc">{props.card.description}</p>
-              </div>
-              <span class="card-modal-one">1 / 1</span>
-            </div>
-
-            <div class="card-modal-stats">
-              <div>
-                <Icon name="sword" size={18} />
-                <span class="mono">ATTACK</span>
-                <strong>{props.card.attack.toLocaleString()}</strong>
-              </div>
-              <div>
-                <Icon name="shield" size={18} />
-                <span class="mono">DEFENSE</span>
-                <strong>{props.card.defense.toLocaleString()}</strong>
-              </div>
-              <div>
-                <Icon name="globe" size={18} />
-                <span class="mono">RARITY</span>
-                <strong>{meta().label}</strong>
               </div>
             </div>
 
             <div class="card-modal-extract">
               <p>{props.card.extract}</p>
-              <a href={props.card.articleUrl} target="_blank" rel="noreferrer" class="text-link">
+              <a
+                href={props.card.articleUrl}
+                target="_blank"
+                rel="noreferrer"
+                class="text-link"
+              >
                 Read the Wikipedia article <Icon name="external" size={13} />
               </a>
             </div>
@@ -158,16 +169,23 @@ export function CardModal(props: {
                     <span class="onchain-chip onchain-chip--large">
                       <Icon name="bolt" size={13} /> On Solana
                     </span>
-                    <span class="mono">METAPLEX CORE · {SOLANA_CLUSTER.toUpperCase()}</span>
+                    <span class="mono">Metaplex Core · {SOLANA_CLUSTER}</span>
                   </div>
-                  <button class="mint-address" onClick={copyMint} title="Copy mint address">
+                  <button
+                    class="mint-address"
+                    onClick={copyMint}
+                    title="Copy mint address"
+                  >
                     <span>{minted().mintAddress}</span>
                     <Icon name="copy" size={15} />
                   </button>
                   <div class="minted-links">
                     <a
                       class="text-link"
-                      href={explorerAddressUrl(minted().mintAddress!, SOLANA_CLUSTER)}
+                      href={explorerAddressUrl(
+                        minted().mintAddress!,
+                        SOLANA_CLUSTER,
+                      )}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -176,7 +194,10 @@ export function CardModal(props: {
                     <Show when={minted().txSignature}>
                       <a
                         class="text-link"
-                        href={explorerTxUrl(minted().txSignature!, SOLANA_CLUSTER)}
+                        href={explorerTxUrl(
+                          minted().txSignature!,
+                          SOLANA_CLUSTER,
+                        )}
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -190,54 +211,76 @@ export function CardModal(props: {
 
             <Show when={props.owned && props.card.status === "claimed"}>
               <div class="card-modal-actions">
-                <button class="btn btn-primary btn-lg" onClick={mint} disabled={minting()}>
+                <button
+                  class="btn btn-primary btn-lg"
+                  onClick={mint}
+                  disabled={minting()}
+                >
                   <Show
                     when={minting()}
                     fallback={
                       <>
                         <Icon name="bolt" size={17} />
-                        {props.linkedWallet ? "Mint NFT on Solana" : "Connect wallet to mint"}
+                        {props.linkedWallet
+                          ? "Mint NFT on Solana"
+                          : "Connect wallet to mint"}
                       </>
                     }
                   >
                     <span class="spinner" /> Minting on Solana…
                   </Show>
                 </button>
-                <button class="btn btn-outline btn-lg" onClick={toggleListing} disabled={listing()}>
-                  <Icon name={props.card.forTrade ? "check" : "swap"} size={17} />
+                <button
+                  class="btn btn-outline btn-lg"
+                  onClick={toggleListing}
+                  disabled={listing()}
+                >
+                  <Icon
+                    name={props.card.forTrade ? "check" : "swap"}
+                    size={17}
+                  />
                   {props.card.forTrade ? "Listed for trade" : "List for trade"}
                 </button>
               </div>
               <Show when={error()}>
                 <div class="mint-error">
                   <p>{error()}</p>
-                  <a href="https://faucet.solana.com/" target="_blank" rel="noreferrer" class="text-link">
+                  <a
+                    href="https://faucet.solana.com/"
+                    target="_blank"
+                    rel="noreferrer"
+                    class="text-link"
+                  >
                     Get devnet SOL <Icon name="external" size={12} />
                   </a>
                 </div>
               </Show>
               <p class="card-modal-fine">
-                The 1-of-1 claim is held in the game until you mint. Once minted, the NFT lives in
-                your devnet wallet and is no longer tradable in-game.
+                The 1-of-1 claim is held in the game until you mint. Once
+                minted, the NFT lives in your devnet wallet and is no longer
+                tradable in-game.
               </p>
             </Show>
 
             <Show when={!props.owned && props.card.forTrade}>
-              <button class="btn btn-primary btn-lg btn-full" onClick={() => props.onProposeTrade?.(props.card)}>
+              <button
+                class="btn btn-primary btn-lg btn-full"
+                onClick={() => props.onProposeTrade?.(props.card)}
+              >
                 <Icon name="swap" size={17} /> Propose a trade
               </button>
             </Show>
 
             <Show when={props.owned && props.card.status === "minted"}>
               <p class="card-modal-fine">
-                This card is minted. Its ownership can be moved on Solana from your wallet or a
-                marketplace — in-game claims cannot touch it.
+                This card is minted. Its ownership can be moved on Solana from
+                your wallet or a marketplace — in-game claims cannot touch it.
               </p>
             </Show>
 
             <p class="card-modal-license">
-              Article text from Wikipedia, available under CC BY-SA 4.0. Card art sourced from
-              Wikimedia Commons.
+              Article text from Wikipedia, available under CC BY-SA 4.0. Card
+              art sourced from Wikimedia Commons.
             </p>
           </div>
         </div>

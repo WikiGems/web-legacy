@@ -44,17 +44,17 @@ cards, so the complete game is playable without a wallet.
 
 ## Stack
 
-| Layer | Choice |
-| --- | --- |
-| Runtime / package manager | Bun 1.4.2 (pinned by Flox) |
-| UI | SolidJS 1.9 + `@solidjs/router` |
-| Build | Vite 8 + `vite-plugin-solid` |
-| Domain / API composition | Effect 4.0 |
-| Auth | Better Auth 1.7 + `@better-auth/passkey` |
-| Solana | `@solana/web3.js`, Umi, Metaplex Core |
-| Database | Turso / libSQL through Kysely |
-| Hosting | Cloudflare Workers + Workers Static Assets |
-| Toolchain pinning | Flox |
+| Layer                     | Choice                                     |
+| ------------------------- | ------------------------------------------ |
+| Runtime / package manager | Bun 1.4.2 (pinned by Flox)                 |
+| UI                        | SolidJS 1.9 + `@solidjs/router`            |
+| Build                     | Vite 8 + `vite-plugin-solid`               |
+| Domain / API composition  | Effect 4.0                                 |
+| Auth                      | Better Auth 1.7 + `@better-auth/passkey`   |
+| Solana                    | `@solana/web3.js`, Umi, Metaplex Core      |
+| Database                  | Turso / libSQL through Kysely              |
+| Hosting                   | Cloudflare Workers + Workers Static Assets |
+| Toolchain pinning         | Flox                                       |
 
 The domain layer uses Effect Schema for every client/server contract. API handlers are composed with
 `Effect.gen`, and the Solana verifier and Turso operations are wrapped in typed Effects.
@@ -151,6 +151,20 @@ bun run typecheck
 bun run build
 bun run test:e2e       # passkey + pack + album smoke test
 ```
+
+## Install as an app
+
+Production builds include a web app manifest, install icons, and a service worker for the whole
+site. Install WikiGems from the browser's install menu or Add to Home Screen. The installed app
+launches `/play`: signed-in users enter the game, and signed-out users go to `/login`. Signed-in
+visits to `/` and `/login` also open `/play`.
+
+After the first online visit, the app shell can load offline. Signing in, syncing cards, trading,
+and minting require a connection. Authentication, game data, and wallet requests are never stored
+in the service worker cache. New versions activate after existing app windows close.
+
+The service worker is enabled in production builds, so Vite development stays free of cached
+bundles. To preview the installable build locally, run `bun run build` followed by `bun run preview`.
 
 ## Configuration
 
@@ -257,16 +271,16 @@ Use `config.sops.secrets."wikigems.env".path` if your host overrides the default
 `WIKIGEMS_ENV_FILE` makes the wrapper copy that already-decrypted file to the ignored `.env`
 instead of invoking SOPS. The same option works for `dev:web`, `dev:worker`, and database commands.
 
-| Variable | Purpose |
-| --- | --- |
-| `TURSO_DATABASE_URL` | `http://127.0.0.1:8080` locally, `libsql://…` in production |
-| `TURSO_AUTH_TOKEN` | Turso token; empty locally |
-| `BETTER_AUTH_SECRET` | Session/HMAC secret; at least 32 random bytes in production |
-| `BETTER_AUTH_URL` | Optional auth base URL; derived from the request when omitted |
-| `PASSKEY_RP_ID` | Optional WebAuthn RP ID; derived from the request host when omitted |
-| `PASSKEY_ORIGIN` | Optional pinned WebAuthn origin |
-| `SOLANA_RPC_URL` | Worker-side RPC used to verify mint transactions |
-| `SOLANA_CLUSTER` | `devnet`, `localnet`, or `mainnet-beta`, used for explorer links |
+| Variable             | Purpose                                                             |
+| -------------------- | ------------------------------------------------------------------- |
+| `TURSO_DATABASE_URL` | `http://127.0.0.1:8080` locally, `libsql://…` in production         |
+| `TURSO_AUTH_TOKEN`   | Turso token; empty locally                                          |
+| `BETTER_AUTH_SECRET` | Session/HMAC secret; at least 32 random bytes in production         |
+| `BETTER_AUTH_URL`    | Optional auth base URL; derived from the request when omitted       |
+| `PASSKEY_RP_ID`      | Optional WebAuthn RP ID; derived from the request host when omitted |
+| `PASSKEY_ORIGIN`     | Optional pinned WebAuthn origin                                     |
+| `SOLANA_RPC_URL`     | Worker-side RPC used to verify mint transactions                    |
+| `SOLANA_CLUSTER`     | `devnet`, `localnet`, or `mainnet-beta`, used for explorer links    |
 
 Client-side configuration:
 

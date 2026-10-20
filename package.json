@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "version": "0.1.0",
-  "description": "WikiGems \u2014 the Wikipedia trading card game. One article, one 1-of-1 card, minted on Solana.",
+  "description": "WikiGems — the Wikipedia trading card game. One article, one 1-of-1 card, minted on Solana.",
   "scripts": {
     "dev": "bun run scripts/with-env.ts bun run scripts/dev.ts",
     "dev:web": "bun run scripts/with-env.ts vite --port 5173",
@@ -36,6 +36,7 @@
     "@metaplex-foundation/umi-signer-wallet-adapters": "1.6.0",
     "@solana/web3.js": "1.99.0",
     "@solidjs/router": "1.0.0",
+    "@stylexjs/stylex": "^0.19.1",
     "better-auth": "1.7.10",
     "bs58": "6.0.0",
     "effect": "4.0.5",
@@ -45,10 +46,12 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261016.1",
+    "@stylexjs/unplugin": "^0.19.1",
     "@types/bun": "1.4.3",
     "playwright-core": "1.64.1",
     "typescript": "7.0.2",
     "vite": "8.3.4",
+    "vite-plugin-pwa": "^2.0.0",
     "vite-plugin-solid": "2.11.14",
     "wrangler": "4.148.0"
   },

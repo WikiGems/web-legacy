@@ -1,0 +1,203 @@
+.sell-page {
+  padding-top: 48px;
+  padding-bottom: 80px;
+}
+.sell-heading,
+.sell-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.sell-heading {
+  margin-bottom: 28px;
+}
+.sell-heading h1 {
+  margin: 12px 0;
+  font-size: clamp(2.4rem, 5vw, 4.15rem);
+}
+.sell-heading p:not(.eyebrow),
+.sell-example-note,
+.sell-summary span,
+.sell-description,
+.sell-listed,
+.sell-price > span {
+  color: var(--muted);
+}
+.sell-heading > button {
+  flex-shrink: 0;
+}
+.sell-example-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 22px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--panel-2);
+  font-size: 0.9rem;
+}
+.sell-example-note svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.sell-example-note p {
+  margin: 0;
+}
+.sell-example-note strong {
+  color: var(--text);
+}
+.sell-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0 40px;
+}
+.sell-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 12px;
+}
+.sell-summary span {
+  font-size: 0.8rem;
+}
+.sell-summary strong {
+  font-size: 2rem;
+  letter-spacing: -0.04em;
+}
+.sell-summary small,
+.sell-price small {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.sell-section-heading {
+  margin-bottom: 20px;
+}
+.sell-section-heading h2 {
+  font-size: 1.5rem;
+}
+.sell-example-badge {
+  display: inline-flex;
+  width: max-content;
+  padding: 5px 9px;
+  font-size: 0.68rem;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+}
+.sell-listings {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+.sell-listing {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.sell-card-art {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--panel-3);
+  border-bottom: 3px solid var(--sell-card-color);
+}
+.sell-card-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sell-card-art .sell-example-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+}
+.sell-card-category {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  padding: 5px 9px;
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 5px;
+  font-size: 0.68rem;
+}
+.sell-card-body {
+  padding: 18px;
+}
+.sell-card-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+.sell-card-body h3 {
+  font-size: 1.2rem;
+  line-height: 1.3;
+}
+.sell-description {
+  font-size: 0.82rem;
+  line-height: 1.6;
+  margin: 10px 0 20px;
+  min-height: 4.8em;
+}
+.sell-price {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.sell-price > span,
+.sell-listed {
+  font-size: 0.7rem;
+}
+.sell-price strong {
+  font-size: 1.7rem;
+}
+.sell-listed {
+  margin: 8px 0 18px;
+}
+.sell-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+@media (max-width: 1100px) {
+  .sell-listings {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .sell-page {
+    padding-top: 32px;
+  }
+  .sell-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .sell-summary {
+    gap: 8px;
+  }
+  .sell-summary > div {
+    padding: 14px 10px;
+  }
+  .sell-summary strong {
+    font-size: 1.5rem;
+  }
+  .sell-summary span {
+    font-size: 0.7rem;
+  }
+  .sell-listings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

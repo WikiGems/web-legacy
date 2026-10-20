@@ -47,7 +47,10 @@ export function WalletModal() {
       setStep("idle");
       closeWalletModal();
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "The wallet could not be linked.";
+      const message =
+        cause instanceof Error
+          ? cause.message
+          : "The wallet could not be linked.";
       setError(
         /user rejected|denied|cancel/i.test(message)
           ? "The wallet request was cancelled. Nothing was linked."
@@ -76,20 +79,29 @@ export function WalletModal() {
             if (event.target === event.currentTarget) close();
           }}
         >
-          <div class="wallet-modal" role="dialog" aria-modal="true" aria-labelledby="wallet-title">
+          <div
+            class="wallet-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wallet-title"
+          >
             <div class="wallet-head">
               <div>
                 <p class="eyebrow">Solana wallet</p>
                 <h2 id="wallet-title">Mint your cards for real.</h2>
               </div>
-              <button class="icon-button" onClick={close} aria-label="Close wallet dialog">
+              <button
+                class="icon-button"
+                onClick={close}
+                aria-label="Close wallet dialog"
+              >
                 <Icon name="close" />
               </button>
             </div>
 
             <p class="wallet-lede">
-              Link a devnet wallet to mint 1-of-1 cards as Metaplex Core NFTs. You pay the tiny
-              network fee; WikiGems never holds your keys.
+              Link a devnet wallet to mint 1-of-1 cards as Metaplex Core NFTs.
+              You pay the tiny network fee; WikiGems never holds your keys.
             </p>
 
             <Show
@@ -98,7 +110,10 @@ export function WalletModal() {
                 <div class="wallet-empty">
                   <Icon name="wallet" size={34} />
                   <h3>No Solana wallet found.</h3>
-                  <p>Install Phantom, Solflare, or Backpack, then refresh this page.</p>
+                  <p>
+                    Install Phantom, Solflare, or Backpack, then refresh this
+                    page.
+                  </p>
                   <a
                     class="btn btn-primary"
                     href="https://phantom.app/"
@@ -141,7 +156,11 @@ export function WalletModal() {
               <Icon name="info" size={15} />
               <p>
                 Use <strong>Devnet</strong> in your wallet. Need test SOL?{" "}
-                <a href="https://faucet.solana.com/" target="_blank" rel="noreferrer">
+                <a
+                  href="https://faucet.solana.com/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Open the Solana faucet <Icon name="external" size={11} />
                 </a>
               </p>
@@ -149,9 +168,10 @@ export function WalletModal() {
 
             <Show when={step() !== "idle"}>
               <p class="wallet-status mono">
-                {step() === "connecting" && "CONNECTING TO WALLET…"}
-                {step() === "signing" && "SIGN THE LINK MESSAGE IN YOUR WALLET…"}
-                {step() === "linking" && "VERIFYING WALLET OWNERSHIP…"}
+                {step() === "connecting" && "Connecting to wallet…"}
+                {step() === "signing" &&
+                  "Sign the link message in your wallet…"}
+                {step() === "linking" && "Verifying wallet ownership…"}
               </p>
             </Show>
             <Show when={error()}>

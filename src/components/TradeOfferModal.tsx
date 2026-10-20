@@ -46,13 +46,22 @@ export function TradeOfferModal(props: {
           if (event.target === event.currentTarget) props.onClose();
         }}
       >
-        <div class="trade-modal" role="dialog" aria-modal="true" aria-labelledby="trade-title">
+        <div
+          class="trade-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="trade-title"
+        >
           <div class="trade-modal-head">
             <div>
               <p class="eyebrow">Propose a trade</p>
               <h2 id="trade-title">What will you offer?</h2>
             </div>
-            <button class="icon-button" onClick={props.onClose} aria-label="Close trade dialog">
+            <button
+              class="icon-button"
+              onClick={props.onClose}
+              aria-label="Close trade dialog"
+            >
               <Icon name="close" />
             </button>
           </div>
@@ -60,7 +69,7 @@ export function TradeOfferModal(props: {
           <div class="trade-target">
             <GameCard card={props.target} size="sm" />
             <div>
-              <span class="mono">YOU WANT</span>
+              <span class="mono">You want</span>
               <h3>{props.target.title}</h3>
               <p>Owned by {props.target.ownerName ?? "another collector"}</p>
             </div>
@@ -75,7 +84,9 @@ export function TradeOfferModal(props: {
               </div>
             }
           >
-            <p class="trade-pick-label mono">CHOOSE ONE OF YOUR UNMINTED CARDS</p>
+            <p class="trade-pick-label mono">
+              Choose one of your unminted cards
+            </p>
             <div class="trade-pick-grid">
               <For each={choices()}>
                 {(card) => (
@@ -86,21 +97,34 @@ export function TradeOfferModal(props: {
                   >
                     <GameCard card={card} size="xs" />
                     <Show when={selectedId() === card.id}>
-                      <span class="trade-pick-check"><Icon name="check" size={14} /></span>
+                      <span class="trade-pick-check">
+                        <Icon name="check" size={14} />
+                      </span>
                     </Show>
                   </button>
                 )}
               </For>
             </div>
-            <button class="btn btn-primary btn-lg btn-full" onClick={submit} disabled={!selectedId() || busy()}>
-              <Show when={busy()} fallback={<><Icon name="swap" size={17} /> Send trade offer</>}>
+            <button
+              class="btn btn-primary btn-lg btn-full"
+              onClick={submit}
+              disabled={!selectedId() || busy()}
+            >
+              <Show
+                when={busy()}
+                fallback={
+                  <>
+                    <Icon name="swap" size={17} /> Send trade offer
+                  </>
+                }
+              >
                 <span class="spinner" /> Sending…
               </Show>
             </button>
           </Show>
           <p class="trade-fine">
-            In-game trades swap unminted 1-of-1 claims. Once a card is minted, ownership lives in the
-            Solana wallet instead.
+            In-game trades swap unminted 1-of-1 claims. Once a card is minted,
+            ownership lives in the Solana wallet instead.
           </p>
         </div>
       </div>

@@ -42,13 +42,11 @@ const requestJson = (url: string, init?: RequestInit) =>
         credentials: "include",
         headers: {
           "content-type": "application/json",
-          ...(init?.headers ?? {}),
+          ...init?.headers,
         },
       });
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; code?: string }
-        | null
-        | unknown;
+        { error?: string; code?: string } | null | unknown;
 
       if (!response.ok) {
         const message =
@@ -67,12 +65,16 @@ const requestJson = (url: string, init?: RequestInit) =>
     catch: (error) =>
       error instanceof ApiError
         ? error
-        : new ApiError("The archive could not be reached. Check your connection."),
+        : new ApiError(
+            "The archive could not be reached. Check your connection.",
+          ),
   });
 
 const decode = <S extends Schema.Constraint>(schema: S, input: unknown) =>
   Schema.decodeUnknownEffect(schema)(input).pipe(
-    Effect.mapError(() => new ApiError("The archive returned an unexpected response.")),
+    Effect.mapError(
+      () => new ApiError("The archive returned an unexpected response."),
+    ),
   );
 
 export const fetchGameState = () =>
@@ -83,7 +85,10 @@ export const fetchGameState = () =>
 
 export const openPack = () =>
   Effect.gen(function* () {
-    const payload = yield* requestJson("/api/packs/open", { method: "POST", body: "{}" });
+    const payload = yield* requestJson("/api/packs/open", {
+      method: "POST",
+      body: "{}",
+    });
     return (yield* decode(OpenPackResponseSchema, payload)) as OpenPackResponse;
   });
 
@@ -99,17 +104,29 @@ export const fetchTrades = () =>
     return (yield* decode(TradesResponseSchema, payload)) as TradesResponse;
   });
 
-export const createTradeOffer = (offeredCardId: string, requestedCardId: string) =>
+export const createTradeOffer = (
+  offeredCardId: string,
+  requestedCardId: string,
+) =>
   Effect.gen(function* () {
-    const body = yield* decode(CreateTradeSchema, { offeredCardId, requestedCardId });
+    const body = yield* decode(CreateTradeSchema, {
+      offeredCardId,
+      requestedCardId,
+    });
     return yield* requestJson("/api/trades", {
       method: "POST",
       body: JSON.stringify(body),
     });
   });
 
-export const settleTrade = (tradeId: string, action: "accept" | "decline" | "cancel") =>
-  requestJson(`/api/trades/${tradeId}/${action}`, { method: "POST", body: "{}" });
+export const settleTrade = (
+  tradeId: string,
+  action: "accept" | "decline" | "cancel",
+) =>
+  requestJson(`/api/trades/${tradeId}/${action}`, {
+    method: "POST",
+    body: "{}",
+  });
 
 export const toggleCardTrade = (cardId: string, forTrade: boolean) =>
   Effect.gen(function* () {
@@ -137,12 +154,17 @@ export const confirmCardMint = (
 export const fetchLeaderboard = () =>
   Effect.gen(function* () {
     const payload = yield* requestJson("/api/leaderboard");
-    return (yield* decode(LeaderboardResponseSchema, payload)) as LeaderboardResponse;
+    return (yield* decode(
+      LeaderboardResponseSchema,
+      payload,
+    )) as LeaderboardResponse;
   });
 
 export const requestWalletChallenge = (wallet: string) =>
   Effect.gen(function* () {
-    const payload = yield* requestJson(`/api/wallet/challenge?wallet=${encodeURIComponent(wallet)}`);
+    const payload = yield* requestJson(
+      `/api/wallet/challenge?wallet=${encodeURIComponent(wallet)}`,
+    );
     return yield* decode(WalletChallengeSchema, payload);
   });
 

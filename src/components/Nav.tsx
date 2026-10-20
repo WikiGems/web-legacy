@@ -1,7 +1,7 @@
 import { A, useNavigate } from "@solidjs/router";
-import { createSignal, Show } from "solid-js";
+import { Show } from "solid-js";
 import { authClient } from "../lib/auth-client";
-import { openAuth, showToast } from "../lib/ui";
+import { showToast } from "../lib/ui";
 import { Icon } from "./Icon";
 import { Logo } from "./Logo";
 
@@ -17,45 +17,60 @@ function avatarInitials(name: string): string {
 export function Nav() {
   const session = authClient.useSession();
   const navigate = useNavigate();
-  const [menuOpen, setMenuOpen] = createSignal(false);
   const user = () => session().data?.user;
 
   async function signOut() {
     await authClient.signOut();
-    setMenuOpen(false);
-    showToast("Signed out", { body: "Your passkey stays on this device.", tone: "info" });
+    showToast("Signed out", {
+      body: "Your passkey stays on this device.",
+      tone: "info",
+    });
     navigate("/");
   }
 
   return (
     <header class="landing-header">
-      <nav class="landing-nav page-shell" aria-label="Primary">
+      <nav class="landing-nav app-nav page-shell" aria-label="Primary">
         <Logo />
-        <div class="landing-links" classList={{ "is-open": menuOpen() }}>
-          <a href="#how" onClick={() => setMenuOpen(false)}>How it works</a>
-          <a href="#rarity" onClick={() => setMenuOpen(false)}>Rarity</a>
-          <a href="#solana" onClick={() => setMenuOpen(false)}>Solana</a>
-          <a href="#trade" onClick={() => setMenuOpen(false)}>Trade</a>
+        <div class="app-nav-tabs">
+          <A href="/play" end activeClass="is-current">
+            Play
+          </A>
+          <A href="/trade" end activeClass="is-current">
+            Trade
+          </A>
+          <A href="/buy" end activeClass="is-current">
+            Buy
+          </A>
+          <A href="/sell" end activeClass="is-current">
+            Sell
+          </A>
+          <A href="/action" end activeClass="is-current">
+            Action
+          </A>
+          <A href="/collection" end activeClass="is-current">
+            My collection
+          </A>
+          <A href="/wallet" end activeClass="is-current">
+            Wallet
+          </A>
         </div>
         <div class="landing-actions">
           <Show
             when={user()}
             fallback={
               <>
-                <button class="btn btn-ghost" onClick={() => openAuth("signin")}>
+                <A href="/login" class="btn btn-ghost">
                   Sign in
-                </button>
-                <button class="btn btn-primary" onClick={() => openAuth("signup")}>
+                </A>
+                <A href="/login?mode=signup" class="btn btn-primary">
                   Play free <Icon name="arrow-right" size={15} />
-                </button>
+                </A>
               </>
             }
           >
             {(current) => (
               <>
-                <A href="/play" class="btn btn-primary">
-                  Enter game <Icon name="arrow-right" size={15} />
-                </A>
                 <button
                   class="avatar-button avatar-button--dark"
                   onClick={signOut}
@@ -67,14 +82,6 @@ export function Nav() {
               </>
             )}
           </Show>
-          <button
-            class="icon-button mobile-menu-toggle"
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-expanded={menuOpen()}
-            aria-label={menuOpen() ? "Close menu" : "Open menu"}
-          >
-            <Icon name={menuOpen() ? "close" : "menu"} />
-          </button>
         </div>
       </nav>
     </header>

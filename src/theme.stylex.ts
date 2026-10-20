@@ -1,0 +1,25 @@
+import * as stylex from "@stylexjs/stylex";
+
+export const colors = stylex.defineVars({
+  "--bg": "#f4f7f5",
+  "--bg-2": "#eaf0ec",
+  "--panel": "#ffffff",
+  "--panel-2": "#f7faf8",
+  "--panel-3": "#edf3ef",
+  "--line": "rgba(26, 47, 33, 0.1)",
+  "--line-2": "rgba(26, 47, 33, 0.19)",
+  "--text": "#17231b",
+  "--muted": "#53645a",
+  "--dim": "#68776d",
+  "--green": "#117b4e",
+  "--green-2": "#0d6841",
+  "--on-accent": "#ffffff",
+  "--accent-hover": "#0d6841",
+  "--green-deep": "#d6f1e2",
+  "--mint": "#1e4d36",
+  "--violet": "#704eb3",
+  "--orange": "#90500f",
+  "--blue": "#285b91",
+  "--red": "#b34c43",
+  "--gold": "#795b0b",
+});

@@ -2,7 +2,6 @@ import { createSignal, Show } from "solid-js";
 import type { Card } from "../../shared/domain";
 import { RARITY_META } from "../../shared/card-engine";
 import { Icon } from "./Icon";
-import { RarityBadge } from "./RarityBadge";
 
 export function GameCard(props: {
   card: Card;
@@ -35,10 +34,6 @@ export function GameCard(props: {
           />
         </Show>
         <div class="game-card-art-shade" />
-        <div class="game-card-chips">
-          <RarityBadge rarity={props.card.rarity} compact />
-          <span class="one-of-one">1 / 1</span>
-        </div>
         <Show when={props.card.status === "minted"}>
           <span class="onchain-chip">
             <Icon name="bolt" size={11} /> On-chain
@@ -59,13 +54,9 @@ export function GameCard(props: {
           {props.card.description || props.card.extract}
         </p>
         <div class="game-card-stats">
-          <span title="Attack">
-            <Icon name="sword" size={14} /> <strong>{props.card.attack.toLocaleString()}</strong>
+          <span class="game-card-owner">
+            {props.card.ownerName ?? "Unclaimed"}
           </span>
-          <span title="Defense">
-            <Icon name="shield" size={14} /> <strong>{props.card.defense.toLocaleString()}</strong>
-          </span>
-          <span class="game-card-owner">{props.card.ownerName ?? "Unclaimed"}</span>
         </div>
       </div>
     </>
@@ -88,7 +79,7 @@ export function GameCard(props: {
         class={`game-card game-card--${props.size ?? "md"} ${props.class ?? ""}`}
         style={style()}
         onClick={() => props.onClick?.(props.card)}
-        aria-label={`${props.card.title}, ${props.card.rarity} card`}
+        aria-label={props.card.title}
       >
         {content}
       </button>
@@ -96,13 +87,20 @@ export function GameCard(props: {
   );
 }
 
-export function CardBack(props: { size?: "xs" | "sm" | "md" | "lg"; class?: string; label?: string }) {
+export function CardBack(props: {
+  size?: "xs" | "sm" | "md" | "lg";
+  class?: string;
+  label?: string;
+}) {
   return (
-    <div class={`card-back card-back--${props.size ?? "md"} ${props.class ?? ""}`} aria-hidden="true">
+    <div
+      class={`card-back card-back--${props.size ?? "md"} ${props.class ?? ""}`}
+      aria-hidden="true"
+    >
       <div class="card-back-inner">
         <span class="card-back-globe">W</span>
-        <span class="card-back-brand">WIKIGEMS</span>
-        <span class="card-back-label">{props.label ?? "1 OF 1"}</span>
+        <span class="card-back-brand">WikiGems</span>
+        <span class="card-back-label">{props.label ?? "1 of 1"}</span>
       </div>
     </div>
   );

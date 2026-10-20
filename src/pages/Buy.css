@@ -1,0 +1,55 @@
+.buy-section {
+  margin-top: 38px;
+}
+.buy-section .sell-section-heading .eyebrow {
+  margin-bottom: 8px;
+}
+.buy-listings {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.buy-listings .sell-card-body {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+}
+.buy-seller {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.buy-seller strong {
+  color: var(--text);
+  font-weight: 500;
+}
+.buy-button {
+  width: 100%;
+  margin-top: 18px;
+}
+.buy-auction-details {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.buy-auction-details small {
+  font-size: inherit;
+}
+@media (max-width: 900px) {
+  .buy-listings {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .buy-listings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .buy-section .sell-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}

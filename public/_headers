@@ -3,4 +3,13 @@
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://thumb.wikimedia.org https://upload.wikimedia.org https://*.wikimedia.org; font-src 'self' data:; connect-src 'self' https://api.devnet.solana.com https://*.solana.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://thumb.wikimedia.org https://upload.wikimedia.org https://*.wikimedia.org; font-src 'self' data:; connect-src 'self' https://en.wikipedia.org https://api.devnet.solana.com https://*.solana.com; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+
+/sw.js
+  Cache-Control: no-cache
+
+/registerSW.js
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: no-cache

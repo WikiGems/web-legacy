@@ -21,7 +21,9 @@ export function DuelGame(props: {
   cards: Card[];
   onFinished: (won: boolean, score: number) => void;
 }) {
-  const [phase, setPhase] = createSignal<"intro" | "playing" | "result">("intro");
+  const [phase, setPhase] = createSignal<"intro" | "playing" | "result">(
+    "intro",
+  );
   const [roundIndex, setRoundIndex] = createSignal(0);
   const [score, setScore] = createSignal(0);
   const [botScore, setBotScore] = createSignal(0);
@@ -40,8 +42,13 @@ export function DuelGame(props: {
     const rounds: Round[] = [];
     for (let index = 0; index < 3 && pool.length >= 4; index += 1) {
       const correct = pool[Math.floor(Math.random() * pool.length)]!;
-      const distractors = shuffle(pool.filter((card) => card.id !== correct.id)).slice(0, 3);
-      const options = shuffle([correct.title, ...distractors.map((card) => card.title)]);
+      const distractors = shuffle(
+        pool.filter((card) => card.id !== correct.id),
+      ).slice(0, 3);
+      const options = shuffle([
+        correct.title,
+        ...distractors.map((card) => card.title),
+      ]);
       rounds.push({ correct, options });
     }
     return rounds;
@@ -92,22 +99,28 @@ export function DuelGame(props: {
           <div class="duel-intro-card">
             <div class="duel-avatar duel-avatar--you">You</div>
             <div class="duel-versus">
-              <span class="mono">KNOWLEDGE DUEL</span>
-              <strong>VS</strong>
-              <span class="mono">3 ROUNDS</span>
+              <span class="mono">Knowledge duel</span>
+              <strong>vs</strong>
+              <span class="mono">3 rounds</span>
             </div>
             <div class="duel-avatar duel-avatar--bot">L</div>
           </div>
           <h2>Meet The Librarian.</h2>
           <p>
-            Three questions generated from the pages in your collection. Answer faster than the
-            archive’s resident know-it-all.
+            Three questions generated from the pages in your collection. Answer
+            faster than the archive’s resident know-it-all.
           </p>
-          <button class="btn btn-primary btn-lg" onClick={start} disabled={questionCards().length < 4}>
+          <button
+            class="btn btn-primary btn-lg"
+            onClick={start}
+            disabled={questionCards().length < 4}
+          >
             <Icon name="duel" size={18} /> Start the duel
           </button>
           <Show when={questionCards().length < 4}>
-            <p class="duel-hint">Collect at least four cards to unlock a duel.</p>
+            <p class="duel-hint">
+              Collect at least four cards to unlock a duel.
+            </p>
           </Show>
         </div>
       </Show>
@@ -119,14 +132,14 @@ export function DuelGame(props: {
               <div class="duel-score duel-score--you">
                 <span class="duel-mini-avatar">Y</span>
                 <div>
-                  <span class="mono">YOU</span>
+                  <span class="mono">You</span>
                   <strong>{score().toString().padStart(4, "0")}</strong>
                 </div>
               </div>
-              <span class="duel-round mono">ROUND {roundIndex() + 1} / 3</span>
+              <span class="duel-round mono">Round {roundIndex() + 1} / 3</span>
               <div class="duel-score duel-score--bot">
                 <div>
-                  <span class="mono">THE LIBRARIAN</span>
+                  <span class="mono">The Librarian</span>
                   <strong>{botScore().toString().padStart(4, "0")}</strong>
                 </div>
                 <span class="duel-mini-avatar duel-mini-avatar--bot">L</span>
@@ -135,22 +148,36 @@ export function DuelGame(props: {
 
             <div class="duel-question">
               <p class="eyebrow">Which article is described as…</p>
-              <h2>“{round().correct.description || round().correct.extract.slice(0, 120)}”</h2>
+              <h2>
+                “
+                {round().correct.description ||
+                  round().correct.extract.slice(0, 120)}
+                ”
+              </h2>
               <div class="duel-options">
                 <For each={round().options}>
                   {(option) => (
                     <button
                       class="duel-option"
                       classList={{
-                        "is-correct": answered() && option === round().correct.title,
-                        "is-wrong": answered() && selected() === option && option !== round().correct.title,
-                        "is-dimmed": answered() && option !== round().correct.title && selected() !== option,
+                        "is-correct":
+                          answered() && option === round().correct.title,
+                        "is-wrong":
+                          answered() &&
+                          selected() === option &&
+                          option !== round().correct.title,
+                        "is-dimmed":
+                          answered() &&
+                          option !== round().correct.title &&
+                          selected() !== option,
                       }}
                       onClick={() => answer(option)}
                       disabled={answered()}
                     >
                       <span>{option}</span>
-                      <Show when={answered() && option === round().correct.title}>
+                      <Show
+                        when={answered() && option === round().correct.title}
+                      >
                         <Icon name="check" size={16} />
                       </Show>
                     </button>
@@ -158,9 +185,11 @@ export function DuelGame(props: {
                 </For>
               </div>
               <div class="duel-card-meta">
-                <span class={`rarity-dot rarity-dot--${round().correct.rarity}`} />
+                <span
+                  class={`rarity-dot rarity-dot--${round().correct.rarity}`}
+                />
                 <span>{bot()?.label} card</span>
-                <span class="mono">+250 PTS</span>
+                <span class="mono">+250 pts</span>
               </div>
             </div>
           </div>
@@ -173,15 +202,20 @@ export function DuelGame(props: {
             <Icon name={won() ? "trophy" : "globe"} size={38} />
           </div>
           <p class="eyebrow">{won() ? "Victory" : "The Librarian wins"}</p>
-          <h2>{won() ? "You know the archive." : "Back to the reading room."}</h2>
+          <h2>
+            {won() ? "You know the archive." : "Back to the reading room."}
+          </h2>
           <p class="duel-result-score">
-            {score().toLocaleString()} <span>—</span> {botScore().toLocaleString()}
+            {score().toLocaleString()} <span>—</span>{" "}
+            {botScore().toLocaleString()}
           </p>
           <div class="duel-result-actions">
             <button class="btn btn-primary" onClick={start}>
               <Icon name="refresh" size={16} /> Duel again
             </button>
-            <button class="btn btn-outline" onClick={() => setPhase("intro")}>Leave the table</button>
+            <button class="btn btn-outline" onClick={() => setPhase("intro")}>
+              Leave the table
+            </button>
           </div>
         </div>
       </Show>

@@ -9,13 +9,17 @@ export function PackOpening(props: {
   onClose: () => void;
   onComplete: () => void;
 }) {
-  const [revealed, setRevealed] = createSignal<boolean[]>(props.cards.map(() => false));
+  const [revealed, setRevealed] = createSignal<boolean[]>(
+    props.cards.map(() => false),
+  );
   const allRevealed = () => revealed().every(Boolean);
   const revealCount = () => revealed().filter(Boolean).length;
 
   function reveal(index: number) {
     if (revealed()[index]) return;
-    setRevealed((current) => current.map((value, position) => (position === index ? true : value)));
+    setRevealed((current) =>
+      current.map((value, position) => (position === index ? true : value)),
+    );
   }
 
   function revealAll() {
@@ -24,12 +28,19 @@ export function PackOpening(props: {
 
   return (
     <Portal>
-      <div class="pack-overlay" role="dialog" aria-modal="true" aria-labelledby="pack-title">
+      <div
+        class="pack-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pack-title"
+      >
         <div class="pack-overlay-head">
           <div>
             <p class="eyebrow">Pack opened · {props.cards.length} cards</p>
             <h2 id="pack-title">
-              {allRevealed() ? "A new page in your album." : "Tap each card to reveal."}
+              {allRevealed()
+                ? "A new page in your album."
+                : "Tap each card to reveal."}
             </h2>
           </div>
           <div class="pack-overlay-actions">
@@ -38,7 +49,11 @@ export function PackOpening(props: {
                 Reveal all
               </button>
             </Show>
-            <button class="icon-button" onClick={props.onClose} aria-label="Close pack">
+            <button
+              class="icon-button"
+              onClick={props.onClose}
+              aria-label="Close pack"
+            >
               <Icon name="close" />
             </button>
           </div>
@@ -58,17 +73,20 @@ export function PackOpening(props: {
                 role="button"
                 tabindex="0"
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") reveal(index());
+                  if (event.key === "Enter" || event.key === " ")
+                    reveal(index());
                 }}
                 aria-label={
-                  revealed()[index()] ? card.title : `Reveal card ${index() + 1} of ${props.cards.length}`
+                  revealed()[index()]
+                    ? card.title
+                    : `Reveal card ${index() + 1} of ${props.cards.length}`
                 }
               >
                 <Show
                   when={revealed()[index()]}
                   fallback={
                     <>
-                      <CardBack size="md" label={`CARD ${index() + 1}`} />
+                      <CardBack size="md" label={`Card ${index() + 1}`} />
                       <span class="pack-reveal-hint">
                         <Icon name="spark" size={14} /> Tap to reveal
                       </span>
@@ -86,7 +104,8 @@ export function PackOpening(props: {
 
         <div class="pack-overlay-foot">
           <p class="mono">
-            {revealCount()} / {props.cards.length} revealed · every card is 1 of 1
+            {revealCount()} / {props.cards.length} revealed · every card is 1 of
+            1
           </p>
           <Show
             when={allRevealed()}
@@ -97,7 +116,8 @@ export function PackOpening(props: {
             }
           >
             <button class="btn btn-primary btn-lg" onClick={props.onComplete}>
-              Keep all {props.cards.length} <Icon name="arrow-right" size={16} />
+              Keep all {props.cards.length}{" "}
+              <Icon name="arrow-right" size={16} />
             </button>
           </Show>
         </div>
