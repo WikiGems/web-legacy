@@ -61,9 +61,20 @@ export interface UserTable {
   id: string;
   name: string;
   email: string;
+  image: string | null;
 }
 
 export interface Database {
+  account_profiles: {
+    userId: string;
+    username: string | null;
+    xHandle: string | null;
+    avatarKey: string | null;
+  };
+  avatar_cleanup: {
+    objectKey: string;
+    notBefore: number;
+  };
   profiles: ProfileTable;
   packs: PackTable;
   cards: CardTable;
@@ -71,7 +82,9 @@ export interface Database {
   user: UserTable;
 }
 
-export function createDb(env: Pick<Env, "TURSO_DATABASE_URL" | "TURSO_AUTH_TOKEN">) {
+export function createDb(
+  env: Pick<Env, "TURSO_DATABASE_URL" | "TURSO_AUTH_TOKEN">,
+) {
   return new Kysely<Database>({
     dialect: new LibsqlDialect({
       url: env.TURSO_DATABASE_URL,

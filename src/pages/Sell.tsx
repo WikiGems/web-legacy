@@ -46,7 +46,7 @@ export default function Sell() {
             {listings
               .reduce((sum, listing) => sum + Number(listing.price), 0)
               .toFixed(2)}{" "}
-            <small>SOL</small>
+            <small>USDC</small>
           </strong>
         </div>
         <div>
@@ -90,7 +90,7 @@ export default function Sell() {
                   <div class="sell-price">
                     <span>Example asking price</span>
                     <strong>
-                      {price} <small>SOL</small>
+                      {price} <small>USDC</small>
                     </strong>
                   </div>
                   <p class="sell-listed">Example listing · {listed}</p>

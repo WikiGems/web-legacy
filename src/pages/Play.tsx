@@ -80,28 +80,6 @@ export default function Play() {
   return (
     <div class="play-page">
       <main class="article-search-page page-shell">
-        <section class="play-intro" aria-labelledby="play-title">
-          <div class="play-intro-copy">
-            <p class="eyebrow">PLAY / WIKIPEDIA COLLECTION</p>
-            <h1 id="play-title">Find an article.</h1>
-            <p class="play-lede">
-              Start with a subject you love, or follow a curiosity. Every result
-              is a real Wikipedia article; find something that deserves a place
-              in your collection.
-            </p>
-            <div class="play-source-note">
-              <Icon name="globe" size={15} />
-              <span>Search Wikipedia live</span>
-              <span class="play-preview-tag">Preview</span>
-            </div>
-          </div>
-          <aside class="play-editorial-note" aria-label="About article cards">
-            <span class="play-note-index">FIELD NOTE&nbsp; / &nbsp;001</span>
-            <p>One page. One card. A world of things worth knowing.</p>
-            <span class="play-sample-label">Preview / sample</span>
-          </aside>
-        </section>
-
         <form
           class="article-search-form play-search-form"
           onSubmit={search}
@@ -150,35 +128,6 @@ export default function Play() {
                 <p>{error()}</p>
               </div>
             </div>
-          </Show>
-          <Show when={!searched() && !loading()}>
-            <section
-              class="play-empty-state"
-              aria-labelledby="play-empty-title"
-            >
-              <div class="play-empty-mark" aria-hidden="true">
-                <Icon name="spark" size={22} />
-              </div>
-              <div class="play-empty-copy">
-                <p class="eyebrow">Start anywhere</p>
-                <h2 id="play-empty-title">Every subject has a story.</h2>
-                <p>
-                  Look up a person, place, idea, or the small detail that sent
-                  you down a rabbit hole.
-                </p>
-                <div class="play-sample-searches" aria-label="Sample searches">
-                  <span class="play-sample-searches-label">
-                    Sample searches
-                  </span>
-                  <span>Deep sea</span>
-                  <span>Ancient libraries</span>
-                  <span>Jazz</span>
-                </div>
-              </div>
-              <p class="play-preview-caption">
-                Sample topics · not search results
-              </p>
-            </section>
           </Show>
           <Show
             when={

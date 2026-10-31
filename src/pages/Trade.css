@@ -28,7 +28,7 @@
   gap: 7px;
   padding: 5px 9px;
   border: 1px solid color-mix(in srgb, var(--green) 30%, var(--line-2));
-  border-radius: 999px;
+  border-radius: 0;
   color: var(--green);
   font-family: var(--mono);
   font-size: 0.58rem;
@@ -40,7 +40,7 @@
 .trade-preview-label > span {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--green);
 }
 
@@ -63,7 +63,7 @@
   min-width: 224px;
   padding: 14px 16px;
   border: 1px solid var(--line-2);
-  border-radius: 12px;
+  border-radius: 0;
   background: color-mix(in srgb, var(--panel) 76%, transparent);
 }
 
@@ -75,7 +75,7 @@
   height: 35px;
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--green) 30%, var(--line-2));
-  border-radius: 10px;
+  border-radius: 0;
   background: color-mix(in srgb, var(--green) 9%, var(--panel));
   color: var(--green);
 }
@@ -147,7 +147,7 @@
   height: 42px;
   padding: 0 11px;
   border: 1px solid var(--line-2);
-  border-radius: 9px;
+  border-radius: 0;
   background: var(--panel);
   color: var(--muted);
 }
@@ -176,7 +176,7 @@
   flex: 0 0 auto;
   padding: 3px 5px;
   border: 1px solid var(--line-2);
-  border-radius: 5px;
+  border-radius: 0;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 0.54rem;
@@ -195,7 +195,7 @@
   min-width: 0;
   padding: 3px;
   border: 1px solid var(--line-2);
-  border-radius: 9px;
+  border-radius: 0;
   background: var(--panel);
 }
 
@@ -203,7 +203,7 @@
   min-height: 29px;
   padding: 0 9px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 0;
   background: transparent;
   color: var(--muted);
   font-size: 0.64rem;
@@ -224,7 +224,7 @@
   flex: 0 0 auto;
   padding: 0 9px;
   border: 1px solid var(--line-2);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--panel);
   color: var(--muted);
   font-size: 0.62rem;
@@ -241,7 +241,7 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--line-2);
-  border-radius: 13px;
+  border-radius: 0;
   background: var(--panel);
   transition:
     border-color 180ms var(--ease),
@@ -466,7 +466,7 @@
   width: 6px;
   height: 6px;
   flex: 0 0 auto;
-  border-radius: 50%;
+  border-radius: 0;
   background: currentColor;
 }
 
@@ -578,7 +578,7 @@
 .trade-activity-panel {
   padding: 17px 15px 13px;
   border: 1px solid var(--line-2);
-  border-radius: 13px;
+  border-radius: 0;
   background: var(--panel);
 }
 
@@ -596,7 +596,7 @@
   height: 29px;
   place-items: center;
   border: 1px solid var(--line-2);
-  border-radius: 8px;
+  border-radius: 0;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 0.61rem;
@@ -694,7 +694,7 @@
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid var(--line-2);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--panel-2);
   color: var(--text);
   font-family: var(--mono);
@@ -730,7 +730,7 @@
   color: var(--muted);
 }
 
-.trade-offer-exchange > svg {
+.trade-offer-exchange > .wg-icon {
   color: var(--green);
 }
 
@@ -742,7 +742,7 @@
   align-content: center;
   padding: 7px 8px;
   border: 1px solid var(--line-2);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--panel-2);
 }
 
@@ -793,14 +793,14 @@
   gap: 10px;
   padding: 13px;
   border: 1px solid var(--line-2);
-  border-radius: 11px;
+  border-radius: 0;
   background: color-mix(in srgb, var(--panel) 70%, transparent);
 }
 
 .trade-note-icon {
   width: 31px;
   height: 31px;
-  border-radius: 9px;
+  border-radius: 0;
 }
 
 .trade-aside-note > div {

@@ -63,7 +63,7 @@ const offers = [
     time: "12 min ago",
     offered: "Library of Alexandria",
     wanted: "Moon",
-    amount: "+ 0.10 SOL",
+    amount: "+ 0.10 USDC",
     status: "Awaiting your review",
   },
   {
@@ -206,7 +206,7 @@ export default function Trade() {
                       <div class="trade-price">
                         <span>Asking price</span>
                         <strong>
-                          {listing.price} <small>SOL</small>
+                          {listing.price} <small>USDC</small>
                         </strong>
                       </div>
                       <button

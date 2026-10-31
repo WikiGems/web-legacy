@@ -1,5 +1,9 @@
 import { Effect, Schema } from "effect";
 import {
+  AccountProfileSchema,
+  UsernameAvailabilitySchema,
+} from "../../shared/account";
+import {
   CardSchema,
   CreateTradeSchema,
   DuelResultSchema,
@@ -199,3 +203,42 @@ export const fetchOnboardingContext = (name: string, email: string) =>
 export function runApi<A>(effect: Effect.Effect<A, ApiError>): Promise<A> {
   return Effect.runPromise(effect);
 }
+
+export const fetchAccountProfile = () =>
+  requestJson("/api/profile").pipe(
+    Effect.flatMap((payload) => decode(AccountProfileSchema, payload)),
+  );
+
+export const checkUsername = (username: string) =>
+  requestJson(
+    `/api/profile/username?username=${encodeURIComponent(username)}`,
+  ).pipe(
+    Effect.flatMap((payload) => decode(UsernameAvailabilitySchema, payload)),
+  );
+
+export const reserveUsername = (username: string, userId: string) =>
+  requestJson("/api/profile/username", {
+    method: "POST",
+    body: JSON.stringify({ username }),
+    headers: { "x-wikigems-account": userId },
+  });
+
+export const saveXHandle = (xHandle: string, userId: string) =>
+  requestJson("/api/profile", {
+    method: "PATCH",
+    body: JSON.stringify({ xHandle }),
+    headers: { "x-wikigems-account": userId },
+  });
+
+export const uploadAvatar = (picture: Blob, userId: string) =>
+  requestJson("/api/profile/avatar", {
+    method: "PUT",
+    body: picture,
+    headers: { "content-type": picture.type, "x-wikigems-account": userId },
+  });
+
+export const removeAvatar = (userId: string) =>
+  requestJson("/api/profile/avatar", {
+    method: "DELETE",
+    headers: { "x-wikigems-account": userId },
+  });

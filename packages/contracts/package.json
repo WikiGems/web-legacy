@@ -1,0 +1,15 @@
+{
+  "name": "@wikigems/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "effect": "4.0.5"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

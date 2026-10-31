@@ -79,7 +79,7 @@ export default function Buy() {
                   <div class="sell-price">
                     <span>Example asking price</span>
                     <strong>
-                      {price} <small>SOL</small>
+                      {price} <small>USDC</small>
                     </strong>
                   </div>
                   <button
@@ -135,7 +135,7 @@ export default function Buy() {
                   <div class="sell-price">
                     <span>Example current bid</span>
                     <strong>
-                      {bid} <small>SOL</small>
+                      {bid} <small>USDC</small>
                     </strong>
                   </div>
                   <div class="buy-auction-details">

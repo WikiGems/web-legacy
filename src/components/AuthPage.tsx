@@ -1,6 +1,6 @@
-import { useSearchParams } from "@solidjs/router";
+import { A, useSearchParams } from "@solidjs/router";
 import { createEffect, createSignal, Show } from "solid-js";
-import { authClient } from "../lib/auth-client";
+import { accountAuthClient } from "../lib/auth-client";
 import { fetchOnboardingContext, runApi } from "../lib/api";
 import { showToast } from "../lib/ui";
 import { CardBack } from "./GameCard";
@@ -21,6 +21,7 @@ export function AuthPage() {
   let nameInput: HTMLInputElement | undefined;
 
   const isSignup = () => searchParams.mode === "signup";
+  const isAdding = () => searchParams.add === "1";
   const supported = passkeySupported();
 
   createEffect(() => {
@@ -48,14 +49,16 @@ export function AuthPage() {
     setError(null);
     setBusy("signin");
     try {
-      const result = await authClient.signIn.passkey({ autoFill: false });
+      const result = await accountAuthClient.signIn.passkey({
+        autoFill: false,
+      });
       if (result?.error)
         throw new Error(result.error.message || "Passkey sign-in failed.");
       showToast("Welcome back, collector", {
         body: "Your album is waiting.",
         tone: "success",
       });
-      window.location.assign("/play");
+      window.location.assign(isAdding() ? "/account" : "/play");
     } catch (cause) {
       setError(friendlyError(cause));
       setBusy("idle");
@@ -69,7 +72,7 @@ export function AuthPage() {
     setBusy("signup");
     try {
       const context = await runApi(fetchOnboardingContext(name(), email()));
-      const result = await authClient.passkey.addPasskey({
+      const result = await accountAuthClient.passkey.addPasskey({
         context: context.context,
         createSession: true,
       });
@@ -84,7 +87,7 @@ export function AuthPage() {
         body: "Your passkey is on this device. No password, ever.",
         tone: "success",
       });
-      window.location.assign("/play");
+      window.location.assign(isAdding() ? "/account" : "/play");
     } catch (cause) {
       setError(friendlyError(cause));
       setBusy("idle");
@@ -119,6 +122,14 @@ export function AuthPage() {
 
         <div class="auth-main">
           <div class="auth-content">
+            <Show when={isAdding()}>
+              <p class="auth-sub">
+                Add an account. Your other accounts will stay signed in.
+              </p>
+              <A class="text-link" href="/account">
+                Back to account
+              </A>
+            </Show>
             <div
               class="auth-tabs"
               role="tablist"

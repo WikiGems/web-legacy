@@ -1,0 +1,16 @@
+[workspace]
+members = ["programs/wikigems"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.dependencies]
+solana-program = "=5.1.0"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1

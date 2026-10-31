@@ -27,3 +27,6 @@ secrets/.encrypted.*
 .solana-ledger/
 .tmp-faucet/
 .solana-config/
+
+# Rust build output (including local Solana program keypairs)
+/target/

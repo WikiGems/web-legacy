@@ -33,11 +33,11 @@
   gap: 12px;
   padding: 18px 22px;
   border: 1px solid var(--line-2);
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--panel-2);
   font-size: 0.9rem;
 }
-.sell-example-note svg {
+.sell-example-note .wg-icon {
   flex-shrink: 0;
   margin-top: 3px;
 }
@@ -60,7 +60,7 @@
   padding: 22px;
   border: 1px solid var(--line);
   background: var(--panel);
-  border-radius: 12px;
+  border-radius: 0;
 }
 .sell-summary span {
   font-size: 0.8rem;
@@ -87,7 +87,7 @@
   padding: 5px 9px;
   font-size: 0.68rem;
   border: 1px solid var(--line-2);
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--panel);
   color: var(--muted);
 }
@@ -100,7 +100,7 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--line-2);
-  border-radius: 14px;
+  border-radius: 0;
   background: var(--panel);
 }
 .sell-card-art {
@@ -126,7 +126,7 @@
   padding: 5px 9px;
   background: var(--panel);
   color: var(--text);
-  border-radius: 5px;
+  border-radius: 0;
   font-size: 0.68rem;
 }
 .sell-card-body {

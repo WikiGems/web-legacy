@@ -1,32 +1,13 @@
-import { A, useNavigate } from "@solidjs/router";
+import { A } from "@solidjs/router";
 import { Show } from "solid-js";
 import { authClient } from "../lib/auth-client";
-import { showToast } from "../lib/ui";
+import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
 import { Logo } from "./Logo";
 
-function avatarInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
 export function Nav() {
   const session = authClient.useSession();
-  const navigate = useNavigate();
   const user = () => session().data?.user;
-
-  async function signOut() {
-    await authClient.signOut();
-    showToast("Signed out", {
-      body: "Your passkey stays on this device.",
-      tone: "info",
-    });
-    navigate("/");
-  }
 
   return (
     <header class="landing-header">
@@ -71,14 +52,14 @@ export function Nav() {
           >
             {(current) => (
               <>
-                <button
+                <A
+                  href="/account"
                   class="avatar-button avatar-button--dark"
-                  onClick={signOut}
-                  title={`Signed in as ${current().name}. Click to sign out.`}
-                  aria-label="Sign out"
+                  title={`Account settings for ${current().name}`}
+                  aria-label="Account menu"
                 >
-                  {avatarInitials(current().name)}
-                </button>
+                  <Avatar name={current().name} image={current().image} />
+                </A>
               </>
             )}
           </Show>

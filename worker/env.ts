@@ -1,5 +1,6 @@
 export interface Env {
   ASSETS: Fetcher;
+  AVATARS: R2Bucket;
   TURSO_DATABASE_URL: string;
   TURSO_AUTH_TOKEN?: string;
   BETTER_AUTH_SECRET: string;

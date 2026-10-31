@@ -1,13 +1,19 @@
 import { betterAuth } from "better-auth";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
+import { multiSession } from "better-auth/plugins";
 import { passkey } from "@better-auth/passkey";
 import { createDb } from "./db";
 import type { Env } from "./env";
 import { verifyOnboardingToken } from "./onboarding";
 
-export function createAuth(env: Env, request?: Request) {
+export function createAuth(
+  env: Omit<Env, "ASSETS" | "AVATARS">,
+  request?: Request,
+) {
   const db = createDb(env);
-  const requestOrigin = request ? new URL(request.url).origin : "http://localhost:5173";
+  const requestOrigin = request
+    ? new URL(request.url).origin
+    : "http://localhost:5173";
   const baseURL = env.BETTER_AUTH_URL || requestOrigin;
   const rpID = env.PASSKEY_RP_ID || new URL(baseURL).hostname;
   const trustedOrigins = [
@@ -27,6 +33,20 @@ export function createAuth(env: Env, request?: Request) {
       db,
       type: "sqlite",
     },
+    databaseHooks: {
+      user: {
+        update: {
+          before: async (data) => {
+            if ("image" in data) {
+              throw new APIError("BAD_REQUEST", {
+                message:
+                  "Upload or remove your profile picture from Account settings.",
+              });
+            }
+          },
+        },
+      },
+    },
     emailAndPassword: {
       enabled: false,
     },
@@ -34,7 +54,24 @@ export function createAuth(env: Env, request?: Request) {
       expiresIn: 60 * 60 * 24 * 30,
       updateAge: 60 * 60 * 24,
     },
+    hooks: {
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/get-session" || !ctx.context.session) return;
+        const cookie = ctx.context.authCookies.sessionToken;
+        const token = ctx.context.session.session.token;
+        const name = `${cookie.name}_multi-${token.toLowerCase()}`;
+        if (!(await ctx.getSignedCookie(name, ctx.context.secret))) {
+          await ctx.setSignedCookie(
+            name,
+            token,
+            ctx.context.secret,
+            cookie.attributes,
+          );
+        }
+      }),
+    },
     plugins: [
+      multiSession(),
       passkey({
         rpName: "WikiGems",
         rpID,
@@ -43,7 +80,10 @@ export function createAuth(env: Env, request?: Request) {
           requireSession: false,
           resolveUser: async ({ context }) => {
             try {
-              const claims = await verifyOnboardingToken(env.BETTER_AUTH_SECRET, context);
+              const claims = await verifyOnboardingToken(
+                env.BETTER_AUTH_SECRET,
+                context,
+              );
               return {
                 id: claims.sub,
                 name: claims.email,
@@ -51,24 +91,36 @@ export function createAuth(env: Env, request?: Request) {
               };
             } catch (error) {
               throw new APIError("BAD_REQUEST", {
-                message: error instanceof Error ? error.message : "Invalid onboarding context.",
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : "Invalid onboarding context.",
               });
             }
           },
           afterVerification: async ({ ctx, context }) => {
-            const claims = await verifyOnboardingToken(env.BETTER_AUTH_SECRET, context);
-            const existingById = await ctx.context.internalAdapter.findUserById(claims.sub);
+            const claims = await verifyOnboardingToken(
+              env.BETTER_AUTH_SECRET,
+              context,
+            );
+            const existingById = await ctx.context.internalAdapter.findUserById(
+              claims.sub,
+            );
             if (existingById) {
               if (existingById.email !== claims.email) {
-                throw new APIError("CONFLICT", { message: "This registration link is no longer valid." });
+                throw new APIError("CONFLICT", {
+                  message: "This registration link is no longer valid.",
+                });
               }
               return { userId: existingById.id };
             }
 
-            const existingByEmail = await ctx.context.internalAdapter.findUserByEmail(claims.email);
+            const existingByEmail =
+              await ctx.context.internalAdapter.findUserByEmail(claims.email);
             if (existingByEmail) {
               throw new APIError("CONFLICT", {
-                message: "An account already exists for this email. Sign in with your passkey instead.",
+                message:
+                  "An account already exists for this email. Sign in with your passkey instead.",
               });
             }
 

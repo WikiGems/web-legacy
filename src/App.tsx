@@ -1,4 +1,4 @@
-import { Navigate, Route, Router } from "@solidjs/router";
+import { Navigate, Route, Router, useSearchParams } from "@solidjs/router";
 import { Show, type ParentProps } from "solid-js";
 import { AuthPage } from "./components/AuthPage";
 import { OfflineNotice } from "./components/OfflineNotice";
@@ -12,6 +12,7 @@ import Buy from "./pages/Buy";
 import Wallet from "./pages/Wallet";
 import Action from "./pages/Action";
 import Collection from "./pages/Collection";
+import Account from "./pages/Account";
 import { Nav } from "./components/Nav";
 import { authClient } from "./lib/auth-client";
 
@@ -32,6 +33,22 @@ function SignedOutPage(props: ParentProps) {
       <Show when={!session().data?.user} fallback={<Navigate href="/play" />}>
         {props.children}
       </Show>
+    </Show>
+  );
+}
+
+function LoginPage() {
+  const [params] = useSearchParams();
+  return (
+    <Show
+      when={params.add === "1"}
+      fallback={
+        <SignedOutPage>
+          <AuthPage />
+        </SignedOutPage>
+      }
+    >
+      <AuthPage />
     </Show>
   );
 }
@@ -130,13 +147,14 @@ export default function App() {
           )}
         />
         <Route
-          path="/login"
+          path="/account"
           component={() => (
-            <SignedOutPage>
-              <AuthPage />
-            </SignedOutPage>
+            <ProtectedPage>
+              <Account />
+            </ProtectedPage>
           )}
         />
+        <Route path="/login" component={LoginPage} />
         <Route path="*" component={NotFound} />
       </Router>
       <OfflineNotice />

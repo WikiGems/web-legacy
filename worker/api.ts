@@ -294,7 +294,7 @@ function artSvg(card: CardRow): string {
     .slice(0, 3)
     .map(
       (text, index) =>
-        `<text x="52" y="${470 + index * 58}" font-family="Inter, Arial, sans-serif" font-size="48" font-weight="800" fill="#0b1110">${safeXml(text)}</text>`,
+        `<text x="52" y="${470 + index * 58}" font-family="Arial, sans-serif" font-size="48" font-weight="800" fill="#0b1110">${safeXml(text)}</text>`,
     )
     .join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800">
@@ -315,14 +315,14 @@ function artSvg(card: CardRow): string {
   <rect width="600" height="800" rx="34" fill="url(#glow)"/>
   <rect width="600" height="800" rx="34" fill="url(#dots)"/>
   <rect x="26" y="26" width="548" height="748" rx="24" fill="none" stroke="#0b1110" stroke-width="3" opacity="0.24"/>
-  <text x="52" y="86" font-family="monospace" font-size="20" letter-spacing="4" fill="#0b1110">WikiGems / 1 of 1</text>
-  <text x="548" y="86" text-anchor="end" font-family="monospace" font-size="24" font-weight="700" fill="#0b1110">${meta.code}</text>
+  <text x="52" y="86" font-family="Arial, sans-serif" font-size="20" letter-spacing="4" fill="#0b1110">WikiGems / 1 of 1</text>
+  <text x="548" y="86" text-anchor="end" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#0b1110">${meta.code}</text>
   <circle cx="300" cy="272" r="104" fill="#0b1110" opacity="0.9"/>
-  <text x="300" y="292" text-anchor="middle" font-family="Georgia, serif" font-size="88" font-weight="700" fill="${meta.color}">${safeXml(card.title.slice(0, 1).toUpperCase())}</text>
+  <text x="300" y="292" text-anchor="middle" font-family="Arial, sans-serif" font-size="88" font-weight="700" fill="${meta.color}">${safeXml(card.title.slice(0, 1).toUpperCase())}</text>
   ${titleMarkup}
-  <text x="52" y="676" font-family="Inter, Arial, sans-serif" font-size="20" fill="#0b1110" opacity="0.72">${safeXml(card.category)}</text>
-  <text x="52" y="714" font-family="monospace" font-size="20" fill="#0b1110">Attack ${card.attack.toLocaleString()}</text>
-  <text x="548" y="714" text-anchor="end" font-family="monospace" font-size="20" fill="#0b1110">Defense ${card.defense.toLocaleString()}</text>
+  <text x="52" y="676" font-family="Arial, sans-serif" font-size="20" fill="#0b1110" opacity="0.72">${safeXml(card.category)}</text>
+  <text x="52" y="714" font-family="Arial, sans-serif" font-size="20" fill="#0b1110">Attack ${card.attack.toLocaleString()}</text>
+  <text x="548" y="714" text-anchor="end" font-family="Arial, sans-serif" font-size="20" fill="#0b1110">Defense ${card.defense.toLocaleString()}</text>
 </svg>`;
 }
 

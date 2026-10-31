@@ -77,7 +77,7 @@ try {
   }
 
   console.log("→ applying database migrations");
-  const migration = Bun.spawn(["bun", "run", "scripts/migrate.ts"], {
+  const migration = Bun.spawn(["bun", "--no-env-file", "scripts/migrate.ts"], {
     stdout: "inherit",
     stderr: "inherit",
     env: { ...process.env },
@@ -87,7 +87,7 @@ try {
 
   if (!existsSync("dist/client/index.html")) {
     console.log("→ building the frontend for Wrangler assets");
-    const build = Bun.spawn(["bun", "run", "build"], {
+    const build = Bun.spawn(["bun", "--no-env-file", "run", "build"], {
       stdout: "inherit",
       stderr: "inherit",
       env: { ...process.env },
@@ -96,7 +96,7 @@ try {
   }
 
   console.log("→ starting Worker on :8787");
-  start(["wrangler", "dev", "--port", "8787"], "wrangler");
+  start(["wrangler", "dev", "--port", "8787", "--env-file", "/dev/null"], "wrangler");
   await waitFor("http://127.0.0.1:8787/api/health", "Worker");
 
   console.log("→ starting Vite on :5173");

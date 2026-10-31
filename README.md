@@ -15,6 +15,15 @@ point the 1-of-1 lives in the player's own wallet rather than the game database.
 The project is a Solana-native reimagining of the WikiGems loop: packs, album, duels, exchange,
 and a rarity and stats system derived from the real Wikipedia page.
 
+## Monorepo foundations
+
+The existing frontend and worker remain at the root. New private workspaces hold
+`apps/server` (TypeScript and Effect v4), `packages/contracts` (server contracts),
+and `programs/wikigems` (Rust Solana program). The new server runs separately with
+`bun run dev:server`; it is a foundation, not a replacement for the existing API.
+See [architecture and local checks](docs/architecture.md) for boundaries,
+implementation status, and Solana build instructions.
+
 ## The game
 
 - **Packs** — five unique articles per pack, one free pack every ten minutes, ten packs max.
@@ -59,6 +68,29 @@ cards, so the complete game is playable without a wallet.
 The domain layer uses Effect Schema for every client/server contract. API handlers are composed with
 `Effect.gen`, and the Solana verifier and Turso operations are wrapped in typed Effects.
 
+## Profile picture storage
+
+Profile pictures are stored in the private R2 bucket `wikigems-avatars`, bound to the Worker
+as `AVATARS`. Turso stores the object key and the profile image URL. Image bytes and content
+type live in R2. The Worker checks the session before serving a picture.
+
+Development uses the remote R2 bucket because the configured development database is hosted
+in Turso. Run `bunx wrangler login` if Cloudflare authentication is missing. The account tests
+use disposable SQLite and a local R2 emulator with remote bindings explicitly disabled.
+Run `bun run test:account` for storage tests and the passkey browser flow.
+
+Uploads use immutable keys. A pending cleanup record is written before the R2 upload; the
+profile reference is published only after the object is stored. Replacements and account
+deletion queue old objects in the same database transaction. Cleanup runs after changes and
+through a Worker cron every 15 minutes. Failed deletions retain their records for retry;
+interrupted uploads become eligible after one hour. R2 and Turso are separate systems. A failed
+request can leave cleanup pending, and a lost SQL commit response can leave an update committed.
+Reload the Account page to read the current profile state after an error.
+
+Migration `003_r2_avatars.sql` clears existing profile pictures and removes the old base64,
+MIME, and version columns. Usernames and X.com links are preserved. The earlier migration is
+retained as history, and there is no fallback to database image storage.
+
 ## Run locally
 
 ### 1. Activate the pinned environment
@@ -68,24 +100,27 @@ flox activate
 bun install
 ```
 
-Flox pins Bun, Node, Turso CLI, Wrangler, Solana CLI, SOPS, and age through the manifest and lockfile.
+Flox pins Bun, Node, Turso CLI, Wrangler, Solana CLI, Rust/Cargo, rustfmt, Clippy, SOPS, and age through the manifest and lockfile.
 Application dependencies are locked in `bun.lock`. Flox works on macOS and Linux; no separate Nix
 installation or system rebuild is needed for the development workflow.
 
-### 2. Unlock the encrypted environment
+### 2. Put your local settings in Keychain
+
+On macOS, install envchain once:
 
 ```sh
-bun run secrets:decrypt
+brew install envchain
 ```
 
-The repository stores `secrets/development.env` encrypted with SOPS and age. You need a private
-age key matching a recipient in `.sops.yaml`; the public recipient alone cannot decrypt it.
-On this Mac, the existing key is at `~/.config/sops/age/keys.txt`. For another machine,
-see **Adding a developer or machine** below.
+If you have the existing plaintext `.env`, import it without printing its contents:
 
-The script finds keys in `$XDG_CONFIG_HOME/sops/age/keys.txt` (defaulting to
-`~/.config/sops/age/keys.txt`) or `~/Library/Application Support/sops/age/keys.txt` on macOS.
-Set `SOPS_AGE_KEY_FILE=/absolute/path/to/keys.txt` to use a different key location.
+```sh
+bun run secrets:import
+bun run secrets:check
+```
+
+The import leaves `.env` untouched. You can delete that file yourself after checking the app.
+For manual setup, changing a secret, and where the values live, follow [the envchain tutorial](docs/envchain.md).
 
 ### 3. Start the game
 
@@ -93,13 +128,13 @@ Set `SOPS_AGE_KEY_FILE=/absolute/path/to/keys.txt` to use a different key locati
 bun run dev
 ```
 
-This command decrypts the environment automatically, uses the configured database, applies
+This command loads settings from the `wikigems-dev-bundle` Keychain namespace, uses the configured database, applies
 migrations, starts Wrangler on `:8787`, and starts Vite on `:5173` with `/api` proxied to the Worker.
 With the local database URL `http://127.0.0.1:8080`, it also starts a local Turso server on `:8080`.
 
 Open **[http://localhost:5173](http://localhost:5173)**.
 
-Use `localhost`, not `127.0.0.1`: the passkey RP ID is bound to `localhost` in `.env`.
+Use `localhost`, not `127.0.0.1`: the default local passkey RP ID is `localhost`.
 
 The game is fully testable without a wallet. The first account is created passkey-first. A virtual
 authenticator works in Chrome DevTools → **WebAuthn**, or via the included Playwright tests.
@@ -142,11 +177,11 @@ bun run dev            # configured Turso (or local server) + Wrangler + Vite
 bun run dev:db         # local Turso only
 bun run dev:worker     # Worker only
 bun run dev:web        # Vite only
-bun run db:migrate     # decrypt development config and apply migrations
+bun run db:migrate     # load Keychain settings and apply migrations
 bun run db:generate    # emit a fresh Better Auth schema migration for review
-bun run secrets:edit   # edit the encrypted environment with SOPS and $EDITOR
-bun run secrets:decrypt # refresh the ignored .env from ciphertext
-bun run secrets:encrypt # encrypt local .env changes for committing
+bun run secrets:import # copy existing .env settings into Keychain, leaving the file alone
+bun run secrets:check  # check Keychain settings without printing values
+bun run secrets:set TURSO_AUTH_TOKEN # change one setting with hidden input
 bun run typecheck
 bun run build
 bun run test:e2e       # passkey + pack + album smoke test
@@ -168,108 +203,20 @@ bundles. To preview the installable build locally, run `bun run build` followed 
 
 ## Configuration
 
-`secrets/development.env` is the committed source of secrets. `.sops.yaml` contains only public
-age recipients. The decrypted `.env` stays local, ignored by Git, with permissions `0600`.
-It remains on disk after stopping the app; remove it when no longer needed. Never commit private
-age keys, plaintext `.env` files, or decrypted values in Nix expressions or Flox manifests.
+Local server settings share one password-protected Keychain item in the `wikigems-dev-bundle`
+envchain namespace. A launch reads that item once, so macOS asks once for the whole service. Development and database
+commands load them from Keychain and stop if required values are missing. They do not decrypt,
+create, or update `.env`. The launcher discards inherited project settings before asking envchain
+for them, so an old `.env` cannot supply missing credentials.
 
-`dev`, `dev:web`, `dev:worker`, `db:migrate`, and `db:generate` decrypt before running. The wrapper
-reloads the new values explicitly, so Bun cannot pass stale credentials from an older `.env` to
-child processes. Wrangler reads that same file. Decryption failure stops the command and leaves
-the last working `.env` untouched. Remove any old `.dev.vars`: Wrangler gives it precedence over
-`.env`, so the wrapper refuses to run while it exists. Only `VITE_` variables reach browser code;
-never give a secret that prefix.
+Wrangler receives only the declared secret names and configured variables from the process
+environment. The dev commands pass an empty env file to ignore both `.env` and `.dev.vars`.
+Vite still reads public `VITE_` settings, including the checked-in `.env.development`.
+Never give a secret the `VITE_` prefix. See [the envchain tutorial](docs/envchain.md).
 
-### Editing and committing secrets
-
-Activate Flox first, then edit the encrypted source directly:
-
-```sh
-bun run secrets:edit
-bun run secrets:decrypt
-git add secrets/development.env .sops.yaml
-git commit -m "Update encrypted development environment"
-```
-
-Alternatively, edit the ignored `.env`, then run `bun run secrets:encrypt` **before** restarting
-dev or running migrations; those commands refresh `.env` from the encrypted source.
-`.env.example` documents the settings for an independent database. To use it, copy it to `.env`,
-set a random `BETTER_AUTH_SECRET` (`openssl rand -base64 48`), configure your database, and encrypt
-the file with your own recipient before starting dev.
-
-### Adding a developer or machine
-
-Generate a key on the new machine without overwriting an existing one:
-
-```sh
-flox activate
-mkdir -p ~/.config/sops/age
-chmod 700 ~/.config/sops/age
-test -e ~/.config/sops/age/keys.txt || age-keygen -o ~/.config/sops/age/keys.txt
-chmod 600 ~/.config/sops/age/keys.txt
-age-keygen -y ~/.config/sops/age/keys.txt
-```
-
-Give the resulting **public** `age1…` recipient to someone who can already decrypt the file.
-They add it to the comma-separated `age` recipients in `.sops.yaml`, then run:
-
-```sh
-SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt" sops updatekeys secrets/development.env
-git add .sops.yaml secrets/development.env
-git commit -m "Authorize a development secrets recipient"
-```
-
-The new machine can then pull and run `bun run dev`. Back up private keys securely outside Git;
-losing every authorized key makes the encrypted file unrecoverable. To revoke a recipient, remove
-it from `.sops.yaml`, run `sops updatekeys` and `sops rotate --in-place secrets/development.env`,
-and replace the actual Turso token and Better Auth secret: old Git revisions remain decryptable
-with the removed key. Re-encrypt the new credentials before committing.
-
-### sops-nix on NixOS or nix-darwin
-
-Flox supplies the SOPS CLI for development. [sops-nix](https://github.com/Mic92/sops-nix) provides
-activation-time decryption for a Nix-managed host. This project's locked `flake.nix` exports
-`nixosModules.default` and `darwinModules.default`, both using the same encrypted dotenv file.
-The module provisions the whole file as `sops.secrets."wikigems.env"` with mode `0400`.
-
-Add the project as a Git-backed input to your **host** flake, using its absolute checkout path
-(or a committed Git URL). A Git-backed source excludes ignored plaintext files:
-
-```nix
-inputs.wikigems.url = "git+file:///absolute/path/to/web-legacy";
-```
-
-Add `wikigems` to the host flake's `outputs` arguments and import the module in its existing
-`darwinSystem` modules list:
-
-```nix
-modules = [
-  wikigems.darwinModules.default
-  ({ ... }: {
-    # A string path outside the Nix store; the key must already exist.
-    sops.age.keyFile = "/Users/osbyrne/.config/sops/age/keys.txt";
-    sops.secrets."wikigems.env".owner = "osbyrne";
-  })
-];
-```
-
-For NixOS use `wikigems.nixosModules.default` in `nixosSystem.modules` and set the appropriate
-Linux username and key path. The host user must exist in its Nix configuration. Authorize that
-key's public recipient as described above, update the host's `wikigems` flake input after pulling
-changes, then apply your normal host rebuild. No host configuration is changed by `flox activate`.
-Only encrypted data is referenced by the project module; decryption happens during activation.
-Do not use `builtins.readFile` on plaintext secrets or a private key.
-
-After activation, use the file provisioned by sops-nix:
-
-```sh
-flox activate
-WIKIGEMS_ENV_FILE=/run/secrets/wikigems.env bun run dev
-```
-
-Use `config.sops.secrets."wikigems.env".path` if your host overrides the default location.
-`WIKIGEMS_ENV_FILE` makes the wrapper copy that already-decrypted file to the ignored `.env`
-instead of invoking SOPS. The same option works for `dev:web`, `dev:worker`, and database commands.
+The previous SOPS ciphertext, recipient configuration, and Nix modules remain as a recovery
+snapshot. Local startup no longer uses them. Changing Keychain values does not update that snapshot.
+Production secrets still need to be configured in Cloudflare.
 
 | Variable             | Purpose                                                             |
 | -------------------- | ------------------------------------------------------------------- |
@@ -314,7 +261,7 @@ TURSO_URL="$(turso db show wikigems --url)"
 TURSO_TOKEN="$(turso db tokens create wikigems)"
 
 # Use the raw script for an explicitly supplied production environment;
-# db:migrate deliberately reloads the encrypted development credentials.
+# db:migrate deliberately reloads the Keychain development credentials.
 TURSO_DATABASE_URL="$TURSO_URL" TURSO_AUTH_TOKEN="$TURSO_TOKEN" bun run scripts/migrate.ts
 ```
 

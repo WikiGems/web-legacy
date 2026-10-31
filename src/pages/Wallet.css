@@ -22,11 +22,11 @@
   padding: 18px 22px;
   margin-bottom: 24px;
   border: 1px solid var(--line-2);
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--panel-2);
   font-size: 0.9rem;
 }
-.wallet-page-note svg {
+.wallet-page-note .wg-icon {
   flex-shrink: 0;
   margin-top: 3px;
 }
@@ -39,7 +39,7 @@
 .wallet-page-panel {
   padding: 26px;
   border: 1px solid var(--line-2);
-  border-radius: 14px;
+  border-radius: 0;
   background: var(--panel);
   margin-bottom: 20px;
   min-width: 0;
@@ -64,7 +64,7 @@
   height: 46px;
   flex-shrink: 0;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--panel-3);
 }
 .wallet-example-address {
@@ -72,9 +72,9 @@
   margin: 22px 0 14px;
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--panel-2);
-  font-family: monospace;
+  font-family: var(--body);
   font-size: 0.95rem;
   overflow-wrap: anywhere;
 }
@@ -84,7 +84,7 @@
   font-size: 0.7rem;
   border: 1px solid var(--line-2);
   padding: 4px 9px;
-  border-radius: 999px;
+  border-radius: 0;
 }
 .wallet-balance-grid {
   display: grid;

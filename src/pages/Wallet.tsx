@@ -44,8 +44,8 @@ export default function Wallet() {
               ◎
             </span>
             <div>
-              <h2>SOL</h2>
-              <p>Solana · example balance</p>
+              <h2>Account balance</h2>
+              <p>SOL for network fees · example balance</p>
             </div>
           </div>
           <p class="wallet-token-amount">
