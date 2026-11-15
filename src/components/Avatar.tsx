@@ -1,34 +1,30 @@
-import { Show, createEffect, createSignal, on } from "solid-js";
-import "./Avatar.css";
+import { Avatar as HeroAvatar } from "@heroui/react";
 
-export function Avatar(props: {
+export function Avatar({
+  name,
+  image,
+  large = false,
+}: {
   name: string;
   image?: string | null;
   large?: boolean;
 }) {
-  const [failed, setFailed] = createSignal(false);
-  createEffect(
-    on(
-      () => props.image,
-      () => setFailed(false),
-    ),
-  );
-  const initials = () =>
-    props.name
+  const initials =
+    name
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase() ?? "")
       .join("") || "?";
   return (
-    <span
-      class="account-avatar"
-      classList={{ "account-avatar--large": props.large }}
+    <HeroAvatar
+      size={large ? "lg" : "sm"}
+      color="accent"
       aria-hidden="true"
+      className={large ? "size-20 shrink-0" : "shrink-0"}
     >
-      <Show when={props.image && !failed()} fallback={initials()}>
-        <img src={props.image ?? ""} alt="" onError={() => setFailed(true)} />
-      </Show>
-    </span>
+      {image && <HeroAvatar.Image src={image} alt="" />}
+      <HeroAvatar.Fallback>{initials}</HeroAvatar.Fallback>
+    </HeroAvatar>
   );
 }

@@ -1,118 +1,120 @@
+import { MoneyAmount } from "../components/MoneyAmount";
+import { Card, Chip, Separator } from "@heroui/react";
+import { HapticButton as Button } from "../components/HapticButton";
 import { Icon } from "../components/Icon";
-import "./Wallet.css";
-
+import {
+  Page,
+  PageHeader,
+  PreviewChip,
+  PreviewNotice,
+  StatCard,
+} from "../components/Page";
 const examplePublicKey = "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi";
-
 export default function Wallet() {
   return (
-    <main class="wallet-page page-shell">
-      <header class="wallet-page-heading">
-        <p class="eyebrow">Your wallet · example preview</p>
-        <h1>Wallet</h1>
-        <p>Your address, balances, and connected accounts in one place.</p>
-      </header>
-
-      <aside class="wallet-page-note">
-        <Icon name="info" size={19} />
-        <p>
-          <strong>Example wallet only.</strong> The public key and balances
-          below are sample data. All buttons are inactive previews.
-        </p>
-      </aside>
-
-      <section
-        class="wallet-page-panel wallet-address-panel"
-        aria-labelledby="wallet-address-title"
-      >
-        <div class="wallet-panel-heading">
-          <span class="wallet-page-icon">
-            <Icon name="wallet" size={22} />
-          </span>
-          <div>
-            <p class="eyebrow">Solana</p>
-            <h2 id="wallet-address-title">Example public key</h2>
-          </div>
-        </div>
-        <code class="wallet-example-address">{examplePublicKey}</code>
-        <span class="wallet-example-label">Sample address</span>
-      </section>
-
-      <section class="wallet-balance-grid" aria-label="Example token balances">
-        <article class="wallet-page-panel">
-          <div class="wallet-token-heading">
-            <span class="wallet-token-mark" aria-hidden="true">
-              ◎
-            </span>
-            <div>
-              <h2>Account balance</h2>
-              <p>SOL for network fees · example balance</p>
+    <Page>
+      <PageHeader
+        eyebrow="Your wallet"
+        title="Wallet"
+        description="Your place in the collection. Addresses, balances, and account connections, all together."
+        action={<PreviewChip />}
+      />
+      <PreviewNotice>
+        This is an example wallet. The address and balances are sample data, and
+        connection controls are inactive.
+      </PreviewNotice>
+      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+        <Card>
+          <Card.Header className="flex-row items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs text-muted">Solana wallet</p>
+              <Card.Title>Example public key</Card.Title>
             </div>
-          </div>
-          <p class="wallet-token-amount">
-            2.50 <span>SOL</span>
-          </p>
-          <span class="wallet-example-label">Example amount</span>
-        </article>
-        <article class="wallet-page-panel">
-          <div class="wallet-token-heading">
-            <span class="wallet-token-mark" aria-hidden="true">
-              $
-            </span>
-            <div>
-              <h2>USDC</h2>
-              <p>USD Coin · example balance</p>
+            <Chip color="accent" size="sm" variant="soft">
+              <Chip.Label>Devnet</Chip.Label>
+            </Chip>
+          </Card.Header>
+          <Card.Content className="space-y-5">
+            <code className="block rounded-xl bg-default/60 p-4 text-sm leading-relaxed break-all">
+              {examplePublicKey}
+            </code>
+            <p className="flex items-center gap-2 text-xs text-muted">
+              <Icon name="shield" size={15} />A sample address. No wallet is
+              connected here.
+            </p>
+          </Card.Content>
+        </Card>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          <StatCard
+            label="Example network balance"
+            value={
+              <MoneyAmount
+                amount={2.5}
+                currency="SOL"
+                unitClassName="text-sm font-normal text-muted"
+              />
+            }
+            icon="wallet"
+            detail="SOL is used for network fees."
+          />
+          <StatCard
+            label="Example account balance"
+            value={
+              <MoneyAmount
+                amount={125}
+                currency="USDC"
+                unitClassName="text-sm font-normal text-muted"
+              />
+            }
+            icon="coin"
+          />
+        </div>
+      </div>
+      <Card>
+        <Card.Header>
+          <Card.Title>Connected accounts</Card.Title>
+          <Card.Description>
+            Keep your collection close, wherever you sign in.
+          </Card.Description>
+        </Card.Header>
+        <Card.Content className="space-y-4">
+          {["Google", "Apple ID"].map((provider, index) => (
+            <div key={provider}>
+              {index > 0 && <Separator className="mb-4" />}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-10 items-center justify-center rounded-xl bg-default text-sm font-semibold">
+                    {provider[0]}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium">{provider}</p>
+                    <p className="text-xs text-muted">
+                      Not connected · preview
+                    </p>
+                  </div>
+                </div>
+                <Button variant="secondary" size="sm" isDisabled>
+                  Connect {provider}
+                </Button>
+              </div>
             </div>
+          ))}
+        </Card.Content>
+      </Card>
+      <Card>
+        <Card.Content className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h2 className="font-semibold">Private key</h2>
+            <p className="text-sm text-muted">
+              Key export is not available in this preview.
+            </p>
           </div>
-          <p class="wallet-token-amount">
-            125.00 <span>USDC</span>
-          </p>
-          <span class="wallet-example-label">Example amount</span>
-        </article>
-      </section>
-
-      <section
-        class="wallet-page-panel"
-        aria-labelledby="wallet-accounts-title"
-      >
-        <div class="wallet-panel-heading">
-          <Icon name="user" size={21} />
-          <h2 id="wallet-accounts-title">Connected accounts</h2>
-        </div>
-        <p class="wallet-panel-description">
-          Account connection options · preview
-        </p>
-        <div class="wallet-account-row">
-          <div>
-            <strong>Google</strong>
-            <span>Not connected · example status</span>
-          </div>
-          <button class="btn btn-outline" type="button">
-            Connect Google account
-          </button>
-        </div>
-        <div class="wallet-account-row">
-          <div>
-            <strong>Apple ID</strong>
-            <span>Not connected · example status</span>
-          </div>
-          <button class="btn btn-outline" type="button">
-            Connect Apple ID
-          </button>
-        </div>
-      </section>
-
-      <section
-        class="wallet-page-panel wallet-export-panel"
-        aria-labelledby="wallet-export-title"
-      >
-        <div>
-          <h2 id="wallet-export-title">Private key</h2>
-          <p class="wallet-panel-description">Export control preview</p>
-        </div>
-        <button class="btn btn-outline" type="button">
-          Export private key
-        </button>
-      </section>
-    </main>
+          <Button variant="secondary" isDisabled>
+            <Icon name="lock" size={16} />
+            Export private key
+          </Button>
+        </Card.Content>
+      </Card>
+    </Page>
   );
 }

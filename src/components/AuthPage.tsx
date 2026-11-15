@@ -1,35 +1,46 @@
-import { A, useSearchParams } from "@solidjs/router";
-import { createEffect, createSignal, Show } from "solid-js";
+import { haptic } from "../lib/haptics";
+import {
+  Alert,
+  Card,
+  Input,
+  Label,
+  Spinner,
+  Tabs,
+  TextField,
+} from "@heroui/react";
+import { HapticButton as Button } from "./HapticButton";
+import { useState, useEffect, useRef } from "react";
+import { Link, useSearch, useNavigate } from "@tanstack/react-router";
 import { accountAuthClient } from "../lib/auth-client";
 import { fetchOnboardingContext, runApi } from "../lib/api";
-import { showToast } from "../lib/ui";
-import { CardBack } from "./GameCard";
+import { queueAuthToast } from "../lib/ui";
+import { Logo } from "./Logo";
 import { Icon } from "./Icon";
-
 type Busy = "idle" | "signin" | "signup";
-
 function passkeySupported(): boolean {
   return typeof window !== "undefined" && "PublicKeyCredential" in window;
 }
-
 export function AuthPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [name, setName] = createSignal("");
-  const [email, setEmail] = createSignal("");
-  const [busy, setBusy] = createSignal<Busy>("idle");
-  const [error, setError] = createSignal<string | null>(null);
-  let nameInput: HTMLInputElement | undefined;
-
-  const isSignup = () => searchParams.mode === "signup";
-  const isAdding = () => searchParams.add === "1";
+  const searchParams = useSearch({ from: "/login" });
+  const navigate = useNavigate();
+  const setSearchParams = (search: { mode: "signup" | "signin" }) =>
+    void navigate({ to: "/login", search: { ...searchParams, ...search } });
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState<Busy>("idle");
+  const [error, setError] = useState<string | null>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
+  const isSignup = searchParams.mode === "signup";
+  const isAdding = searchParams.add === 1;
   const supported = passkeySupported();
-
-  createEffect(() => {
+  useEffect(() => {
     setBusy("idle");
     setError(null);
-    if (isSignup()) window.setTimeout(() => nameInput?.focus(), 80);
-  });
-
+    const timeout = window.setTimeout(() => {
+      if (searchParams.mode === "signup") nameInput.current?.focus();
+    }, 80);
+    return () => window.clearTimeout(timeout);
+  }, [searchParams.mode]);
   function friendlyError(value: unknown): string {
     if (value instanceof Error) {
       if (value.name === "NotAllowedError") {
@@ -42,8 +53,7 @@ export function AuthPage() {
     }
     return "The passkey ceremony did not complete. Try again.";
   }
-
-  async function signIn(event: SubmitEvent) {
+  async function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supported) return;
     setError(null);
@@ -54,24 +64,21 @@ export function AuthPage() {
       });
       if (result?.error)
         throw new Error(result.error.message || "Passkey sign-in failed.");
-      showToast("Welcome back, collector", {
-        body: "Your album is waiting.",
-        tone: "success",
-      });
-      window.location.assign(isAdding() ? "/account" : "/play");
+      queueAuthToast("sign-in");
+      window.location.assign(isAdding ? "/account" : "/play");
     } catch (cause) {
+      haptic("error");
       setError(friendlyError(cause));
       setBusy("idle");
     }
   }
-
-  async function signUp(event: SubmitEvent) {
+  async function signUp(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supported) return;
     setError(null);
     setBusy("signup");
     try {
-      const context = await runApi(fetchOnboardingContext(name(), email()));
+      const context = await runApi(fetchOnboardingContext(name, email));
       const result = await accountAuthClient.passkey.addPasskey({
         context: context.context,
         createSession: true,
@@ -82,209 +89,192 @@ export function AuthPage() {
         );
       if (!result?.data)
         throw new Error("The passkey was not saved. Try again.");
-
-      showToast("Collector card created", {
-        body: "Your passkey is on this device. No password, ever.",
-        tone: "success",
-      });
-      window.location.assign(isAdding() ? "/account" : "/play");
+      queueAuthToast("sign-up");
+      window.location.assign(isAdding ? "/account" : "/play");
     } catch (cause) {
+      haptic("error");
       setError(friendlyError(cause));
       setBusy("idle");
     }
   }
-
   return (
-    <main class="auth-page">
-      <div class="auth-panel" aria-labelledby="auth-title">
-        <div class="auth-visual">
-          <div class="auth-visual-cards" aria-hidden="true">
-            <CardBack size="sm" class="auth-card auth-card--one" />
-            <CardBack size="sm" class="auth-card auth-card--two" />
-            <CardBack size="sm" class="auth-card auth-card--three" />
-          </div>
-          <div class="auth-visual-copy">
-            <p class="eyebrow">The Wikipedia card game</p>
-            <h2>
-              Every article.
-              <br />
-              <em>One card.</em>
-            </h2>
-            <p>
-              Collect 1-of-1 cards pulled from Wikipedia, duel on what you know,
-              and trade before someone else claims the page.
-            </p>
-          </div>
-          <div class="auth-visual-foot">
-            <Icon name="bolt" size={14} /> Passkey-native · No password
-          </div>
-        </div>
-
-        <div class="auth-main">
-          <div class="auth-content">
-            <Show when={isAdding()}>
-              <p class="auth-sub">
-                Add an account. Your other accounts will stay signed in.
-              </p>
-              <A class="text-link" href="/account">
-                Back to account
-              </A>
-            </Show>
-            <div
-              class="auth-tabs"
-              role="tablist"
-              aria-label="Authentication mode"
-            >
-              <button
-                role="tab"
-                aria-selected={!isSignup()}
-                classList={{ "is-active": !isSignup() }}
-                onClick={() => setSearchParams({ mode: "signin" })}
-              >
-                Sign in
-              </button>
-              <button
-                role="tab"
-                aria-selected={isSignup()}
-                classList={{ "is-active": isSignup() }}
-                onClick={() => setSearchParams({ mode: "signup" })}
-              >
-                Create collector
-              </button>
-            </div>
-
-            <Show
-              when={isSignup()}
-              fallback={
-                <form onSubmit={signIn} class="auth-form">
-                  <h3 id="auth-title">Back to the archive.</h3>
-                  <p class="auth-sub">
-                    Use the passkey stored on this device. Your browser will ask
-                    for Face ID, Touch ID, or your security key.
-                  </p>
-
-                  <button
-                    class="btn btn-primary btn-lg auth-submit"
-                    type="submit"
-                    disabled={busy() !== "idle" || !supported}
-                  >
-                    <Show
-                      when={busy() === "signin"}
-                      fallback={
-                        <>
-                          <Icon name="bolt" size={18} /> Continue with passkey
-                        </>
-                      }
-                    >
-                      <span class="spinner" /> Waiting for your device…
-                    </Show>
-                  </button>
-
-                  <Show when={!supported}>
-                    <p class="auth-error">
-                      This browser does not support passkeys. Try the latest
-                      Safari, Chrome, Edge, or Firefox.
-                    </p>
-                  </Show>
-                  <Show when={error()}>
-                    <p class="auth-error" role="alert">
-                      {error()}
-                    </p>
-                  </Show>
-                  <p class="auth-fineprint">
-                    New here?{" "}
-                    <button
-                      type="button"
-                      class="text-link"
-                      onClick={() => setSearchParams({ mode: "signup" })}
-                    >
-                      Create a collector with a passkey
-                    </button>
-                  </p>
-                </form>
+    <main className="mx-auto flex min-h-dvh max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-10">
+      <div className="flex items-center justify-between">
+        <Logo />
+        <Link
+          to={isAdding ? "/account" : "/"}
+          className="text-sm text-muted hover:text-foreground"
+        >
+          {isAdding ? "Back to account" : "Back to home"}
+        </Link>
+      </div>
+      <div className="grid flex-1 items-center gap-12 py-12 lg:grid-cols-2 lg:gap-24">
+        <section className="hidden space-y-7 lg:block">
+          <span className="inline-flex size-14 items-center justify-center rounded-2xl bg-accent-soft text-accent-soft-foreground">
+            <Icon name="globe" size={30} />
+          </span>
+          <h2 className="max-w-lg text-5xl leading-tight font-semibold tracking-tight">
+            A good place for
+            <br />
+            <span className="text-accent">curious minds.</span>
+          </h2>
+          <p className="max-w-md text-lg leading-relaxed text-muted">
+            There’s a story behind everything. Discover the articles you love,
+            and give them a place in your collection.
+          </p>
+          <p className="flex items-center gap-2 text-sm text-muted">
+            <Icon name="shield" />
+            Yours to explore. Secured with a passkey.
+          </p>
+        </section>
+        <Card className="mx-auto w-full max-w-md p-5 sm:p-6">
+          <Card.Header>
+            <h1 className="text-2xl font-semibold">
+              {isAdding ? "Another curious mind?" : "Welcome to WikiGems."}
+            </h1>
+            <Card.Description>
+              {isAdding
+                ? "Add an account. Your other accounts will stay signed in."
+                : "A whole world of discoveries starts here."}
+            </Card.Description>
+          </Card.Header>
+          <Card.Content>
+            <Tabs
+              selectedKey={isSignup ? "signup" : "signin"}
+              onSelectionChange={(key) =>
+                setSearchParams({
+                  mode: key === "signup" ? "signup" : "signin",
+                })
               }
             >
-              <form onSubmit={signUp} class="auth-form">
-                <h3 id="auth-title">Claim your collector card.</h3>
-                <p class="auth-sub">
-                  Pick the name other collectors will see. Your passkey is
-                  created next — there is no password step.
-                </p>
-
-                <label class="field">
-                  <span>Collector name</span>
-                  <input
-                    ref={(element) => {
-                      nameInput = element;
-                    }}
-                    value={name()}
-                    onInput={(event) => setName(event.currentTarget.value)}
-                    placeholder="Ada Lovelace"
-                    autocomplete="name"
-                    required
-                    minlength="2"
-                    maxlength="80"
-                  />
-                </label>
-
-                <label class="field">
-                  <span>Email</span>
-                  <input
+              <Tabs.List aria-label="Authentication mode" className="w-full">
+                <Tabs.Tab id="signin" className="flex-1">
+                  Sign in
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                <Tabs.Tab id="signup" className="flex-1">
+                  Create collector
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              </Tabs.List>
+              <Tabs.Panel id="signup" className="pt-6">
+                <form onSubmit={signUp} className="space-y-5">
+                  <div className="space-y-2">
+                    <h2 id="auth-title" className="text-lg font-semibold">
+                      Claim your collector card.
+                    </h2>
+                    <p className="text-sm leading-relaxed text-muted">
+                      Choose a name, then create a passkey with your device. No
+                      password needed.
+                    </p>
+                  </div>
+                  <TextField
+                    value={name}
+                    onChange={setName}
+                    isRequired
+                    minLength={2}
+                    maxLength={80}
+                    isDisabled={busy !== "idle"}
+                  >
+                    <Label>Collector name</Label>
+                    <Input
+                      ref={nameInput}
+                      autoComplete="name"
+                      placeholder="Ada Lovelace"
+                    />
+                  </TextField>
+                  <TextField
+                    value={email}
+                    onChange={setEmail}
+                    isRequired
                     type="email"
-                    value={email()}
-                    onInput={(event) => setEmail(event.currentTarget.value)}
-                    placeholder="ada@example.com"
-                    autocomplete="email"
-                    required
-                  />
-                  <small>
-                    Used to identify your account. No marketing, no password.
-                  </small>
-                </label>
-
-                <button
-                  class="btn btn-primary btn-lg auth-submit"
-                  type="submit"
-                  disabled={busy() !== "idle" || !supported}
-                >
-                  <Show
-                    when={busy() === "signup"}
-                    fallback={
+                    isDisabled={busy !== "idle"}
+                  >
+                    <Label>Email</Label>
+                    <Input autoComplete="email" placeholder="ada@example.com" />
+                  </TextField>
+                  <Button
+                    type="submit"
+                    isDisabled={busy !== "idle" || !supported}
+                    className="w-full"
+                  >
+                    {busy === "signup" ? (
                       <>
-                        <Icon name="bolt" size={18} /> Create passkey
+                        <Spinner size="sm" />
+                        Talking to your device…
                       </>
-                    }
-                  >
-                    <span class="spinner" /> Talking to your device…
-                  </Show>
-                </button>
-
-                <Show when={!supported}>
-                  <p class="auth-error">
-                    This browser does not support passkeys. Try the latest
-                    Safari, Chrome, Edge, or Firefox.
+                    ) : (
+                      <>
+                        <Icon name="shield" />
+                        Create passkey
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-center text-xs leading-relaxed text-muted">
+                    Your passkey stays on your device. Your email identifies
+                    your account.
                   </p>
-                </Show>
-                <Show when={error()}>
-                  <p class="auth-error" role="alert">
-                    {error()}
-                  </p>
-                </Show>
-                <p class="auth-fineprint">
-                  Already collecting?{" "}
-                  <button
-                    type="button"
-                    class="text-link"
-                    onClick={() => setSearchParams({ mode: "signin" })}
+                </form>
+              </Tabs.Panel>
+              <Tabs.Panel id="signin" className="pt-6">
+                <form onSubmit={signIn} className="space-y-6">
+                  <div className="space-y-2">
+                    <h2 id="auth-title" className="text-lg font-semibold">
+                      Back to the archive.
+                    </h2>
+                    <p className="text-sm leading-relaxed text-muted">
+                      Use Face ID, Touch ID, or your security key to pick up
+                      where you left off.
+                    </p>
+                  </div>
+                  <div className="flex justify-center rounded-2xl bg-default/50 py-8">
+                    <span className="flex size-16 items-center justify-center rounded-full bg-accent-soft text-accent-soft-foreground">
+                      <Icon name="shield" size={32} />
+                    </span>
+                  </div>
+                  <Button
+                    type="submit"
+                    isDisabled={busy !== "idle" || !supported}
+                    className="w-full"
                   >
-                    Sign in with your passkey
-                  </button>
-                </p>
-              </form>
-            </Show>
-          </div>
-        </div>
+                    {busy === "signin" ? (
+                      <>
+                        <Spinner size="sm" />
+                        Waiting for your device…
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="shield" />
+                        Continue with passkey
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </Tabs.Panel>
+            </Tabs>
+            {!supported && (
+              <Alert status="warning" className="mt-5">
+                <Alert.Content>
+                  <Alert.Title>Passkeys aren’t supported here.</Alert.Title>
+                  <Alert.Description>
+                    Try the latest Safari, Chrome, Edge, or Firefox.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+            {error && (
+              <Alert status="danger" role="alert" className="mt-5">
+                <Alert.Content>
+                  <Alert.Description>{error}</Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+          </Card.Content>
+        </Card>
       </div>
+      <p className="pb-3 text-center text-xs text-muted">
+        One article. One card. A world to discover.
+      </p>
     </main>
   );
 }

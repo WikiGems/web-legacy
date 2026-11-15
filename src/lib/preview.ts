@@ -1,6 +1,6 @@
-import type { Card } from "../../shared/domain";
-import { draftFromArticle } from "../../shared/card-engine";
-import { featuredArticles } from "../../shared/featured";
+import type { Card } from "@wikigems/domain/domain";
+import { draftFromArticle } from "@wikigems/domain/card-engine";
+import { featuredArticles } from "@wikigems/domain/featured";
 
 const showcaseOrder = [
   "736",
@@ -17,7 +17,9 @@ const showcaseOrder = [
 
 export const showcaseArticles = showcaseOrder
   .map((id) => featuredArticles.find((article) => article.articleId === id))
-  .filter((article): article is NonNullable<typeof article> => Boolean(article));
+  .filter((article): article is NonNullable<typeof article> =>
+    Boolean(article),
+  );
 
 export function previewCard(articleId: string, index = 0): Card {
   const article =
@@ -38,9 +40,13 @@ export function previewCard(articleId: string, index = 0): Card {
 }
 
 export function showcaseCards(): Card[] {
-  return showcaseArticles.map((article, index) => previewCard(article.articleId, index));
+  return showcaseArticles.map((article, index) =>
+    previewCard(article.articleId, index),
+  );
 }
 
 export function duelCards(): Card[] {
-  return featuredArticles.map((article, index) => previewCard(article.articleId, index));
+  return featuredArticles.map((article, index) =>
+    previewCard(article.articleId, index),
+  );
 }

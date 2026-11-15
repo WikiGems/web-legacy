@@ -1,26 +1,26 @@
-import { For } from "solid-js";
-import { dismissToast, toasts } from "../lib/ui";
-import { Icon } from "./Icon";
+import { Toaster } from "./ui/toast";
+import { useEffect } from "react";
+import { restoreAuthToast } from "../lib/ui";
 
 export function ToastHost() {
+  useEffect(restoreAuthToast, []);
   return (
-    <div class="toast-host" aria-live="polite" aria-atomic="false">
-      <For each={toasts()}>
-        {(toast) => (
-          <div class="toast" classList={{ [`toast--${toast.tone}`]: true }}>
-            <span class="toast-icon">
-              <Icon name={toast.tone === "success" ? "check" : toast.tone === "error" ? "close" : "spark"} size={16} />
-            </span>
-            <div>
-              <p class="toast-title">{toast.title}</p>
-              {toast.body && <p class="toast-body">{toast.body}</p>}
-            </div>
-            <button class="toast-close" onClick={() => dismissToast(toast.id)} aria-label="Dismiss">
-              <Icon name="close" size={14} />
-            </button>
-          </div>
-        )}
-      </For>
-    </div>
+    <Toaster
+      position="bottom-right"
+      visibleToasts={3}
+      duration={4600}
+      offset={{
+        bottom:
+          "calc(var(--app-bottom-space, 0px) + 1rem + env(safe-area-inset-bottom, 0px))",
+        right: 16,
+      }}
+      mobileOffset={{
+        bottom:
+          "calc(var(--app-bottom-space, 0px) + 1rem + env(safe-area-inset-bottom, 0px))",
+        left: 16,
+        right: 16,
+      }}
+      toastOptions={{ classNames: { toast: "font-sans" } }}
+    />
   );
 }

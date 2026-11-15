@@ -24,6 +24,12 @@ and `programs/wikigems` (Rust Solana program). The new server runs separately wi
 See [architecture and local checks](docs/architecture.md) for boundaries,
 implementation status, and Solana build instructions.
 
+## Current web app
+
+The React frontend provides passkey login, account/profile management and Wikipedia article search. Collection, marketplace, action and wallet routes currently display labeled previews. Pack, trade, duel and mint components remain in the codebase; the current routes do not expose the complete game loop described below.
+
+Run `bun run test:e2e` for the isolated account, route, search and component browser checks. These checks use disposable data and a virtual passkey. The older `test:mint` and `test:trade` scripts target the earlier pack-based UI and require updating before they can verify the current app or a live provider.
+
 ## The game
 
 - **Packs** — five unique articles per pack, one free pack every ten minutes, ten packs max.
@@ -56,8 +62,8 @@ cards, so the complete game is playable without a wallet.
 | Layer                     | Choice                                     |
 | ------------------------- | ------------------------------------------ |
 | Runtime / package manager | Bun 1.4.2 (pinned by Flox)                 |
-| UI                        | SolidJS 1.9 + `@solidjs/router`            |
-| Build                     | Vite 8 + `vite-plugin-solid`               |
+| UI                        | React 19 + HeroUI 3 + TanStack Router     |
+| Build                     | Vite 8 + React plugin + Tailwind CSS 4               |
 | Domain / API composition  | Effect 4.0                                 |
 | Auth                      | Better Auth 1.7 + `@better-auth/passkey`   |
 | Solana                    | `@solana/web3.js`, Umi, Metaplex Core      |
@@ -189,17 +195,37 @@ bun run test:e2e       # passkey + pack + album smoke test
 
 ## Install as an app
 
-Production builds include a web app manifest, install icons, and a service worker for the whole
-site. Install WikiGems from the browser's install menu or Add to Home Screen. The installed app
-launches `/play`: signed-in users enter the game, and signed-out users go to `/login`. Signed-in
-visits to `/` and `/login` also open `/play`.
+Production builds include a web app manifest, 192/512px icons (including a maskable icon),
+Apple touch metadata, and a service worker. An install offer appears on arrival. When the
+browser exposes its installation API, **Install app** opens the native dialog from your tap.
+The site also leaves the browser's automatic install promotion enabled.
 
-After the first online visit, the app shell can load offline. Signing in, syncing cards, trading,
-and minting require a connection. Authentication, game data, and wallet requests are never stored
-in the service worker cache. New versions activate after existing app windows close.
+Browsers control when that native dialog is available: HTTPS and installability criteria
+are required, and Chrome also applies engagement rules. A site cannot force the native dialog
+on first load or skip the user's confirmation. **How to install** provides browser-specific
+instructions while the native option is unavailable, including Share → Add to Home Screen
+on iPhone/iPad and File → Add to Dock in Safari on Mac. Account keeps an installation action
+available after the arrival offer is dismissed. Dismissal lasts for the current tab session;
+installed app windows hide the offer. A local installation hint is cleared when the browser
+reports a new install opportunity after uninstalling.
 
-The service worker is enabled in production builds, so Vite development stays free of cached
-bundles. To preview the installable build locally, run `bun run build` followed by `bun run preview`.
+The installed app launches `/play`: signed-in users enter the game, and signed-out users go
+to `/login`. Signed-in visits to `/` and `/login` also open `/play`.
+
+After the first online visit, the app shell can load offline. Signing in, syncing cards,
+trading, and minting require a connection. Authentication, game data, and wallet requests
+are never stored in the service worker cache. New versions activate after existing app windows close.
+
+The service worker and installation UI are enabled in production builds. Vite development
+stays free of cached bundles. For local testing, run `bun run build` then `bun run preview`;
+localhost is a secure-context exception. Public hosting must use HTTPS and serve `sw.js`,
+`manifest.webmanifest`, and the icon files from this origin. Cloudflare's existing asset
+configuration serves those files and the security/cache headers in `public/_headers`.
+
+Run `bun run test:pwa` for a disposable, non-incognito Chrome profile checking real browser
+installability diagnostics, the active worker, offline shell and cache boundaries. Install
+button choices are simulated at the browser API boundary; the checks do not install an OS
+application or prove browser promotion timing on a deployed domain.
 
 ## Configuration
 
@@ -305,13 +331,13 @@ an independent fan project and is not affiliated with the Wikimedia Foundation.
 
 ```
 src/pages/Landing.tsx        marketing page and card showcase
-src/pages/Play.tsx           packs, album, exchange, duels, ranking
+src/pages/Play.tsx           Wikipedia search and preview mint controls
 src/components/GameCard.tsx  the card component
 src/components/CardModal.tsx card detail + mint flow
 src/components/PackOpening.tsx
 src/components/DuelGame.tsx
 src/lib/solana.ts            Phantom/Solflare/Backpack adapter, Umi mint, HTTP confirmation
-src/lib/wallet.ts            wallet state and connection
+src/lib/wallet.ts            browser wallet state and connection
 worker/api.ts                Effect-composed game API
 worker/wiki.ts               Wikipedia article + pageview ingestion
 worker/solana.ts             server-side mint transaction verification
@@ -320,3 +346,15 @@ shared/domain.ts             Effect schemas
 migrations/                  Better Auth + game schema
 scripts/                     dev orchestrator, migrations, e2e tests
 ```
+
+## Frontend architecture
+
+The React/HeroUI web app shares domain rules and its validated API/query layer with a future React Native app. Read [the architecture and native integration guide](docs/frontend-architecture.md) for package ownership, usage and validation. Run `bun run check:architecture` to check these boundaries.
+
+## Component credits
+
+Monetary displays use the [Animated counter from Rare UI](https://rareui.com/components/animatedcounter), by Swami Malode. Its license and attribution terms are preserved in [third-party/rare-ui/LICENSE](third-party/rare-ui/LICENSE).
+
+Optional email verification uses the [OTP input from Rare UI](https://rareui.com/components/otpinput), under the same credited license.
+
+Action notifications use the [Toast component from Rare UI](https://rareui.com/components/toast), under the same credited license.

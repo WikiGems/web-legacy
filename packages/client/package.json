@@ -1,0 +1,20 @@
+{
+  "name": "@wikigems/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@wikigems/domain": "workspace:*",
+    "@tanstack/react-query": "^5.90.0",
+    "effect": "4.0.5"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

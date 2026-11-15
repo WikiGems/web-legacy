@@ -1,107 +1,128 @@
-import { createSignal, Show } from "solid-js";
-import type { Card } from "../../shared/domain";
-import { RARITY_META } from "../../shared/card-engine";
+import { Card, Chip } from "@heroui/react";
+import { HapticButton as Button } from "./HapticButton";
+import { useState, type ReactNode } from "react";
+import { clsx } from "clsx";
+import type { Card as ArticleCard } from "@wikigems/domain/domain";
 import { Icon } from "./Icon";
+import { RarityBadge } from "./RarityBadge";
 
-export function GameCard(props: {
-  card: Card;
-  size?: "xs" | "sm" | "md" | "lg";
-  onClick?: (card: Card) => void;
-  class?: string;
+type CardSize = "xs" | "sm" | "md" | "lg";
+export function CardArtwork({
+  card,
+  className,
+  children,
+}: {
+  card: ArticleCard;
+  className?: string;
+  children?: ReactNode;
 }) {
-  const [imageFailed, setImageFailed] = createSignal(false);
-  const meta = () => RARITY_META[props.card.rarity];
-  const style = () =>
-    `--rarity-color:${meta().color};--rarity-deep:${meta().deep};--rarity-glow:${meta().glow}`;
-  const content = (
-    <>
-      <div class="game-card-art">
-        <Show
-          when={props.card.imageUrl && !imageFailed()}
-          fallback={
-            <div class="game-card-art-fallback" aria-hidden="true">
-              <span>{props.card.title.slice(0, 1).toUpperCase()}</span>
-              <div class="fallback-rings" />
-            </div>
-          }
-        >
-          <img
-            src={props.card.imageUrl ?? ""}
-            alt=""
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onError={() => setImageFailed(true)}
-          />
-        </Show>
-        <div class="game-card-art-shade" />
-        <Show when={props.card.status === "minted"}>
-          <span class="onchain-chip">
-            <Icon name="bolt" size={11} /> On-chain
-          </span>
-        </Show>
-        <Show when={props.card.forTrade && props.card.status === "claimed"}>
-          <span class="trade-chip">
-            <Icon name="swap" size={11} /> Open to trades
-          </span>
-        </Show>
-      </div>
-      <div class="game-card-body">
-        <div class="game-card-title-row">
-          <h3>{props.card.title}</h3>
-          <span class="game-card-category">{props.card.category}</span>
-        </div>
-        <p class="game-card-description">
-          {props.card.description || props.card.extract}
-        </p>
-        <div class="game-card-stats">
-          <span class="game-card-owner">
-            {props.card.ownerName ?? "Unclaimed"}
-          </span>
-        </div>
-      </div>
-    </>
-  );
-
+  const [failedImage, setFailedImage] = useState<string | null>(null);
   return (
-    <Show
-      when={props.onClick}
-      fallback={
-        <div
-          class={`game-card game-card--${props.size ?? "md"} ${props.class ?? ""}`}
-          style={style()}
-        >
-          {content}
-        </div>
-      }
+    <div
+      className={clsx(
+        "relative isolate flex aspect-[4/3] items-center justify-center overflow-hidden rounded-xl bg-default",
+        className,
+      )}
     >
-      <button
-        type="button"
-        class={`game-card game-card--${props.size ?? "md"} ${props.class ?? ""}`}
-        style={style()}
-        onClick={() => props.onClick?.(props.card)}
-        aria-label={props.card.title}
-      >
-        {content}
-      </button>
-    </Show>
+      {card.imageUrl && failedImage !== card.imageUrl ? (
+        <img
+          src={card.imageUrl}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          className="size-full object-cover"
+          onError={() => setFailedImage(card.imageUrl)}
+        />
+      ) : (
+        <Icon name="globe" size={48} className="text-muted/40" />
+      )}
+      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/55 to-transparent" />
+      <div className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-xs font-medium text-white">
+          {card.category}
+        </span>
+        {children}
+      </div>
+      <span className="absolute top-3 right-3 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-black backdrop-blur-sm">
+        1 of 1
+      </span>
+    </div>
   );
 }
 
-export function CardBack(props: {
-  size?: "xs" | "sm" | "md" | "lg";
-  class?: string;
+export function GameCard({
+  card,
+  size = "md",
+  onClick,
+  className,
+}: {
+  card: ArticleCard;
+  size?: CardSize;
+  onClick?: (card: ArticleCard) => void;
+  className?: string;
+}) {
+  return (
+    <Card className={clsx("h-full min-w-0", className)}>
+      <CardArtwork card={card} />
+      <Card.Content className="flex-1 space-y-3 pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <RarityBadge rarity={card.rarity} />
+          {(card.status === "minted" || card.forTrade) && (
+            <span className="text-xs text-muted">
+              {card.status === "minted" ? "On Solana" : "Open to trades"}
+            </span>
+          )}
+        </div>
+        <Card.Title className={size === "xs" ? "text-sm" : "text-lg"}>
+          {card.title}
+        </Card.Title>
+        {size !== "xs" && (
+          <Card.Description className="line-clamp-2 text-sm leading-relaxed">
+            {card.description || card.extract}
+          </Card.Description>
+        )}
+      </Card.Content>
+      {onClick && (
+        <Card.Footer>
+          <Button
+            variant="secondary"
+            size="sm"
+            onPress={() => onClick(card)}
+            className="w-full"
+            aria-label={`View details for ${card.title}`}
+          >
+            View details
+            <Icon name="arrow-up-right" size={14} />
+          </Button>
+        </Card.Footer>
+      )}
+    </Card>
+  );
+}
+
+export function CardBack({
+  className,
+  label = "1 of 1",
+}: {
+  size?: CardSize;
+  className?: string;
   label?: string;
 }) {
   return (
-    <div
-      class={`card-back card-back--${props.size ?? "md"} ${props.class ?? ""}`}
+    <Card
       aria-hidden="true"
+      className={clsx(
+        "flex aspect-[3/4] items-center justify-center bg-accent-soft text-accent-soft-foreground",
+        className,
+      )}
     >
-      <div class="card-back-inner">
-        <span class="card-back-globe">W</span>
-        <span class="card-back-brand">WikiGems</span>
-        <span class="card-back-label">{props.label ?? "1 of 1"}</span>
+      <div className="space-y-4 text-center">
+        <Icon name="spark" size={38} className="mx-auto" />
+        <p className="font-semibold">WikiGems</p>
+        <Chip size="sm" color="accent" variant="soft">
+          <Chip.Label>{label}</Chip.Label>
+        </Chip>
       </div>
-    </div>
+    </Card>
   );
 }

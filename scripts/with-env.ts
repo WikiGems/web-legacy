@@ -15,6 +15,8 @@ const defaults = {
   TRUSTED_ORIGINS: "",
   SOLANA_RPC_URL: "https://api.devnet.solana.com",
   SOLANA_CLUSTER: "devnet",
+  RESEND_API_KEY: "",
+  EMAIL_FROM: "",
 };
 const keys = Object.keys(defaults);
 const decodeSettings = Schema.decodeUnknownSync(Schema.Record(Schema.String, Schema.String));

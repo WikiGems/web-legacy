@@ -1,52 +1,37 @@
-import { A } from "@solidjs/router";
+import { Link } from "@tanstack/react-router";
 import { Logo } from "./Logo";
-
 export function Footer() {
   return (
-    <footer class="site-footer">
-      <div class="page-shell footer-grid">
-        <div class="footer-brand">
+    <footer className="border-t border-separator">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-6 px-4 py-8 sm:px-6 lg:px-10">
+        <div className="space-y-3">
           <Logo />
+          <p className="text-xs text-muted">
+            An independent project for curious minds. Not affiliated with
+            Wikimedia.
+          </p>
         </div>
-        <div class="footer-col">
-          <p class="eyebrow">The game</p>
-          <A href="/play">Open packs</A>
-          <A href="/play">Your album</A>
-          <A href="/play">Duel</A>
-          <A href="/play">Trade</A>
-        </div>
-        <div class="footer-col">
-          <p class="eyebrow">The archive</p>
-          <a href="https://www.wikipedia.org/" target="_blank" rel="noreferrer">
-            Wikipedia
-          </a>
-          <a href="https://www.wikimedia.org/" target="_blank" rel="noreferrer">
-            Wikimedia
+        <div className="flex flex-wrap gap-5 text-sm text-muted">
+          <Link to="/play" className="hover:text-foreground">
+            Discover
+          </Link>
+          <a
+            href="https://www.wikipedia.org/"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-foreground"
+          >
+            Wikipedia ↗
           </a>
           <a
             href="https://creativecommons.org/licenses/by-sa/4.0/"
             target="_blank"
             rel="noreferrer"
+            className="hover:text-foreground"
           >
-            Creative Commons license
-          </a>
-          <a href="https://solana.com/" target="_blank" rel="noreferrer">
-            Solana
+            CC BY-SA 4.0
           </a>
         </div>
-        <div class="footer-col footer-col--meta">
-          <p class="eyebrow">Colophon</p>
-          <p>
-            SolidJS, Effect, Better Auth, Turso, Cloudflare, passkeys, PWA,
-            TypeScript
-          </p>
-        </div>
-      </div>
-      <div class="page-shell footer-bottom">
-        <p>
-          © 2026 WikiGems. A fan-made game. Not affiliated with the Wikimedia
-          Foundation.
-        </p>
       </div>
     </footer>
   );

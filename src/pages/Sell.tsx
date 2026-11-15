@@ -1,121 +1,75 @@
-import { For, Show } from "solid-js";
-import { RARITY_META } from "../../shared/card-engine";
+import { MoneyAmount } from "../components/MoneyAmount";
+import { HapticButton as Button } from "../components/HapticButton";
 import { Icon } from "../components/Icon";
+import { ListingCard } from "../components/ListingCard";
+import { Page, PageHeader, PreviewNotice, StatCard } from "../components/Page";
 import { showcaseCards } from "../lib/preview";
-import "./Sell.css";
+import { Link } from "@tanstack/react-router";
 
 const listings = showcaseCards()
   .slice(0, 4)
   .map((card, index) => ({
     card,
-    price: ["0.25", "0.40", "0.65", "0.30"][index]!,
-    listed: ["2 hours ago", "Yesterday", "2 days ago", "3 days ago"][index]!,
+    price: [0.25, 0.4, 0.65, 0.3][index] ?? 0.25,
+    detail: [
+      "Listed 2 hours ago",
+      "Listed yesterday",
+      "Listed 2 days ago",
+      "Listed 3 days ago",
+    ][index],
   }));
-
 export default function Sell() {
   return (
-    <main class="sell-page page-shell">
-      <header class="sell-heading">
-        <div>
-          <p class="eyebrow">Your storefront · example preview</p>
-          <h1>Your cards for sale.</h1>
-          <p>Keep track of the articles you’ve put on the market.</p>
-        </div>
-        <button class="btn btn-primary" type="button">
-          <Icon name="plus" size={16} /> List a card
-        </button>
-      </header>
-
-      <aside class="sell-example-note">
-        <Icon name="info" size={20} />
-        <p>
-          <strong>Example listings only.</strong> These are sample cards, not
-          your actual collection. All prices, listing times, and statuses are
-          examples. Sale controls are previews.
-        </p>
-      </aside>
-
-      <section class="sell-summary" aria-label="Example sales summary">
-        <div>
-          <span>Example listings</span>
-          <strong>{listings.length.toString().padStart(2, "0")}</strong>
-        </div>
-        <div>
-          <span>Example asking total</span>
-          <strong>
-            {listings
-              .reduce((sum, listing) => sum + Number(listing.price), 0)
-              .toFixed(2)}{" "}
-            <small>USDC</small>
-          </strong>
-        </div>
-        <div>
-          <span>Example sales</span>
-          <strong>00</strong>
-        </div>
-      </section>
-
-      <section aria-labelledby="sell-listings-title">
-        <div class="sell-section-heading">
-          <h2 id="sell-listings-title">Listed for sale</h2>
-          <span class="sell-example-badge">
-            {listings.length} example cards
-          </span>
-        </div>
-        <div class="sell-listings">
-          <For each={listings}>
-            {({ card, price, listed }) => (
-              <article class="sell-listing">
-                <div
-                  class="sell-card-art"
-                  style={{
-                    "--sell-card-color": RARITY_META[card.rarity].color,
-                  }}
-                >
-                  <Show when={card.imageUrl}>
-                    {(imageUrl) => (
-                      <img src={imageUrl()} alt="" loading="lazy" />
-                    )}
-                  </Show>
-                  <span class="sell-example-badge">Example card</span>
-                  <span class="sell-card-category">{card.category}</span>
-                </div>
-                <div class="sell-card-body">
-                  <div class="sell-card-meta">
-                    <span>{RARITY_META[card.rarity].label}</span>
-                    <span>Example · listed</span>
-                  </div>
-                  <h3>{card.title}</h3>
-                  <p class="sell-description">{card.description}</p>
-                  <div class="sell-price">
-                    <span>Example asking price</span>
-                    <strong>
-                      {price} <small>USDC</small>
-                    </strong>
-                  </div>
-                  <p class="sell-listed">Example listing · {listed}</p>
-                  <div class="sell-card-actions">
-                    <button
-                      class="btn btn-outline"
-                      type="button"
-                      aria-label={`Edit example price for ${card.title}`}
-                    >
-                      Edit price
-                    </button>
-                    <button
-                      class="btn btn-ghost"
-                      type="button"
-                      aria-label={`Remove example listing for ${card.title}`}
-                    >
-                      Remove listing
-                    </button>
-                  </div>
-                </div>
-              </article>
-            )}
-          </For>
+    <Page>
+      <PageHeader
+        eyebrow="Your storefront"
+        title="Your cards for sale."
+        description="Make room for your next discovery. Keep your listings together in one place."
+        action={
+          <div className="flex flex-wrap gap-3">
+            <Link to="/auctions/new" className="button button--secondary">
+              List a card for bidding
+            </Link>
+            <Button feedback="sell" isDisabled>
+              <Icon name="plus" />
+              List a card
+            </Button>
+          </div>
+        }
+      />
+      <PreviewNotice>
+        These are example listings, not your actual collection. Listing and
+        price controls will become available when the marketplace launches.
+      </PreviewNotice>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard label="Example listings" value="4" icon="cards" />
+        <StatCard
+          label="Example asking total"
+          value={
+            <MoneyAmount
+              amount={1.6}
+              currency="USDC"
+              unitClassName="text-sm font-normal text-muted"
+            />
+          }
+          icon="coin"
+        />
+        <StatCard label="Example sales" value="0" icon="swap" />
+      </div>
+      <section className="space-y-5">
+        <h2 className="text-xl font-semibold">Listed for sale</h2>
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {listings.map((listing) => (
+            <ListingCard
+              feedback="sell"
+              key={listing.card.id}
+              {...listing}
+              owner="you"
+              action="Edit listing"
+            />
+          ))}
         </div>
       </section>
-    </main>
+    </Page>
   );
 }

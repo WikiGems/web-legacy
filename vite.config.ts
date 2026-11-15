@@ -1,14 +1,12 @@
 import { defineConfig } from "vite";
-import stylex from "@stylexjs/unplugin";
-import solid from "vite-plugin-solid";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   plugins: [
-    stylex.vite({
-      unstable_moduleResolution: { type: "commonJS", rootDir: process.cwd() },
-    }),
-    solid(),
+    react(),
+    tailwindcss(),
     VitePWA({
       registerType: "prompt",
       injectRegister: "script-defer",
@@ -22,8 +20,9 @@ export default defineConfig({
         start_url: "/play",
         scope: "/",
         display: "standalone",
-        theme_color: "#117b4e",
-        background_color: "#f4f7f5",
+        prefer_related_applications: false,
+        theme_color: "#fafafa",
+        background_color: "#fafafa",
         categories: ["games", "education"],
         icons: [
           {

@@ -1,23 +1,23 @@
-import { createSignal, For, Show } from "solid-js";
-import { Portal } from "solid-js/web";
-import type { Card } from "../../shared/domain";
+import { WebDialog } from "./WebDialog";
+import { Spinner } from "@heroui/react";
+import { HapticButton as Button } from "./HapticButton";
+import { useState } from "react";
+import type { Card } from "@wikigems/domain/domain";
 import { createTradeOffer, runApi } from "../lib/api";
 import { showToast } from "../lib/ui";
 import { GameCard } from "./GameCard";
 import { Icon } from "./Icon";
-
 export function TradeOfferModal(props: {
   target: Card;
   cards: Card[];
   onClose: () => void;
   onSubmitted: () => void;
 }) {
-  const [selectedId, setSelectedId] = createSignal<string | null>(null);
-  const [busy, setBusy] = createSignal(false);
-  const choices = () => props.cards.filter((card) => card.status === "claimed");
-
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const choices = props.cards.filter((card) => card.status === "claimed");
   async function submit() {
-    const offered = selectedId();
+    const offered = selectedId;
     if (!offered) return;
     setBusy(true);
     try {
@@ -36,98 +36,82 @@ export function TradeOfferModal(props: {
       setBusy(false);
     }
   }
-
   return (
-    <Portal>
-      <div
-        class="modal-scrim"
-        role="presentation"
-        onClick={(event) => {
-          if (event.target === event.currentTarget) props.onClose();
-        }}
-      >
-        <div
-          class="trade-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="trade-title"
-        >
-          <div class="trade-modal-head">
-            <div>
-              <p class="eyebrow">Propose a trade</p>
-              <h2 id="trade-title">What will you offer?</h2>
-            </div>
-            <button
-              class="icon-button"
-              onClick={props.onClose}
-              aria-label="Close trade dialog"
-            >
-              <Icon name="close" />
-            </button>
-          </div>
-
-          <div class="trade-target">
-            <GameCard card={props.target} size="sm" />
-            <div>
-              <span class="mono">You want</span>
-              <h3>{props.target.title}</h3>
-              <p>Owned by {props.target.ownerName ?? "another collector"}</p>
-            </div>
-          </div>
-
-          <Show
-            when={choices().length > 0}
-            fallback={
-              <div class="trade-empty">
-                <Icon name="cards" size={28} />
-                <p>You need an unminted card to offer. Open a pack first.</p>
-              </div>
-            }
-          >
-            <p class="trade-pick-label mono">
-              Choose one of your unminted cards
-            </p>
-            <div class="trade-pick-grid">
-              <For each={choices()}>
-                {(card) => (
-                  <button
-                    class="trade-pick"
-                    classList={{ "is-selected": selectedId() === card.id }}
-                    onClick={() => setSelectedId(card.id)}
-                  >
-                    <GameCard card={card} size="xs" />
-                    <Show when={selectedId() === card.id}>
-                      <span class="trade-pick-check">
-                        <Icon name="check" size={14} />
-                      </span>
-                    </Show>
-                  </button>
-                )}
-              </For>
-            </div>
-            <button
-              class="btn btn-primary btn-lg btn-full"
-              onClick={submit}
-              disabled={!selectedId() || busy()}
-            >
-              <Show
-                when={busy()}
-                fallback={
-                  <>
-                    <Icon name="swap" size={17} /> Send trade offer
-                  </>
-                }
-              >
-                <span class="spinner" /> Sending…
-              </Show>
-            </button>
-          </Show>
-          <p class="trade-fine">
-            In-game trades swap unminted 1-of-1 claims. Once a card is minted,
-            ownership lives in the Solana wallet instead.
-          </p>
+    <WebDialog onClose={props.onClose} labelId="trade-title" busy={busy} wide>
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-accent">Propose a trade</p>
+          <h2 id="trade-title" className="text-2xl font-semibold">
+            What will you offer?
+          </h2>
         </div>
+        <Button
+          isIconOnly
+          variant="ghost"
+          size="sm"
+          isDisabled={busy}
+          onPress={props.onClose}
+          aria-label="Close trade dialog"
+        >
+          <Icon name="close" />
+        </Button>
       </div>
-    </Portal>
+      <div className="rounded-xl bg-default/50 p-4">
+        <p className="text-xs text-muted">You want</p>
+        <h3 className="mt-1 font-semibold">{props.target.title}</h3>
+        <p className="mt-1 text-xs text-muted">
+          Owned by {props.target.ownerName ?? "another collector"}
+        </p>
+      </div>
+      {choices.length ? (
+        <>
+          <p className="text-sm text-muted">
+            Choose one of your unminted cards.
+          </p>
+          <div className="grid grid-cols-1 items-start gap-3 min-[400px]:grid-cols-2 sm:grid-cols-3">
+            {choices.map((card) => (
+              <Button
+                key={card.id}
+                variant="ghost"
+                isDisabled={busy}
+                onPress={() => setSelectedId(card.id)}
+                data-testid="trade-choice"
+                aria-label={`Offer ${card.title}`}
+                aria-pressed={selectedId === card.id}
+                className={`h-auto w-full min-w-0 rounded-2xl p-1 text-left whitespace-normal ${selectedId === card.id ? "ring-2 ring-accent" : "ring-1 ring-separator"}`}
+              >
+                <GameCard card={card} size="xs" />
+              </Button>
+            ))}
+          </div>
+          <Button
+            className="w-full"
+            feedback="swap"
+            onPress={submit}
+            isDisabled={!selectedId || busy}
+          >
+            {busy ? (
+              <>
+                <Spinner size="sm" />
+                Sending…
+              </>
+            ) : (
+              <>
+                <Icon name="swap" />
+                Send trade offer
+              </>
+            )}
+          </Button>
+        </>
+      ) : (
+        <p className="rounded-xl bg-default/50 p-6 text-sm text-muted">
+          You need an unminted card to offer. Open a pack first.
+        </p>
+      )}
+      <p className="text-xs leading-relaxed text-muted">
+        Trades exchange unminted in-game claims. Minted cards belong to their
+        Solana wallet.
+      </p>
+    </WebDialog>
   );
 }

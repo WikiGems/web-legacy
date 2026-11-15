@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { createStore } from "./store";
 import {
   BrowserWalletAdapter,
   installedWallets,
@@ -11,40 +11,48 @@ export interface ConnectedWallet {
   adapter: BrowserWalletAdapter;
 }
 
-const [wallet, setWallet] = createSignal<ConnectedWallet | null>(null);
-const [connecting, setConnecting] = createSignal(false);
-
-export { wallet, connecting };
+export const walletStore = createStore<{
+  wallet: ConnectedWallet | null;
+  connecting: boolean;
+}>({ wallet: null, connecting: false });
+export const useWallet = walletStore.useSnapshot;
 
 export function walletOptions(): WalletDefinition[] {
   return installedWallets();
 }
 
-export async function connectWallet(id: "phantom" | "solflare" | "backpack"): Promise<ConnectedWallet> {
-  const definition = installedWallets().find((candidate) => candidate.id === id);
+export async function connectWallet(
+  id: "phantom" | "solflare" | "backpack",
+): Promise<ConnectedWallet> {
+  const definition = installedWallets().find(
+    (candidate) => candidate.id === id,
+  );
   if (!definition) {
     throw new Error(
       `${id[0]!.toUpperCase()}${id.slice(1)} is not installed. Install the browser wallet and refresh.`,
     );
   }
-  setConnecting(true);
+  walletStore.set((state) => ({ ...state, connecting: true }));
   try {
-    const adapter = new BrowserWalletAdapter(definition.provider, definition.name);
+    const adapter = new BrowserWalletAdapter(
+      definition.provider,
+      definition.name,
+    );
     const publicKey = await adapter.connect();
     const connected: ConnectedWallet = {
       address: publicKey.toBase58(),
       name: definition.name,
       adapter,
     };
-    setWallet(connected);
+    walletStore.set((state) => ({ ...state, wallet: connected }));
     return connected;
   } finally {
-    setConnecting(false);
+    walletStore.set((state) => ({ ...state, connecting: false }));
   }
 }
 
 export async function disconnectWallet() {
-  const current = wallet();
+  const current = walletStore.getSnapshot().wallet;
   if (current) {
     try {
       await current.adapter.disconnect();
@@ -52,5 +60,5 @@ export async function disconnectWallet() {
       // The wallet may already be disconnected.
     }
   }
-  setWallet(null);
+  walletStore.set((state) => ({ ...state, wallet: null }));
 }

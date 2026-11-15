@@ -1,18 +1,19 @@
-import { createEffect, createSignal, onCleanup, Show } from "solid-js";
-import { Portal } from "solid-js/web";
-import type { Card } from "../../shared/domain";
+import { haptic } from "../lib/haptics";
+import { WebDialog } from "./WebDialog";
+import { Alert, Chip, Separator, Spinner } from "@heroui/react";
+import { HapticButton as Button } from "./HapticButton";
+import { useState } from "react";
+import type { Card } from "@wikigems/domain/domain";
 import {
-  RARITY_META,
   explorerAddressUrl,
   explorerTxUrl,
-} from "../../shared/card-engine";
+} from "@wikigems/domain/card-engine";
 import { confirmCardMint, runApi, toggleCardTrade } from "../lib/api";
 import { SOLANA_CLUSTER, mintCardNft, WalletError } from "../lib/solana";
 import { showToast } from "../lib/ui";
-import { wallet } from "../lib/wallet";
-import { GameCard } from "./GameCard";
+import { walletStore } from "../lib/wallet";
+import { CardArtwork } from "./GameCard";
 import { Icon } from "./Icon";
-
 export function CardModal(props: {
   card: Card;
   owned: boolean;
@@ -22,25 +23,15 @@ export function CardModal(props: {
   onProposeTrade?: (card: Card) => void;
   onOpenWallet: () => void;
 }) {
-  const [minting, setMinting] = createSignal(false);
-  const [listing, setListing] = createSignal(false);
-  const [error, setError] = createSignal<string | null>(null);
-  const meta = () => RARITY_META[props.card.rarity];
-
-  createEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") props.onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    onCleanup(() => window.removeEventListener("keydown", onKeyDown));
-  });
-
+  const [minting, setMinting] = useState(false);
+  const [listing, setListing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   async function mint() {
     if (!props.linkedWallet) {
       props.onOpenWallet();
       return;
     }
-    const connected = wallet();
+    const connected = walletStore.getSnapshot().wallet;
     if (!connected || connected.address !== props.linkedWallet) {
       showToast("Reconnect your wallet", {
         body: "Your linked wallet needs to be connected to sign the mint.",
@@ -66,6 +57,7 @@ export function CardModal(props: {
         tone: "success",
       });
     } catch (cause) {
+      haptic("error");
       if (cause instanceof WalletError && cause.code === "NO_SOL") {
         setError(cause.message);
       } else {
@@ -79,7 +71,6 @@ export function CardModal(props: {
       setMinting(false);
     }
   }
-
   async function toggleListing() {
     setListing(true);
     try {
@@ -104,187 +95,169 @@ export function CardModal(props: {
       setListing(false);
     }
   }
-
   async function copyMint() {
     if (!props.card.mintAddress) return;
-    await navigator.clipboard.writeText(props.card.mintAddress);
-    showToast("Mint address copied", { tone: "success" });
+    try {
+      await navigator.clipboard.writeText(props.card.mintAddress);
+      showToast("Mint address copied", { tone: "success" });
+    } catch (cause) {
+      showToast("Could not copy the mint address", {
+        tone: "error",
+        body:
+          cause instanceof Error
+            ? cause.message
+            : "Select the address to copy it manually.",
+      });
+    }
   }
-
   return (
-    <Portal>
-      <div
-        class="modal-scrim card-modal-scrim"
-        role="presentation"
-        onClick={(event) => {
-          if (event.target === event.currentTarget) props.onClose();
-        }}
-      >
-        <div
-          class="card-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="card-title"
+    <WebDialog
+      onClose={props.onClose}
+      labelId="card-title"
+      busy={minting || listing}
+      wide
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-accent">
+            {props.card.category}
+          </p>
+          <h2 id="card-title" className="text-2xl font-semibold tracking-tight">
+            {props.card.title}
+          </h2>
+        </div>
+        <Button
+          isIconOnly
+          size="sm"
+          variant="ghost"
+          onPress={props.onClose}
+          isDisabled={minting || listing}
+          aria-label="Close card"
         >
-          <button
-            class="icon-button card-modal-close"
-            onClick={props.onClose}
-            aria-label="Close card"
+          <Icon name="close" />
+        </Button>
+      </div>
+      <CardArtwork card={props.card} className="max-h-72" />
+      <div className="space-y-4">
+        <p className="font-medium">{props.card.description}</p>
+        <p className="text-sm leading-relaxed text-muted">
+          {props.card.extract}
+        </p>
+        <a
+          href={props.card.articleUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline"
+        >
+          Read the Wikipedia article
+          <Icon name="external" size={14} />
+        </a>
+      </div>
+      {props.card.status === "minted" && props.card.mintAddress && (
+        <div className="space-y-3 rounded-xl bg-default/50 p-4">
+          <Chip color="success" size="sm" variant="soft">
+            <Chip.Label>On Solana · {SOLANA_CLUSTER}</Chip.Label>
+          </Chip>
+          <Button
+            variant="ghost"
+            onPress={copyMint}
+            aria-label="Copy mint address"
+            className="h-auto w-full justify-between whitespace-normal"
           >
-            <Icon name="close" />
-          </button>
-
-          <div
-            class="card-modal-art"
-            style={`--rarity-color:${meta().color};--rarity-deep:${meta().deep}`}
-          >
-            <GameCard card={props.card} size="lg" />
-          </div>
-
-          <div class="card-modal-info">
-            <div class="card-modal-head">
-              <div>
-                <p class="eyebrow">{props.card.category}</p>
-                <h2 id="card-title">{props.card.title}</h2>
-                <p class="card-modal-desc">{props.card.description}</p>
-              </div>
-            </div>
-
-            <div class="card-modal-extract">
-              <p>{props.card.extract}</p>
+            <code className="min-w-0 text-left text-xs break-all">
+              {props.card.mintAddress}
+            </code>
+            <Icon name="copy" size={15} />
+          </Button>
+          <div className="flex flex-wrap gap-4 text-xs text-accent">
+            <a
+              href={explorerAddressUrl(props.card.mintAddress, SOLANA_CLUSTER)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View asset ↗
+            </a>
+            {props.card.txSignature && (
               <a
-                href={props.card.articleUrl}
+                href={explorerTxUrl(props.card.txSignature, SOLANA_CLUSTER)}
                 target="_blank"
                 rel="noreferrer"
-                class="text-link"
               >
-                Read the Wikipedia article <Icon name="external" size={13} />
+                View transaction ↗
               </a>
-            </div>
-
-            <Show when={props.card.status === "minted" ? props.card : null}>
-              {(minted) => (
-                <div class="minted-panel">
-                  <div class="minted-panel-head">
-                    <span class="onchain-chip onchain-chip--large">
-                      <Icon name="bolt" size={13} /> On Solana
-                    </span>
-                    <span class="mono">Metaplex Core · {SOLANA_CLUSTER}</span>
-                  </div>
-                  <button
-                    class="mint-address"
-                    onClick={copyMint}
-                    title="Copy mint address"
-                  >
-                    <span>{minted().mintAddress}</span>
-                    <Icon name="copy" size={15} />
-                  </button>
-                  <div class="minted-links">
-                    <a
-                      class="text-link"
-                      href={explorerAddressUrl(
-                        minted().mintAddress!,
-                        SOLANA_CLUSTER,
-                      )}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      View asset <Icon name="external" size={13} />
-                    </a>
-                    <Show when={minted().txSignature}>
-                      <a
-                        class="text-link"
-                        href={explorerTxUrl(
-                          minted().txSignature!,
-                          SOLANA_CLUSTER,
-                        )}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        View transaction <Icon name="external" size={13} />
-                      </a>
-                    </Show>
-                  </div>
-                </div>
+            )}
+          </div>
+        </div>
+      )}
+      {props.owned && props.card.status === "claimed" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-3">
+            <Button
+              feedback="confirm"
+              onPress={mint}
+              isDisabled={minting || listing}
+            >
+              {minting ? (
+                <>
+                  <Spinner size="sm" />
+                  Minting on Solana…
+                </>
+              ) : (
+                <>
+                  <Icon name="bolt" />
+                  {props.linkedWallet
+                    ? "Mint NFT on Solana"
+                    : "Connect wallet to mint"}
+                </>
               )}
-            </Show>
-
-            <Show when={props.owned && props.card.status === "claimed"}>
-              <div class="card-modal-actions">
-                <button
-                  class="btn btn-primary btn-lg"
-                  onClick={mint}
-                  disabled={minting()}
-                >
-                  <Show
-                    when={minting()}
-                    fallback={
-                      <>
-                        <Icon name="bolt" size={17} />
-                        {props.linkedWallet
-                          ? "Mint NFT on Solana"
-                          : "Connect wallet to mint"}
-                      </>
-                    }
-                  >
-                    <span class="spinner" /> Minting on Solana…
-                  </Show>
-                </button>
-                <button
-                  class="btn btn-outline btn-lg"
-                  onClick={toggleListing}
-                  disabled={listing()}
-                >
-                  <Icon
-                    name={props.card.forTrade ? "check" : "swap"}
-                    size={17}
-                  />
-                  {props.card.forTrade ? "Listed for trade" : "List for trade"}
-                </button>
-              </div>
-              <Show when={error()}>
-                <div class="mint-error">
-                  <p>{error()}</p>
+            </Button>
+            <Button
+              variant="secondary"
+              feedback="sell"
+              onPress={toggleListing}
+              isDisabled={listing || minting}
+            >
+              {listing && <Spinner size="sm" />}
+              {props.card.forTrade ? "Listed for trade" : "List for trade"}
+            </Button>
+          </div>
+          {error && (
+            <Alert status="danger" role="alert">
+              <Alert.Content>
+                <Alert.Description>
+                  {error}{" "}
                   <a
                     href="https://faucet.solana.com/"
                     target="_blank"
                     rel="noreferrer"
-                    class="text-link"
+                    className="underline"
                   >
-                    Get devnet SOL <Icon name="external" size={12} />
+                    Get devnet SOL ↗
                   </a>
-                </div>
-              </Show>
-              <p class="card-modal-fine">
-                The 1-of-1 claim is held in the game until you mint. Once
-                minted, the NFT lives in your devnet wallet and is no longer
-                tradable in-game.
-              </p>
-            </Show>
-
-            <Show when={!props.owned && props.card.forTrade}>
-              <button
-                class="btn btn-primary btn-lg btn-full"
-                onClick={() => props.onProposeTrade?.(props.card)}
-              >
-                <Icon name="swap" size={17} /> Propose a trade
-              </button>
-            </Show>
-
-            <Show when={props.owned && props.card.status === "minted"}>
-              <p class="card-modal-fine">
-                This card is minted. Its ownership can be moved on Solana from
-                your wallet or a marketplace — in-game claims cannot touch it.
-              </p>
-            </Show>
-
-            <p class="card-modal-license">
-              Article text from Wikipedia, available under CC BY-SA 4.0. Card
-              art sourced from Wikimedia Commons.
-            </p>
-          </div>
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
+          <p className="text-xs leading-relaxed text-muted">
+            Unminted claims can be traded in-game. Once minted, ownership lives
+            in your Solana wallet.
+          </p>
         </div>
-      </div>
-    </Portal>
+      )}
+      {!props.owned && props.card.forTrade && (
+        <Button
+          feedback="swap"
+          onPress={() => props.onProposeTrade?.(props.card)}
+        >
+          <Icon name="swap" />
+          Propose a trade
+        </Button>
+      )}
+      <Separator />
+      <p className="text-xs leading-relaxed text-muted">
+        Article text from Wikipedia, under CC BY-SA 4.0. Images from Wikimedia
+        Commons.
+      </p>
+    </WebDialog>
   );
 }

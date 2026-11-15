@@ -1,258 +1,153 @@
-import { For } from "solid-js";
-import type { Rarity } from "../../shared/domain";
-import { RARITY_META } from "../../shared/card-engine";
-import { Icon } from "../components/Icon";
+import { Chip } from "@heroui/react";
+import { HapticButton as Button } from "../components/HapticButton";
+import { useState } from "react";
+import type { Card, Rarity } from "@wikigems/domain/domain";
+import { RARITY_META } from "@wikigems/domain/card-engine";
+import { GameCard } from "../components/GameCard";
+import { CardModal } from "../components/CardModal";
+import {
+  Page,
+  PageHeader,
+  PreviewChip,
+  PreviewNotice,
+  StatCard,
+} from "../components/Page";
 import { showcaseCards } from "../lib/preview";
-import "./Collection.css";
 
-const rarityOrder: Rarity[] = [
-  "common",
-  "uncommon",
-  "rare",
-  "epic",
-  "legendary",
-  "mythic",
-];
-const previewCards = showcaseCards().slice(0, 8);
-const topicCounts = Array.from(
-  previewCards.reduce(
-    (counts, card) =>
-      counts.set(card.category, (counts.get(card.category) ?? 0) + 1),
-    new Map<string, number>(),
-  ),
-  ([name, count]) => ({ name, count }),
-);
-const rarityCounts = rarityOrder
-  .map((rarity) => ({
-    rarity,
-    count: previewCards.filter((card) => card.rarity === rarity).length,
-  }))
-  .filter(({ count }) => count > 0);
-const rarePlusCount = previewCards.filter(
-  (card) => rarityOrder.indexOf(card.rarity) >= rarityOrder.indexOf("rare"),
-).length;
-
-function compactCount(value: number) {
-  return new Intl.NumberFormat("en", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value);
-}
-
+const cards = showcaseCards().slice(0, 8);
+const topics = [...new Set(cards.map((card) => card.category))];
+const rarities = [...new Set(cards.map((card) => card.rarity))];
 export default function Collection() {
+  const [topic, setTopic] = useState<string | null>(null);
+  const [rarity, setRarity] = useState<Rarity | null>(null);
+  const [selected, setSelected] = useState<Card | null>(null);
+  const visible = cards.filter(
+    (card) =>
+      (!topic || card.category === topic) &&
+      (!rarity || card.rarity === rarity),
+  );
   return (
-    <main class="collection-page page-shell">
-      <header class="collection-intro">
-        <div class="collection-intro-copy">
-          <p class="eyebrow">
-            YOUR ALBUM <span>/</span> SAMPLE 001
-          </p>
-          <h1>My collection</h1>
-          <p class="collection-lede">
-            A small index of remarkable pages, kept close.
-          </p>
+    <Page>
+      <PageHeader
+        eyebrow="A home for your discoveries"
+        title="My collection"
+        description="Little pieces of a bigger world. Browse a sample album of remarkable articles."
+        action={<PreviewChip />}
+      />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard label="Sample cards" value={cards.length} icon="cards" />
+        <StatCard
+          label="Topics to explore"
+          value={topics.length}
+          icon="globe"
+        />
+        <StatCard
+          label="Rare or higher"
+          value={
+            cards.filter(
+              (card) => !["common", "uncommon"].includes(card.rarity),
+            ).length
+          }
+          icon="spark"
+        />
+      </div>
+      <PreviewNotice>
+        This is a sample album. The cards and counts are preview content, not
+        your owned collection.
+      </PreviewNotice>
+      <section className="space-y-6" aria-label="Collected articles">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold">The collection</h2>
+          <Chip size="sm" variant="soft">
+            <Chip.Label>{visible.length} articles</Chip.Label>
+          </Chip>
         </div>
-        <div
-          class="collection-preview-stamp"
-          aria-label="Preview collection with sample data"
-        >
-          <span class="collection-preview-stamp-icon">
-            <Icon name="cards" size={18} />
-          </span>
-          <span class="collection-preview-stamp-copy">
-            <strong>Preview collection</strong>
-            <span>DEMO DATA</span>
-          </span>
-        </div>
-      </header>
-
-      <aside class="collection-demo-note">
-        <span class="collection-demo-note-icon">
-          <Icon name="info" size={17} />
-        </span>
-        <p>
-          <strong>Sample album.</strong> Cards, counts, and collection details
-          on this page are preview content.
-        </p>
-      </aside>
-
-      <section
-        class="collection-summary"
-        aria-label="Sample collection summary"
-      >
-        <article class="collection-summary-card collection-summary-card--primary">
-          <span class="collection-summary-icon">
-            <Icon name="cards" size={18} />
-          </span>
-          <div>
-            <strong>{String(previewCards.length).padStart(2, "0")}</strong>
-            <span>sample cards</span>
-          </div>
-          <span class="collection-summary-index">01</span>
-        </article>
-        <article class="collection-summary-card">
-          <span class="collection-summary-icon">
-            <Icon name="globe" size={18} />
-          </span>
-          <div>
-            <strong>{String(topicCounts.length).padStart(2, "0")}</strong>
-            <span>topics represented</span>
-          </div>
-          <span class="collection-summary-index">02</span>
-        </article>
-        <article class="collection-summary-card">
-          <span class="collection-summary-icon">
-            <Icon name="spark" size={18} />
-          </span>
-          <div>
-            <strong>{String(rarePlusCount).padStart(2, "0")}</strong>
-            <span>rare or higher</span>
-          </div>
-          <span class="collection-summary-index">03</span>
-        </article>
-      </section>
-
-      <section
-        class="collection-library"
-        aria-labelledby="collection-library-title"
-      >
-        <div class="collection-library-heading">
-          <div>
-            <p class="eyebrow">THE ALBUM</p>
-            <h2 id="collection-library-title">Collected articles</h2>
-          </div>
-          <span class="collection-result-count">
-            <span class="collection-result-dot" />
-            {previewCards.length} preview items
-          </span>
-        </div>
-
-        <div class="collection-toolbar" aria-label="Preview collection filters">
-          <div class="collection-filter-row">
-            <span class="collection-filter-label">Topic</span>
-            <div
-              class="collection-filter-options"
-              role="group"
-              aria-label="Filter by topic"
+        <div className="space-y-3">
+          <div
+            className="flex flex-wrap items-center gap-2"
+            role="group"
+            aria-label="Filter by topic"
+          >
+            <Button
+              size="sm"
+              variant={topic === null ? "primary" : "tertiary"}
+              aria-pressed={topic === null}
+              onPress={() => setTopic(null)}
             >
-              <button
-                class="collection-filter-chip is-selected"
-                type="button"
-                aria-pressed="true"
+              All topics
+            </Button>
+            {topics.map((name) => (
+              <Button
+                key={name}
+                size="sm"
+                variant={topic === name ? "primary" : "tertiary"}
+                aria-pressed={topic === name}
+                onPress={() => setTopic(name)}
               >
-                All topics <span>{previewCards.length}</span>
-              </button>
-              <For each={topicCounts}>
-                {(topic) => (
-                  <button
-                    class="collection-filter-chip"
-                    type="button"
-                    aria-pressed="false"
-                  >
-                    {topic.name} <span>{topic.count}</span>
-                  </button>
-                )}
-              </For>
-            </div>
+                {name}
+              </Button>
+            ))}
           </div>
-          <div class="collection-filter-row">
-            <span class="collection-filter-label">Rarity</span>
-            <div
-              class="collection-filter-options"
-              role="group"
-              aria-label="Filter by rarity"
+          <div
+            className="flex flex-wrap items-center gap-2"
+            role="group"
+            aria-label="Filter by rarity"
+          >
+            <Button
+              size="sm"
+              variant={rarity === null ? "secondary" : "ghost"}
+              aria-pressed={rarity === null}
+              onPress={() => setRarity(null)}
             >
-              <button
-                class="collection-filter-chip is-selected"
-                type="button"
-                aria-pressed="true"
+              All rarities
+            </Button>
+            {rarities.map((name) => (
+              <Button
+                key={name}
+                size="sm"
+                variant={rarity === name ? "secondary" : "ghost"}
+                aria-pressed={rarity === name}
+                onPress={() => setRarity(name)}
               >
-                All rarities <span>{previewCards.length}</span>
-              </button>
-              <For each={rarityCounts}>
-                {(item) => (
-                  <button
-                    class="collection-filter-chip collection-filter-chip--rarity"
-                    type="button"
-                    aria-pressed="false"
-                    style={`--collection-rarity:${RARITY_META[item.rarity].color}`}
-                  >
-                    {RARITY_META[item.rarity].label} <span>{item.count}</span>
-                  </button>
-                )}
-              </For>
-            </div>
+                {RARITY_META[name].label}
+              </Button>
+            ))}
           </div>
         </div>
-
-        <div class="collection-grid">
-          <For each={previewCards}>
-            {(card, index) => (
-              <article
-                class={`collection-card collection-card--${card.rarity}`}
-                style={`--collection-rarity:${RARITY_META[card.rarity].color};--collection-rarity-glow:${RARITY_META[card.rarity].glow}`}
-              >
-                <div class="collection-card-art">
-                  <div class="collection-card-art-backdrop" />
-                  {card.imageUrl && (
-                    <img
-                      class="collection-card-image"
-                      src={card.imageUrl}
-                      alt=""
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                    />
-                  )}
-                  <div class="collection-card-art-shade" />
-                  <div class="collection-card-art-top">
-                    <span class="collection-wiki-mark" aria-hidden="true">
-                      W
-                    </span>
-                    <span class="collection-one-of-one">
-                      1 OF 1 <i>·</i> PREVIEW
-                    </span>
-                  </div>
-                  <div class="collection-card-art-bottom">
-                    <span>
-                      ARTICLE <b>№ {String(index() + 1).padStart(2, "0")}</b>
-                    </span>
-                    <span>
-                      <Icon name="globe" size={13} />{" "}
-                      {compactCount(card.pageviews)} reads
-                    </span>
-                  </div>
-                </div>
-                <div class="collection-card-content">
-                  <div class="collection-card-tags">
-                    <span class="collection-category">{card.category}</span>
-                    <span
-                      class="collection-rarity"
-                      style={`--collection-rarity:${RARITY_META[card.rarity].color}`}
-                    >
-                      <i />
-                      {RARITY_META[card.rarity].label}
-                    </span>
-                  </div>
-                  <h3>{card.title}</h3>
-                  <p class="collection-card-description">{card.description}</p>
-                  <div class="collection-card-footer">
-                    <span>
-                      Sample entry {String(index() + 1).padStart(2, "0")}
-                    </span>
-                    <button
-                      class="collection-detail-button"
-                      type="button"
-                      aria-label={`View preview details for ${card.title}`}
-                    >
-                      View details <Icon name="arrow-up-right" size={14} />
-                    </button>
-                  </div>
-                </div>
-              </article>
-            )}
-          </For>
-        </div>
+        {visible.length ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {visible.map((card) => (
+              <GameCard key={card.id} card={card} onClick={setSelected} />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3 rounded-2xl border border-dashed border-separator px-6 py-12 text-center">
+            <p className="text-sm text-muted">
+              No sample cards match these filters.
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => {
+                setTopic(null);
+                setRarity(null);
+              }}
+            >
+              Clear filters
+            </Button>
+          </div>
+        )}
       </section>
-    </main>
+      {selected && (
+        <CardModal
+          card={selected}
+          owned={false}
+          linkedWallet={null}
+          onClose={() => setSelected(null)}
+          onChanged={setSelected}
+          onOpenWallet={() => {}}
+        />
+      )}
+    </Page>
   );
 }

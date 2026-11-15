@@ -1,70 +1,243 @@
-import { A } from "@solidjs/router";
-import { Show } from "solid-js";
+import { Popover, Tooltip } from "@heroui/react";
+import { useEffect, useId, useRef, useState } from "react";
+import { clsx } from "clsx";
+import { Link, useLocation } from "@tanstack/react-router";
 import { authClient } from "../lib/auth-client";
+import { haptic } from "../lib/haptics";
+import { useNavigationGlass } from "../lib/liquid-glass";
+import { HapticButton as Button } from "./HapticButton";
 import { Avatar } from "./Avatar";
-import { Icon } from "./Icon";
-import { Logo } from "./Logo";
+import { Icon, type IconName } from "./Icon";
+
+const destinations = [
+  {
+    to: "/play",
+    label: "Play",
+    shortLabel: "Play",
+    icon: "search",
+    primary: true,
+  },
+  {
+    to: "/collection",
+    label: "My collection",
+    shortLabel: "Cards",
+    icon: "cards",
+    primary: true,
+  },
+  {
+    to: "/trade",
+    label: "Trade",
+    shortLabel: "Trade",
+    icon: "swap",
+    primary: true,
+  },
+  { to: "/buy", label: "Buy", shortLabel: "Buy", icon: "coin", primary: false },
+  {
+    to: "/sell",
+    label: "Sell",
+    shortLabel: "Sell",
+    icon: "plus",
+    primary: false,
+  },
+  {
+    to: "/action",
+    label: "Action",
+    shortLabel: "Action",
+    icon: "bolt",
+    primary: false,
+  },
+  {
+    to: "/wallet",
+    label: "Wallet",
+    shortLabel: "Wallet",
+    icon: "wallet",
+    primary: false,
+  },
+  {
+    to: "/settings",
+    label: "Settings",
+    shortLabel: "Settings",
+    icon: "settings",
+    primary: false,
+  },
+] satisfies {
+  to:
+    | "/play"
+    | "/collection"
+    | "/trade"
+    | "/buy"
+    | "/sell"
+    | "/action"
+    | "/wallet"
+    | "/settings";
+  label: string;
+  shortLabel: string;
+  icon: IconName;
+  primary: boolean;
+}[];
+
+function routeFeedback(to: string) {
+  haptic(
+    to === "/trade"
+      ? "swap"
+      : to === "/buy"
+        ? "buy"
+        : to === "/sell"
+          ? "sell"
+          : "selection",
+  );
+}
+
+function NavigationGlass() {
+  const glassId = useId();
+  const glassRef = useRef<HTMLDivElement>(null);
+  useNavigationGlass(glassRef);
+  return (
+    <div
+      id={glassId}
+      ref={glassRef}
+      className="nav-glass"
+      aria-hidden="true"
+      data-liquid-ignore
+    />
+  );
+}
 
 export function Nav() {
-  const session = authClient.useSession();
-  const user = () => session().data?.user;
+  const { data } = authClient.useSession();
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const section =
+    pathname === "/auctions/new"
+      ? "/sell"
+      : pathname.startsWith("/auctions/")
+        ? "/buy"
+        : pathname;
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => setMoreOpen(false), [pathname]);
+  useEffect(() => {
+    const close = () => setMoreOpen(false);
+    window.addEventListener("resize", close);
+    return () => window.removeEventListener("resize", close);
+  }, []);
+  const secondary = destinations.filter((destination) => !destination.primary);
+  const selectedSecondary = secondary.find(({ to }) => to === section);
 
   return (
-    <header class="landing-header">
-      <nav class="landing-nav app-nav page-shell" aria-label="Primary">
-        <Logo />
-        <div class="app-nav-tabs">
-          <A href="/play" end activeClass="is-current">
-            Play
-          </A>
-          <A href="/trade" end activeClass="is-current">
-            Trade
-          </A>
-          <A href="/buy" end activeClass="is-current">
-            Buy
-          </A>
-          <A href="/sell" end activeClass="is-current">
-            Sell
-          </A>
-          <A href="/action" end activeClass="is-current">
-            Action
-          </A>
-          <A href="/collection" end activeClass="is-current">
-            My collection
-          </A>
-          <A href="/wallet" end activeClass="is-current">
-            Wallet
-          </A>
-        </div>
-        <div class="landing-actions">
-          <Show
-            when={user()}
-            fallback={
-              <>
-                <A href="/login" class="btn btn-ghost">
-                  Sign in
-                </A>
-                <A href="/login?mode=signup" class="btn btn-primary">
-                  Play free <Icon name="arrow-right" size={15} />
-                </A>
-              </>
-            }
-          >
-            {(current) => (
-              <>
-                <A
-                  href="/account"
-                  class="avatar-button avatar-button--dark"
-                  title={`Account settings for ${current().name}`}
-                  aria-label="Account menu"
+    <nav aria-label="Primary" className="app-navigation">
+      <NavigationGlass />
+      <div className="nav-pages">
+        {destinations.map(({ to, label, shortLabel, icon, primary }) => (
+          <Tooltip key={to} delay={200}>
+            <Tooltip.Trigger<"a">
+              role="link"
+              render={(props) => (
+                <Link
+                  {...props}
+                  to={to}
+                  aria-label={label}
+                  aria-current={section === to ? "page" : undefined}
+                  activeOptions={{ exact: true }}
+                  className={clsx("nav-item", !primary && "nav-secondary")}
+                  onClick={() => {
+                    routeFeedback(to);
+                    setMoreOpen(false);
+                  }}
                 >
-                  <Avatar name={current().name} image={current().image} />
-                </A>
-              </>
-            )}
-          </Show>
+                  <span className="nav-icon">
+                    <Icon name={icon} size={23} />
+                  </span>
+                  <span className="nav-label" aria-hidden="true">
+                    {shortLabel}
+                  </span>
+                </Link>
+              )}
+            />
+            <Tooltip.Content placement="right" className="nav-tooltip">
+              {label}
+            </Tooltip.Content>
+          </Tooltip>
+        ))}
+        <div className="nav-more">
+          <Popover key={pathname} isOpen={moreOpen} onOpenChange={setMoreOpen}>
+            <Button
+              variant="ghost"
+              className="nav-item"
+              aria-label="More sections"
+              data-active={Boolean(selectedSecondary)}
+              aria-current={selectedSecondary ? "page" : undefined}
+            >
+              <span className="nav-icon">
+                <Icon name={selectedSecondary?.icon ?? "more"} size={23} />
+              </span>
+              <span className="nav-label" aria-hidden="true">
+                {selectedSecondary?.shortLabel ?? "More"}
+              </span>
+            </Button>
+            <Popover.Content
+              placement="top"
+              offset={12}
+              className="nav-overflow-panel w-60 max-w-[calc(100vw-2rem)]"
+            >
+              <NavigationGlass />
+              <Popover.Dialog
+                aria-label="More sections"
+                className="nav-overflow-content p-2"
+              >
+                <p className="px-3 pb-2 pt-1 text-xs font-medium text-muted">
+                  More sections
+                </p>
+                {secondary.map(({ to, label, icon }) => (
+                  <Link
+                    key={to}
+                    to={to}
+                    activeOptions={{ exact: true }}
+                    aria-current={section === to ? "page" : undefined}
+                    className="nav-overflow-link"
+                    onClick={() => {
+                      routeFeedback(to);
+                      setMoreOpen(false);
+                    }}
+                  >
+                    <Icon name={icon} size={20} />
+                    {label}
+                  </Link>
+                ))}
+              </Popover.Dialog>
+            </Popover.Content>
+          </Popover>
         </div>
-      </nav>
-    </header>
+        <Tooltip delay={200}>
+          <Tooltip.Trigger<"a">
+            role="link"
+            render={(props) => (
+              <Link
+                {...props}
+                to="/account"
+                aria-label="Account menu"
+                className="nav-item nav-account"
+                data-testid="account-menu"
+                onClick={() => {
+                  haptic("selection");
+                  setMoreOpen(false);
+                }}
+              >
+                <span className="nav-icon">
+                  <Avatar
+                    name={data?.user.name ?? "Collector"}
+                    image={data?.user.image}
+                  />
+                </span>
+                <span className="nav-label" aria-hidden="true">
+                  Account
+                </span>
+              </Link>
+            )}
+          />
+          <Tooltip.Content placement="right" className="nav-tooltip">
+            Account
+          </Tooltip.Content>
+        </Tooltip>
+      </div>
+    </nav>
   );
 }

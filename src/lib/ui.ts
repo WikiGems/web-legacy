@@ -1,49 +1,78 @@
-import { createSignal } from "solid-js";
+import { haptic } from "./haptics";
+import { createStore } from "./store";
+import { toast } from "../components/ui/toast";
 
-export interface ToastMessage {
-  id: number;
-  title: string;
-  body?: string;
-  tone: "success" | "error" | "info";
+const authToastKey = "wikigems.auth-toast";
+const authMessages = {
+  "sign-in": {
+    title: "Welcome back, collector",
+    body: "Your album is waiting.",
+  },
+  "sign-up": {
+    title: "Collector card created",
+    body: "Your passkey is on this device. No password, ever.",
+  },
+};
+
+// Auth changes deliberately reload the page to clear the previous account's state.
+// Carry only a short-lived message kind, never account data or credentials.
+export function queueAuthToast(kind: keyof typeof authMessages) {
+  haptic("success");
+  try {
+    sessionStorage.setItem(
+      authToastKey,
+      JSON.stringify({ kind, expiresAt: Date.now() + 30_000 }),
+    );
+  } catch {
+    const message = authMessages[kind];
+    toast.success(message.title, { description: message.body });
+  }
 }
 
-const [walletModalOpen, setWalletModalOpen] = createSignal(false);
-const [toasts, setToasts] = createSignal<ToastMessage[]>([]);
-const [walletLinkVersion, setWalletLinkVersion] = createSignal(0);
-let toastId = 0;
+export function restoreAuthToast() {
+  try {
+    const stored = sessionStorage.getItem(authToastKey);
+    sessionStorage.removeItem(authToastKey);
+    if (!stored) return;
+    const value: unknown = JSON.parse(stored);
+    if (
+      !value ||
+      typeof value !== "object" ||
+      !("kind" in value) ||
+      (value.kind !== "sign-in" && value.kind !== "sign-up") ||
+      !("expiresAt" in value) ||
+      typeof value.expiresAt !== "number" ||
+      value.expiresAt < Date.now() ||
+      value.expiresAt > Date.now() + 30_000
+    )
+      return;
+    const message = authMessages[value.kind];
+    toast.success(message.title, { description: message.body });
+  } catch {
+    /* Restricted storage must not prevent the page from loading. */
+  }
+}
 
-export { walletModalOpen, walletLinkVersion };
-
+const ui = createStore({ walletModalOpen: false });
+export const useUi = ui.useSnapshot;
 export function openWalletModal() {
-  setWalletModalOpen(true);
+  ui.set((state) => ({ ...state, walletModalOpen: true }));
 }
-
 export function closeWalletModal() {
-  setWalletModalOpen(false);
+  ui.set((state) => ({ ...state, walletModalOpen: false }));
 }
-
-export function noteWalletLinked() {
-  setWalletLinkVersion((version) => version + 1);
-}
-
 export function showToast(
   title: string,
   options: {
     body?: string;
-    tone?: ToastMessage["tone"];
+    tone?: "success" | "error" | "info";
     duration?: number;
   } = {},
 ) {
-  const id = ++toastId;
-  setToasts((current) => [
-    ...current,
-    { id, title, body: options.body, tone: options.tone ?? "info" },
-  ]);
-  window.setTimeout(() => dismissToast(id), options.duration ?? 4600);
+  if (options.tone === "error" || options.tone === "success")
+    haptic(options.tone);
+  return toast[options.tone ?? "info"](title, {
+    description: options.body,
+    duration: options.duration ?? 4600,
+  });
 }
-
-export function dismissToast(id: number) {
-  setToasts((current) => current.filter((toast) => toast.id !== id));
-}
-
-export { toasts };

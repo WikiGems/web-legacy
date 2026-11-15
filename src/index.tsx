@@ -1,15 +1,16 @@
-/* @refresh reload */
-import { render } from "solid-js/web";
-import * as stylex from "@stylexjs/stylex";
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
 import App from "./App";
-import { systemTheme } from "./theme";
 import "./styles.css";
+import { startPwaInstall } from "./lib/pwa-install";
+
+const stopPwaInstall = startPwaInstall();
+if (import.meta.hot) import.meta.hot.dispose(stopPwaInstall);
 
 const root = document.getElementById("root");
-
 if (!root) throw new Error("Root element was not found.");
-
-const { className: themeClasses } = stylex.props(systemTheme);
-if (themeClasses)
-  document.documentElement.classList.add(...themeClasses.split(/\s+/));
-render(() => <App />, root);
+createRoot(root).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);

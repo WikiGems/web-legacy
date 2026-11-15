@@ -1,10 +1,10 @@
-import { createAuthClient } from "better-auth/solid";
+import { createAuthClient } from "better-auth/react";
 import { passkeyClient } from "@better-auth/passkey/client";
-import { multiSessionClient } from "better-auth/client/plugins";
+import { emailOTPClient, multiSessionClient } from "better-auth/client/plugins";
 
 export const authClient = createAuthClient({
   baseURL: window.location.origin,
-  plugins: [passkeyClient(), multiSessionClient()],
+  plugins: [passkeyClient(), multiSessionClient(), emailOTPClient()],
 });
 
 export const accountAuthClient = createAuthClient({

@@ -132,3 +132,41 @@ Keychain edits do not update it, and local startup no longer uses SOPS.
 Deployments still need secrets configured separately in Cloudflare.
 
 See the [envchain documentation](https://github.com/sorah/envchain#readme) for its Keychain options.
+
+## Optional email verification with Resend
+
+Account → Email verification → Verify email opens an optional six-digit-code screen.
+No email is sent on signup, login, or merely viewing the screen. Users request their
+own code explicitly. Email verification confirms ownership once; passkey sign-in
+continues to work for accounts that skip it.
+
+Configure a Resend API key and a sender address on a domain verified in Resend:
+
+```sh
+bun run secrets:set RESEND_API_KEY
+bun run secrets:set EMAIL_FROM
+```
+
+Restart local development after changing these settings. Empty settings leave email
+verification unavailable, with a clear retryable message. The key stays server-side.
+For the deployed Worker, set `RESEND_API_KEY` with `bunx wrangler secret put RESEND_API_KEY`
+and set the `EMAIL_FROM` Worker variable to your sender (for example,
+`WikiGems <accounts@your-domain.example>`). These are configuration instructions;
+provider credentials, sender verification and live email delivery are not configured
+or tested by the local fixtures.
+
+Apply migrations before deploying the new Worker (`bun run db:migrate`). Migration
+`004_email_verification.sql` adds database-backed auth rate limits and resets the
+historical `emailVerified` flags that earlier passkey signup set without email proof.
+It preserves accounts and passkeys. A successful code check sets the verified flag
+in Better Auth; opting out requires no change to an account.
+
+Codes last ten minutes, are hashed at rest, allow five incorrect attempts, and can
+be used once. Resends require a minute and rotate the current code. Active-account
+checks reject stale tabs and attempts to verify someone else's email. Provider
+acceptance is awaited; a failed request shows an error instead of claiming delivery.
+Acceptance does not prove inbox delivery.
+
+Run `bun run test:email-verification` for the server cases and the production-built
+OTP screen at desktop and 320px touch viewports. Tests use disposable accounts and
+an injected email transport; they do not send live emails.

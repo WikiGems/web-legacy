@@ -8,8 +8,12 @@ import { makeSignature } from "better-auth/crypto";
 import { createAuth } from "../worker/auth";
 import { handleAccount } from "../worker/account";
 import { handleAccountAuth } from "../worker/account-auth";
+import type { VerificationEmail } from "../worker/email";
 
-export async function accountFixture(baseURL = "http://localhost:5173") {
+export async function accountFixture(
+  baseURL = "http://localhost:5173",
+  deliverEmail?: (message: VerificationEmail) => Promise<void>,
+) {
   const directory = await mkdtemp(join(tmpdir(), "wikigems-account-"));
   const storage = await getPlatformProxy<Pick<Env, "AVATARS">>({
     configPath: "wrangler.jsonc",
@@ -57,17 +61,17 @@ export async function accountFixture(baseURL = "http://localhost:5173") {
     .sort()) {
     await client.executeMultiple(await readFile(`migrations/${file}`, "utf8"));
   }
-  const auth = createAuth(env);
+  const auth = createAuth(env, undefined, deliverEmail);
   const context = await auth.$context;
   async function signedCookie(name: string, token: string) {
     return `${name}=${encodeURIComponent(`${token}.${await makeSignature(token, env.BETTER_AUTH_SECRET)}`)}`;
   }
-  async function addUser(name: string) {
+  async function addUser(name: string, emailVerified = true) {
     const user = await context.internalAdapter.createUser(
       {
         name,
         email: `${crypto.randomUUID()}@example.com`,
-        emailVerified: true,
+        emailVerified,
       },
       { method: "passkey" },
     );
@@ -84,6 +88,8 @@ export async function accountFixture(baseURL = "http://localhost:5173") {
   }
   async function request(path: string, cookie = "", init: RequestInit = {}) {
     const headers = new Headers(init.headers);
+    if (!headers.has("cf-connecting-ip"))
+      headers.set("cf-connecting-ip", "127.0.0.1");
     headers.set("cookie", cookie);
     headers.set("origin", baseURL);
     if (!headers.has("x-wikigems-account")) {

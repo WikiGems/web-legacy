@@ -1,26 +1,32 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
-import { Icon } from "./Icon";
-
+import { useSyncExternalStore } from "react";
+import { Alert } from "@heroui/react";
+function subscribe(listener: () => void) {
+  window.addEventListener("online", listener);
+  window.addEventListener("offline", listener);
+  return () => {
+    window.removeEventListener("online", listener);
+    window.removeEventListener("offline", listener);
+  };
+}
 export function OfflineNotice() {
-  const [online, setOnline] = createSignal(navigator.onLine);
-  const updateConnection = () => setOnline(navigator.onLine);
-
-  onMount(() => {
-    window.addEventListener("online", updateConnection);
-    window.addEventListener("offline", updateConnection);
-  });
-
-  onCleanup(() => {
-    window.removeEventListener("online", updateConnection);
-    window.removeEventListener("offline", updateConnection);
-  });
-
-  return (
-    <Show when={!online()}>
-      <div class="offline-notice" role="status">
-        <Icon name="info" size={16} />
-        <span>You’re offline. Connect to sign in and sync your cards.</span>
-      </div>
-    </Show>
+  const online = useSyncExternalStore(subscribe, () => navigator.onLine);
+  return online ? null : (
+    <div
+      className="fixed inset-x-4 z-50 mx-auto max-w-lg"
+      style={{
+        bottom:
+          "calc(var(--app-bottom-space, 0px) + 1rem + env(safe-area-inset-bottom, 0px))",
+      }}
+    >
+      <Alert status="warning" role="status">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>You’re offline.</Alert.Title>
+          <Alert.Description>
+            Connect to sign in and sync your cards.
+          </Alert.Description>
+        </Alert.Content>
+      </Alert>
+    </div>
   );
 }

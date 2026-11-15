@@ -2,9 +2,13 @@ import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import { mplCore, create } from "@metaplex-foundation/mpl-core";
 import { generateSigner } from "@metaplex-foundation/umi";
 import { walletAdapterIdentity } from "@metaplex-foundation/umi-signer-wallet-adapters";
-import { PublicKey, type Transaction, type VersionedTransaction } from "@solana/web3.js";
+import {
+  PublicKey,
+  type Transaction,
+  type VersionedTransaction,
+} from "@solana/web3.js";
 import bs58 from "bs58";
-import type { Card } from "../../shared/domain";
+import type { Card } from "@wikigems/domain/domain";
 
 export const SOLANA_RPC_URL =
   import.meta.env.VITE_SOLANA_RPC_URL || "https://api.devnet.solana.com";
@@ -12,11 +16,20 @@ export const SOLANA_CLUSTER = import.meta.env.VITE_SOLANA_CLUSTER || "devnet";
 
 export type InjectedProvider = {
   publicKey?: { toString(): string } | null;
-  connect: (options?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey?: { toString(): string } } | void>;
+  connect: (options?: {
+    onlyIfTrusted?: boolean;
+  }) => Promise<{ publicKey?: { toString(): string } } | void>;
   disconnect: () => Promise<void>;
-  signTransaction: <T extends Transaction | VersionedTransaction>(transaction: T) => Promise<T>;
-  signAllTransactions?: <T extends Transaction | VersionedTransaction>(transactions: T[]) => Promise<T[]>;
-  signMessage?: (message: Uint8Array, display?: string) => Promise<Uint8Array | { signature: Uint8Array }>;
+  signTransaction: <T extends Transaction | VersionedTransaction>(
+    transaction: T,
+  ) => Promise<T>;
+  signAllTransactions?: <T extends Transaction | VersionedTransaction>(
+    transactions: T[],
+  ) => Promise<T[]>;
+  signMessage?: (
+    message: Uint8Array,
+    display?: string,
+  ) => Promise<Uint8Array | { signature: Uint8Array }>;
 };
 
 export type WalletDefinition = {
@@ -37,13 +50,25 @@ export function installedWallets(): WalletDefinition[] {
   if (typeof window === "undefined") return [];
   const wallets: WalletDefinition[] = [];
   if (window.phantom?.solana) {
-    wallets.push({ id: "phantom", name: "Phantom", provider: window.phantom.solana });
+    wallets.push({
+      id: "phantom",
+      name: "Phantom",
+      provider: window.phantom.solana,
+    });
   }
   if (window.solflare) {
-    wallets.push({ id: "solflare", name: "Solflare", provider: window.solflare });
+    wallets.push({
+      id: "solflare",
+      name: "Solflare",
+      provider: window.solflare,
+    });
   }
   if (window.backpack) {
-    wallets.push({ id: "backpack", name: "Backpack", provider: window.backpack });
+    wallets.push({
+      id: "backpack",
+      name: "Backpack",
+      provider: window.backpack,
+    });
   }
   return wallets;
 }
@@ -60,8 +85,15 @@ export class BrowserWalletAdapter {
 
   async connect(): Promise<PublicKey> {
     const result = await this.provider.connect();
-    const key = result && "publicKey" in result ? result.publicKey : this.provider.publicKey;
-    if (!key) throw new WalletError("The wallet opened but returned no address.", "NO_ADDRESS");
+    const key =
+      result && "publicKey" in result
+        ? result.publicKey
+        : this.provider.publicKey;
+    if (!key)
+      throw new WalletError(
+        "The wallet opened but returned no address.",
+        "NO_ADDRESS",
+      );
     this.publicKey = new PublicKey(key.toString());
     return this.publicKey;
   }
@@ -71,20 +103,29 @@ export class BrowserWalletAdapter {
     this.publicKey = null;
   }
 
-  async signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T> {
+  async signTransaction<T extends Transaction | VersionedTransaction>(
+    transaction: T,
+  ): Promise<T> {
     return this.provider.signTransaction(transaction);
   }
 
-  async signAllTransactions<T extends Transaction | VersionedTransaction>(transactions: T[]): Promise<T[]> {
-    if (this.provider.signAllTransactions) return this.provider.signAllTransactions(transactions);
+  async signAllTransactions<T extends Transaction | VersionedTransaction>(
+    transactions: T[],
+  ): Promise<T[]> {
+    if (this.provider.signAllTransactions)
+      return this.provider.signAllTransactions(transactions);
     const signed: T[] = [];
-    for (const transaction of transactions) signed.push(await this.provider.signTransaction(transaction));
+    for (const transaction of transactions)
+      signed.push(await this.provider.signTransaction(transaction));
     return signed;
   }
 
   async signMessage(message: Uint8Array): Promise<Uint8Array> {
     if (!this.provider.signMessage) {
-      throw new WalletError("This wallet cannot sign messages.", "NO_SIGN_MESSAGE");
+      throw new WalletError(
+        "This wallet cannot sign messages.",
+        "NO_SIGN_MESSAGE",
+      );
     }
     const result = await this.provider.signMessage(message, "utf8");
     return result instanceof Uint8Array ? result : result.signature;
@@ -131,24 +172,37 @@ async function waitForConfirmation(signature: string): Promise<void> {
     });
     if (response.ok) {
       const payload = (await response.json()) as {
-        result?: { value?: Array<{ confirmationStatus?: string; err?: unknown } | null> };
+        result?: {
+          value?: Array<{ confirmationStatus?: string; err?: unknown } | null>;
+        };
       };
       const status = payload.result?.value?.[0];
-      if (status?.err) throw new WalletError("The Solana transaction failed on-chain.", "MINT_FAILED");
-      if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") {
+      if (status?.err)
+        throw new WalletError(
+          "The Solana transaction failed on-chain.",
+          "MINT_FAILED",
+        );
+      if (
+        status?.confirmationStatus === "confirmed" ||
+        status?.confirmationStatus === "finalized"
+      ) {
         return;
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  throw new WalletError("The Solana transaction is taking too long to confirm.", "MINT_TIMEOUT");
+  throw new WalletError(
+    "The Solana transaction is taking too long to confirm.",
+    "MINT_TIMEOUT",
+  );
 }
 
 export async function mintCardNft(
   card: Card,
   adapter: BrowserWalletAdapter,
 ): Promise<{ mintAddress: string; signature: string }> {
-  if (!adapter.publicKey) throw new WalletError("Connect a wallet before minting.", "NO_WALLET");
+  if (!adapter.publicKey)
+    throw new WalletError("Connect a wallet before minting.", "NO_WALLET");
 
   const umi = createUmi(SOLANA_RPC_URL)
     .use(mplCore())
@@ -187,8 +241,14 @@ export async function mintCardNft(
       );
     }
     if (/reject|denied|cancel/i.test(message)) {
-      throw new WalletError("The mint transaction was cancelled in your wallet.", "CANCELLED");
+      throw new WalletError(
+        "The mint transaction was cancelled in your wallet.",
+        "CANCELLED",
+      );
     }
-    throw new WalletError(`The mint could not be completed. ${message}`, "MINT_FAILED");
+    throw new WalletError(
+      `The mint could not be completed. ${message}`,
+      "MINT_FAILED",
+    );
   }
 }

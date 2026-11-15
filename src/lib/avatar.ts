@@ -1,4 +1,4 @@
-import { MAX_AVATAR_BYTES } from "../../shared/account";
+import { MAX_AVATAR_BYTES } from "@wikigems/domain/account";
 
 export async function prepareAvatar(file: File): Promise<Blob> {
   if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
