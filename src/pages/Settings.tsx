@@ -35,7 +35,8 @@ export default function Settings() {
         <Card.Header>
           <Card.Title>Liquid UI</Card.Title>
           <Card.Description>
-            Tune the glass on the mobile navigation bar and More menu.
+            Tune the glass on the mobile navigation bar, More menu and listing
+            actions.
           </Card.Description>
         </Card.Header>
         <Card.Content className="space-y-6">

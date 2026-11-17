@@ -83,44 +83,24 @@ input {
 .nav-pages {
   display: contents;
 }
+/* LiquidGlass sets its material (tint and backdrop-filter) inline. */
+.liquid-glass {
+  position: relative;
+  overflow: hidden;
+}
 .nav-glass {
   display: none;
 }
-.listing-artwork {
-  isolation: auto;
-}
 .listing-action {
-  position: relative;
   z-index: 2;
   flex-shrink: 0;
-  overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent);
-  border-radius: 999px;
-  background: color-mix(
-    in srgb,
-    var(--background) var(--liquid-ui-opacity, 58%),
-    transparent
-  );
-  backdrop-filter: blur(var(--liquid-ui-blur, 8px));
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 2px 8px rgb(0 0 0 / 0.12);
-}
-.listing-glass {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
 }
 .listing-action-button {
   min-height: 44px;
   background: transparent;
   color: var(--foreground);
-}
-.listing-marketplace[data-liquid-ui="off"] .listing-action {
-  background: var(--background);
-  backdrop-filter: none;
-}
-.listing-marketplace[data-liquid-ui="off"] .listing-glass {
-  display: none;
 }
 .nav-item {
   display: flex;
@@ -211,11 +191,16 @@ input {
   color: var(--accent-foreground);
 }
 @media (width < 48rem) {
+  /* The bar and More popup share one frame; .nav-glass is their material. */
+  .liquid-glass-panel {
+    border: 1px solid var(--separator);
+    background: transparent;
+    box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.12);
+  }
   :root:has(.app-shell) {
     --app-bottom-space: calc(var(--bottom-nav-height) + 1.5rem);
   }
   .app-navigation {
-    isolation: isolate;
     inset: auto max(0.75rem, env(safe-area-inset-right, 0px))
       calc(0.75rem + env(safe-area-inset-bottom, 0px))
       max(0.75rem, env(safe-area-inset-left, 0px));
@@ -223,34 +208,10 @@ input {
     height: var(--bottom-nav-height);
     margin-inline: auto;
     padding: 0.375rem;
-    border: 1px solid var(--separator);
     border-radius: 999px;
-    background: color-mix(
-      in srgb,
-      var(--background) var(--liquid-ui-opacity, 90%),
-      transparent
-    );
-    box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.12);
-    backdrop-filter: blur(var(--liquid-ui-blur, 20px)) saturate(1.3);
-  }
-  .app-navigation[data-glass="ready"] {
-    background: transparent;
-    backdrop-filter: none;
   }
   .nav-overflow-panel {
-    isolation: isolate;
-    border: 1px solid var(--separator);
     border-radius: 1.5rem;
-    background: color-mix(
-      in srgb,
-      var(--background) var(--liquid-ui-opacity, 90%),
-      transparent
-    );
-    backdrop-filter: blur(var(--liquid-ui-blur, 20px)) saturate(1.3);
-  }
-  .nav-overflow-panel[data-glass="ready"] {
-    background: transparent;
-    backdrop-filter: none;
   }
   .nav-overflow-content {
     position: relative;
@@ -261,29 +222,7 @@ input {
     position: absolute;
     inset: 0;
     z-index: 1;
-    border-radius: inherit;
     pointer-events: none;
-  }
-  .app-navigation[data-glass="ready"] .nav-glass::after,
-  .nav-overflow-panel[data-glass="ready"] .nav-glass::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: color-mix(
-      in srgb,
-      var(--background) var(--liquid-ui-opacity, 58%),
-      transparent
-    );
-    backdrop-filter: blur(var(--liquid-ui-blur, 8px));
-  }
-  .app-navigation[data-liquid-ui="off"],
-  .nav-overflow-panel[data-liquid-ui="off"] {
-    background: var(--background);
-    backdrop-filter: none;
-  }
-  [data-liquid-ui="off"] > .nav-glass {
-    display: none;
   }
   .nav-item,
   .nav-more {
@@ -293,10 +232,11 @@ input {
   .nav-item {
     border-radius: 999px;
   }
+  /* A translucent highlight, so the glass stays visible under the selection. */
   .nav-item:hover,
   .nav-item[aria-current="page"],
   .nav-item[data-active="true"] {
-    background: var(--default);
+    background: color-mix(in srgb, var(--foreground) 10%, transparent);
   }
   .nav-item:hover .nav-icon,
   .nav-item[aria-current="page"] .nav-icon,

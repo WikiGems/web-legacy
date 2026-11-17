@@ -65,7 +65,6 @@
     "effect": "4.0.5",
     "figma-squircle": "^1.1.0",
     "kysely": "0.29.6",
-    "liquid-gl": "3.0.0",
     "lucide-react": "^1.70.0",
     "motion": "^14.11.0",
     "react": "^19.2.0",

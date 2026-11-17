@@ -42,10 +42,12 @@ export async function checkRouteLoading(signedInPage: Page) {
       const nav = page.getByRole("navigation", { name: "Primary" });
       await nav.waitFor();
       if (mobile)
-        await page.locator('.app-navigation[data-glass="ready"]').waitFor();
+        await page
+          .locator('.app-navigation > .nav-glass[data-glass="refract"]')
+          .waitFor();
       const originalNav = await nav.elementHandle();
-      const originalCanvas = mobile
-        ? await nav.locator("canvas").elementHandle()
+      const originalGlass = mobile
+        ? await nav.locator(".nav-glass").elementHandle()
         : null;
       assert(originalNav);
 
@@ -104,8 +106,8 @@ export async function checkRouteLoading(signedInPage: Page) {
         "The navigation stays visible during a slow first visit",
       );
       assert(await originalNav.evaluate((element) => element.isConnected));
-      if (originalCanvas)
-        assert(await originalCanvas.evaluate((element) => element.isConnected));
+      if (originalGlass)
+        assert(await originalGlass.evaluate((element) => element.isConnected));
       assert.equal(
         documents,
         1,
@@ -130,8 +132,8 @@ export async function checkRouteLoading(signedInPage: Page) {
       );
       assert.equal(documents, 1);
       assert(await originalNav.evaluate((element) => element.isConnected));
-      if (originalCanvas)
-        assert(await originalCanvas.evaluate((element) => element.isConnected));
+      if (originalGlass)
+        assert(await originalGlass.evaluate((element) => element.isConnected));
       const state = await page.evaluate(() => ({
         document: document.documentElement.dataset.navigationDocument,
         hidden: document.documentElement.dataset.navigationHidden,
@@ -172,6 +174,6 @@ export async function checkRouteLoading(signedInPage: Page) {
     }
   }
   console.log(
-    "Route loading checks passed: hover/focus/touch preloading, scoped pending content, persistent navigation and glass canvas, cached repeat navigation and no document reload.",
+    "Route loading checks passed: hover/focus/touch preloading, scoped pending content, persistent navigation and glass, cached repeat navigation and no document reload.",
   );
 }

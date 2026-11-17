@@ -1,17 +1,19 @@
 import { strict as assert } from "node:assert";
 import type { Page } from "playwright-core";
+import { forceFrostedGlass } from "./glass-check-helpers";
+
+const refracting = '.listing-action[data-glass="refract"]';
 
 export async function checkListingGlass(page: Page) {
   const baseURL = new URL(page.url()).origin;
   await page.goto(`${baseURL}/buy`);
-  await page.locator('.listing-marketplace[data-glass="ready"]').waitFor();
-  assert.equal(
-    await page.locator("body > canvas[data-liquid-ignore]").count(),
-    1,
-  );
-  assert.equal(
-    await page.evaluate(() => window.__liquidGLRenderer__?.lenses.length),
-    6,
+  await page.locator(refracting).first().waitFor();
+  // Every action pill refracts through its own filter; no shared renderer.
+  await page.waitForFunction(
+    (selector) =>
+      document.querySelectorAll(selector).length === 6 &&
+      document.querySelectorAll(".listing-action > svg filter").length === 6,
+    refracting,
   );
 
   for (const width of [1440, 320, 390]) {
@@ -89,14 +91,24 @@ export async function checkListingGlass(page: Page) {
       new StorageEvent("storage", { key: "wikigems.liquid-ui" }),
     );
   });
+  // Refraction 80% → 77px displacement (81px red pass); blur 12px → 1.2px frost.
   await page.waitForFunction(() => {
-    const action = document.querySelector(".listing-action");
-    const lenses = window.__liquidGLRenderer__?.lenses;
+    const actions = [...document.querySelectorAll(".listing-action")];
     return (
-      action &&
-      getComputedStyle(action).backdropFilter === "blur(12px)" &&
-      lenses?.length === 6 &&
-      lenses.every((lens) => lens.options.refraction === 0.016)
+      actions.length === 6 &&
+      actions.every((action) => {
+        const filter = action.querySelector(":scope > svg filter");
+        return (
+          action.getAttribute("data-glass") === "refract" &&
+          getComputedStyle(action).backdropFilter.startsWith(
+            `url("#${filter?.id}")`,
+          ) &&
+          filter?.querySelector("feDisplacementMap")?.getAttribute("scale") ===
+            "81" &&
+          filter.querySelector("feGaussianBlur")?.getAttribute("stdDeviation") ===
+            "1.2"
+        );
+      })
     );
   });
   await page.evaluate(() => {
@@ -113,8 +125,12 @@ export async function checkListingGlass(page: Page) {
       new StorageEvent("storage", { key: "wikigems.liquid-ui" }),
     );
   });
-  await page.locator('.listing-marketplace[data-liquid-ui="off"]').waitFor();
-  assert.equal(await page.locator("canvas[data-liquid-ignore]").count(), 0);
+  await page.waitForFunction(
+    () =>
+      document.querySelectorAll('.listing-action[data-glass="solid"]')
+        .length === 6,
+  );
+  assert.equal(await page.locator(".listing-action > svg filter").count(), 0);
   assert.equal(
     await page
       .locator(".listing-action")
@@ -123,34 +139,31 @@ export async function checkListingGlass(page: Page) {
     "none",
   );
 
-  // Restore defaults, then prove route teardown removes the shared card canvas.
+  // Restore defaults, then prove leaving the route releases the filters.
   await page.evaluate(() => localStorage.removeItem("wikigems.liquid-ui"));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`${baseURL}/buy`);
-  await page.locator('.listing-marketplace[data-glass="ready"]').waitFor();
+  await page.locator(refracting).first().waitFor();
   await page.getByRole("link", { name: "My collection", exact: true }).click();
   await page.waitForURL(`${baseURL}/collection`);
   await page.waitForFunction(
-    () => document.querySelectorAll("canvas[data-liquid-ignore]").length === 0,
+    () => document.querySelectorAll(".listing-action svg filter").length === 0,
   );
 
-  // No GPU: the action keeps its frosted surface and native disabled semantics.
-  await page.addInitScript(() =>
-    Object.defineProperty(window, "__liquidGLNoWebGL__", { value: true }),
-  );
+  // WebKit/Gecko: the action keeps a frosted surface and native semantics.
+  await page.addInitScript(forceFrostedGlass);
   await page.goto(`${baseURL}/buy`);
-  const fallback = page.locator(".listing-action").first();
+  const fallback = page
+    .locator('.listing-action[data-glass="frost"]')
+    .first();
   await fallback.waitFor();
-  await page.waitForFunction(
-    () => !document.querySelector('[data-glass="loading"]'),
-  );
   assert.equal(
     await fallback.evaluate((el) => getComputedStyle(el).backdropFilter),
-    "blur(8px)",
+    "blur(8px) saturate(1.4)",
   );
   assert(await fallback.getByRole("button").isDisabled());
-  assert.equal(await page.locator("canvas[data-liquid-ignore]").count(), 0);
+  assert.equal(await page.locator(".listing-action > svg filter").count(), 0);
   console.log(
-    "Listing glass checks passed: image placement at 320/390/1440px, shared six-lens renderer, auction links, light/dark themes, live settings, disabled purchases, route cleanup and CSS fallback.",
+    "Listing glass checks passed: image placement at 320/390/1440px, six refracting pills, auction links, light/dark themes, live settings, disabled purchases, route cleanup and frosted fallback.",
   );
 }

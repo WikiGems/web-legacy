@@ -1,5 +1,10 @@
 import { strict as assert } from "node:assert";
 import type { Locator, Page } from "playwright-core";
+import {
+  backdropFilter,
+  forceFrostedGlass,
+  refractionFilterId,
+} from "./glass-check-helpers";
 
 async function glassColor({
   page,
@@ -38,7 +43,10 @@ async function glassColor({
 }
 
 export async function checkNavigationGlass(signedInPage: Page) {
-  assert.equal(await signedInPage.locator(".app-navigation canvas").count(), 0);
+  // Desktop keeps a solid sidebar; the glass layer is hidden and builds no map.
+  const desktopGlass = signedInPage.locator(".app-navigation > .nav-glass");
+  assert(!(await desktopGlass.isVisible()));
+  assert.equal(await refractionFilterId(desktopGlass), null);
   const browser = signedInPage.context().browser();
   assert(browser);
   const baseURL = new URL(signedInPage.url()).origin;
@@ -60,18 +68,17 @@ export async function checkNavigationGlass(signedInPage: Page) {
       if (message.type() === "error") errors.push(message.text());
     });
     await page.goto(`${baseURL}/collection`);
-    const ready = page.locator('.app-navigation[data-glass="ready"]');
-    await ready.waitFor();
-    assert.equal(await ready.locator("canvas").count(), 1);
-    assert.equal(await ready.getByRole("link").count(), 4);
-    assert.equal(
-      await ready.evaluate(
-        (element) => getComputedStyle(element).backdropFilter,
-      ),
-      "none",
+    const bar = page.getByRole("navigation", { name: "Primary" });
+    const barGlass = page.locator(
+      '.app-navigation > .nav-glass[data-glass="refract"]',
     );
+    await barGlass.waitFor();
+    assert.equal(await bar.getByRole("link").count(), 4);
+    const barFilter = await refractionFilterId(barGlass);
+    assert(barFilter, "The bar must render its refraction filter");
+    assert((await backdropFilter(barGlass)).startsWith(`url("#${barFilter}")`));
 
-    // A changing backdrop must change the rendered glass, not only the DOM.
+    // The glass samples the live backdrop, so a repaint shows through at once.
     await page.evaluate(() => {
       const marker = document.createElement("div");
       marker.dataset.testid = "glass-backdrop";
@@ -79,11 +86,11 @@ export async function checkNavigationGlass(signedInPage: Page) {
       document.querySelector<HTMLElement>(".app-content")?.appendChild(marker);
       window.scrollTo(0, marker.getBoundingClientRect().top + scrollY - 100);
     });
-    await page.waitForTimeout(600);
-    const barSample = { page, surface: ready, x: 0.4, y: 0.15 };
+    await page.waitForTimeout(100);
+    const barSample = { page, surface: bar, x: 0.4, y: 0.15 };
     const red = await glassColor(barSample);
     assert(red.red > red.blue + 30, JSON.stringify(red));
-    const more = ready.getByRole("button", {
+    const more = bar.getByRole("button", {
       name: "More sections",
       exact: true,
     });
@@ -91,25 +98,29 @@ export async function checkNavigationGlass(signedInPage: Page) {
       name: "More sections",
       exact: true,
     });
-    const popupReady = page.locator('.nav-overflow-panel[data-glass="ready"]');
+    const popupPanel = page.locator(".nav-overflow-panel");
+    const popupGlass = page.locator(
+      '.nav-overflow-panel > .nav-glass[data-glass="refract"]',
+    );
+    const filters = page.locator(".nav-glass svg filter");
     await more.tap();
-    await popupReady.waitFor();
+    await popupGlass.waitFor();
     assert.equal(await popup.getByRole("link").count(), 5);
-    assert.equal(await page.locator("canvas[data-liquid-ignore]").count(), 2);
-    const popupSample = { page, surface: popupReady, x: 0.9, y: 0.5 };
+    assert.equal(await filters.count(), 2);
+    const popupSample = { page, surface: popupPanel, x: 0.9, y: 0.5 };
     const popupRed = await glassColor(popupSample);
     assert(popupRed.red > popupRed.blue + 30, JSON.stringify(popupRed));
     await page.getByTestId("glass-backdrop").evaluate((element) => {
       element.style.background = "rgb(0,0,255)";
     });
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(100);
     const blue = await glassColor(barSample);
     assert(blue.blue > blue.red + 30, JSON.stringify(blue));
     const popupBlue = await glassColor(popupSample);
     assert(popupBlue.blue > popupBlue.red + 30, JSON.stringify(popupBlue));
     await page.keyboard.press("Escape");
     await popup.waitFor({ state: "hidden" });
-    assert.equal(await page.locator("canvas[data-liquid-ignore]").count(), 1);
+    assert.equal(await filters.count(), 1);
     assert(
       await more.evaluate((element) => document.activeElement === element),
     );
@@ -126,9 +137,10 @@ export async function checkNavigationGlass(signedInPage: Page) {
         (theme) => document.documentElement.dataset.theme === theme,
         colorScheme,
       );
-      await ready.waitFor();
+      await barGlass.waitFor();
       await more.tap();
-      await popupReady.waitFor();
+      await popupGlass.waitFor();
+      await page.waitForTimeout(350);
       await page.screenshot({
         path: `.artifacts/navigation-more-glass-${colorScheme}.png`,
       });
@@ -141,30 +153,32 @@ export async function checkNavigationGlass(signedInPage: Page) {
         });
       }
     }
-    await ready.getByRole("link", { name: "Trade", exact: true }).tap();
+    await bar.getByRole("link", { name: "Trade", exact: true }).tap();
     await page.getByRole("heading", { name: /Trade a little/ }).waitFor();
-    await ready
-      .getByRole("button", { name: "More sections", exact: true })
-      .tap();
-    await popupReady.waitFor();
-    await page
-      .getByRole("dialog", { name: "More sections", exact: true })
-      .getByRole("link", { name: "Wallet", exact: true })
-      .tap();
+    await bar.getByRole("button", { name: "More sections", exact: true }).tap();
+    await popupGlass.waitFor();
+    await popup.getByRole("link", { name: "Wallet", exact: true }).tap();
     await page.getByRole("heading", { name: "Wallet", exact: true }).waitFor();
     await popup.waitFor({ state: "hidden" });
-    assert.equal(await page.locator("canvas[data-liquid-ignore]").count(), 1);
-    await ready.getByRole("link", { name: "Account menu", exact: true }).tap();
+    assert.equal(await filters.count(), 1);
+    await bar.getByRole("link", { name: "Account menu", exact: true }).tap();
     await page.getByRole("heading", { name: "Account", exact: true }).waitFor();
+    let previousFilter = await refractionFilterId(barGlass);
     for (const width of [320, 375, 767, 1024, 390]) {
       await page.setViewportSize({ width, height: 844 });
+      const glass = page.locator(".app-navigation > .nav-glass");
       if (width < 768) {
-        await ready.waitFor();
-        assert.equal(await ready.locator("canvas").count(), 1);
+        // The displacement map follows the bar's size.
+        await page.waitForFunction(
+          (previous) =>
+            document.querySelector(".app-navigation > .nav-glass svg filter")
+              ?.id !== previous,
+          previousFilter,
+        );
+        await barGlass.waitFor();
+        previousFilter = await refractionFilterId(barGlass);
       } else {
-        await page
-          .locator(".app-navigation canvas")
-          .waitFor({ state: "detached" });
+        await glass.waitFor({ state: "hidden" });
       }
       assert(
         await page.evaluate(
@@ -180,64 +194,27 @@ export async function checkNavigationGlass(signedInPage: Page) {
     await cdp.send("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-reduced-transparency", value: "reduce" }],
     });
-    await page.locator(".app-navigation canvas").waitFor({ state: "detached" });
+    const solid = page.locator(
+      '.app-navigation > .nav-glass[data-glass="solid"]',
+    );
+    await solid.waitFor();
+    assert.equal(await backdropFilter(solid), "none");
+    assert.equal(await filters.count(), 0);
     await cdp.send("Emulation.setEmulatedMedia", { features: [] });
-    await ready.waitFor();
+    await barGlass.waitFor();
     await cdp.detach();
     assert.deepEqual(errors, []);
 
-    // Lose the real GPU resource; the existing CSS material must take over.
-    await page.locator(".app-navigation canvas").evaluate((element) => {
-      const backend = window.__liquidGLRenderer__?.backend;
-      if (backend?.kind === "webgpu") {
-        backend.device.destroy();
-        return;
-      }
-      if (!(element instanceof HTMLCanvasElement))
-        throw new Error("Expected a canvas");
-      const gl = element.getContext("webgl2") ?? element.getContext("webgl");
-      if (!gl) throw new Error("A real GPU backend is required");
-      gl.getExtension("WEBGL_lose_context")?.loseContext();
-    });
-    await page.locator(".app-navigation canvas").waitFor({ state: "detached" });
-    assert.equal(
-      await page
-        .getByRole("navigation", { name: "Primary" })
-        .getAttribute("data-glass"),
-      null,
-    );
-    await page.getByRole("link", { name: "Play", exact: true }).tap();
-    await page
-      .getByRole("searchbox", { name: "Search Wikipedia articles" })
-      .waitFor();
-
-    const webgl = await context.newPage();
-    await webgl.goto(`${baseURL}/play?liquidGL-engine=webgl2`);
-    await webgl.locator('.app-navigation[data-glass="ready"]').waitFor();
-    assert.equal(
-      await webgl.evaluate(() => window.__liquidGLRenderer__?.backend?.kind),
-      "webgl",
-    );
-    await webgl
-      .getByRole("button", { name: "More sections", exact: true })
-      .tap();
-    await webgl.locator('.nav-overflow-panel[data-glass="ready"]').waitFor();
-    await webgl.keyboard.press("Escape");
-    await webgl
-      .getByRole("dialog", { name: "More sections", exact: true })
-      .waitFor({ state: "hidden" });
-    assert.equal(await webgl.locator("canvas[data-liquid-ignore]").count(), 1);
-    await webgl.close();
-
+    // WebKit and Gecko cannot refract; they get the same frosted material.
     const fallback = await context.newPage();
-    await fallback.addInitScript("window.__liquidGLNoWebGL__ = true");
+    await fallback.addInitScript(forceFrostedGlass);
     await fallback.goto(`${baseURL}/play`);
-    await fallback.locator(".nav-glass[style]").waitFor();
-    await fallback.waitForFunction(
-      () =>
-        !document.querySelector(".app-navigation")?.hasAttribute("data-glass"),
+    const frostedBar = fallback.locator(
+      '.app-navigation > .nav-glass[data-glass="frost"]',
     );
-    assert.equal(await fallback.locator(".app-navigation canvas").count(), 0);
+    await frostedBar.waitFor();
+    assert.match(await backdropFilter(frostedBar), /^blur\(8px\)/);
+    assert.equal(await fallback.locator(".nav-glass svg").count(), 0);
     await fallback
       .getByRole("button", { name: "More sections", exact: true })
       .tap();
@@ -246,16 +223,10 @@ export async function checkNavigationGlass(signedInPage: Page) {
       exact: true,
     });
     await fallbackPopup.waitFor();
-    await fallback.waitForFunction(
-      () =>
-        !document
-          .querySelector(".nav-overflow-panel")
-          ?.hasAttribute("data-glass"),
-    );
-    assert.equal(
-      await fallback.locator("canvas[data-liquid-ignore]").count(),
-      0,
-    );
+    await fallback
+      .locator('.nav-overflow-panel > .nav-glass[data-glass="frost"]')
+      .waitFor();
+    assert.equal(await fallback.locator(".nav-glass svg").count(), 0);
     await fallbackPopup
       .getByRole("link", { name: "Wallet", exact: true })
       .tap();
@@ -269,7 +240,7 @@ export async function checkNavigationGlass(signedInPage: Page) {
       .getByRole("heading", { name: "Account", exact: true })
       .waitFor();
     console.log(
-      "Navigation glass checks passed: bar/popup refracted pixels, content refresh, theme, routes, dismissal/focus, resizing, CSP, GPU loss and CSS fallback.",
+      "Navigation glass checks passed: bar/popup refracted live pixels, theme, routes, dismissal/focus, resizing, CSP, reduced transparency and frosted fallback.",
     );
   } finally {
     await context.close();

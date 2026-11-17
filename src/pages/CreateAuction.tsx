@@ -7,7 +7,6 @@ import { CardArtwork } from "../components/GameCard";
 import { HapticButton as Button } from "../components/HapticButton";
 import { Icon } from "../components/Icon";
 import { LiquidAction } from "../components/LiquidAction";
-import { LiquidPage } from "../components/LiquidPage";
 import {
   Page,
   PageHeader,
@@ -69,7 +68,7 @@ export default function CreateAuction() {
   const previewIncrement = parseAuctionAmount(increment);
 
   return (
-    <LiquidPage>
+    <Page>
       <Link
         to="/sell"
         className="inline-flex items-center gap-2 text-sm text-muted hover:text-foreground"
@@ -244,6 +243,6 @@ export default function CreateAuction() {
           </dl>
         </AuctionReview>
       )}
-    </LiquidPage>
+    </Page>
   );
 }

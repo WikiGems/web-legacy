@@ -1,9 +1,13 @@
 import { Chip } from "@heroui/react";
 import { Link } from "@tanstack/react-router";
-import { LiquidPage } from "../components/LiquidPage";
 import { previewAuctions } from "../lib/auction-preview";
 import { ListingCard } from "../components/ListingCard";
-import { PageHeader, PreviewChip, PreviewNotice } from "../components/Page";
+import {
+  Page,
+  PageHeader,
+  PreviewChip,
+  PreviewNotice,
+} from "../components/Page";
 import { showcaseCards } from "../lib/preview";
 
 const cards = showcaseCards();
@@ -14,7 +18,7 @@ const listings = cards.slice(0, 3).map((card, index) => ({
 }));
 export default function Buy() {
   return (
-    <LiquidPage>
+    <Page>
       <PageHeader
         eyebrow="The marketplace"
         title="Find your next card."
@@ -64,6 +68,6 @@ export default function Buy() {
           ))}
         </div>
       </section>
-    </LiquidPage>
+    </Page>
   );
 }

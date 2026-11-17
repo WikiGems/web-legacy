@@ -1,11 +1,14 @@
 import { strict as assert } from "node:assert";
 import type { Page } from "playwright-core";
+import { forceFrostedGlass } from "./glass-check-helpers";
 import { sectionLink } from "./navigation-checks";
 import {
   auctionCards,
   formatAuctionAmount,
   previewAuctions,
 } from "../src/lib/auction-preview";
+
+const refracting = '.listing-action[data-glass="refract"]';
 
 export async function checkAuctions(page: Page) {
   const baseURL = new URL(page.url()).origin;
@@ -30,10 +33,9 @@ export async function checkAuctions(page: Page) {
   await page
     .getByRole("heading", { level: 1, name: auction.card.title, exact: true })
     .waitFor();
-  await page.locator('.listing-marketplace[data-glass="ready"]').waitFor();
-  assert.equal(
-    await page.evaluate(() => window.__liquidGLRenderer__?.lenses.length),
-    2,
+  await page.waitForFunction(
+    (selector) => document.querySelectorAll(selector).length === 2,
+    refracting,
   );
   assert.equal(
     await page
@@ -92,7 +94,7 @@ export async function checkAuctions(page: Page) {
       exact: true,
     })
     .waitFor();
-  await page.locator('.listing-marketplace[data-glass="ready"]').waitFor();
+  await page.locator(refracting).first().waitFor();
   assert.equal(
     await page
       .getByRole("link", { name: "Sell", exact: true })
@@ -166,7 +168,7 @@ export async function checkAuctions(page: Page) {
     await page.setViewportSize({ width, height: 900 });
     for (const route of ["new", auction.id]) {
       await page.goto(`${baseURL}/auctions/${route}`);
-      await page.locator('.listing-marketplace[data-glass="ready"]').waitFor();
+      await page.locator(refracting).first().waitFor();
       assert(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
@@ -198,7 +200,7 @@ export async function checkAuctions(page: Page) {
     fullPage: true,
   });
   await page.goto(`${baseURL}/auctions/new`);
-  await page.locator('.listing-marketplace[data-glass="ready"]').waitFor();
+  await page.locator(refracting).first().waitFor();
   await page.screenshot({
     path: ".artifacts/auction-listing-dark.png",
     fullPage: true,
@@ -212,8 +214,9 @@ export async function checkAuctions(page: Page) {
       new StorageEvent("storage", { key: "wikigems.liquid-ui" }),
     );
   });
-  await page.locator('.listing-marketplace[data-liquid-ui="off"]').waitFor();
-  assert.equal(await page.locator("canvas[data-liquid-ignore]").count(), 0);
+  await page.locator('.listing-action[data-glass="solid"]').first().waitFor();
+  assert.equal(await page.locator(refracting).count(), 0);
+  assert.equal(await page.locator(".listing-action > svg filter").count(), 0);
   assert.equal(
     await page
       .locator(".listing-action")
@@ -227,10 +230,7 @@ export async function checkAuctions(page: Page) {
   await page
     .getByRole("heading", { name: "Auction not found", exact: true })
     .waitFor();
-  assert.equal(
-    await page.locator("body > canvas[data-liquid-ignore]").count(),
-    0,
-  );
+  assert.equal(await page.locator(".listing-action").count(), 0);
   const browser = page.context().browser();
   assert(browser);
   const touchContext = await browser.newContext({
@@ -292,22 +292,16 @@ export async function checkAuctions(page: Page) {
   } finally {
     await touchContext.close();
   }
-  await page.addInitScript(() =>
-    Object.defineProperty(window, "__liquidGLNoWebGL__", { value: true }),
-  );
+  await page.addInitScript(forceFrostedGlass);
   await page.goto(`${baseURL}/auctions/new`);
   await page
     .getByRole("button", { name: "Review auction", exact: true })
     .waitFor();
-  await page.waitForFunction(
-    () => !document.querySelector('[data-glass="loading"]'),
-  );
+  const frosted = page.locator('.listing-action[data-glass="frost"]').first();
+  await frosted.waitFor();
   assert.equal(
-    await page
-      .locator(".listing-action")
-      .first()
-      .evaluate((el) => getComputedStyle(el).backdropFilter),
-    "blur(8px)",
+    await frosted.evaluate((el) => getComputedStyle(el).backdropFilter),
+    "blur(8px) saturate(1.4)",
   );
   await page
     .getByRole("button", { name: "Review auction", exact: true })
@@ -317,6 +311,6 @@ export async function checkAuctions(page: Page) {
     .waitFor();
   assert.deepEqual(writes, []);
   console.log(
-    "Auction checks passed: listing links, deep links, precise bid validation, live listing preview, duration, review/focus, disabled submissions, responsive light/dark layouts, 320px touch flows, liquid settings, missing auction and GPU fallback.",
+    "Auction checks passed: listing links, deep links, precise bid validation, live listing preview, duration, review/focus, disabled submissions, responsive light/dark layouts, 320px touch flows, liquid settings, missing auction and frosted fallback.",
   );
 }

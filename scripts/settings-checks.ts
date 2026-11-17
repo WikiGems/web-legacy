@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import type { Page } from "playwright-core";
+import { backdropFilter, forceFrostedGlass } from "./glass-check-helpers";
 import { sectionLink } from "./navigation-checks";
 
 export async function checkSettings(signedInPage: Page) {
@@ -38,31 +39,30 @@ export async function checkSettings(signedInPage: Page) {
     });
     const blur = page.getByRole("slider", { name: "Blur", exact: true });
     const opacity = page.getByRole("slider", { name: "Opacity", exact: true });
-    const ready = page.locator('.app-navigation[data-glass="ready"]');
+    const ready = page.locator(
+      '.app-navigation > .nav-glass[data-glass="refract"]',
+    );
+    const solid = page.locator(
+      '.app-navigation > .nav-glass[data-glass="solid"]',
+    );
     await ready.waitFor();
     assert(await haptics.isChecked());
     await page.getByTestId("haptic-toggle").tap();
     assert(!(await haptics.isChecked()));
     await page.getByTestId("liquid-ui-toggle").tap();
     assert(!(await liquid.isChecked()));
-    await page
-      .locator("canvas[data-liquid-ignore]")
-      .waitFor({ state: "detached" });
+    await solid.waitFor();
     assert(await refraction.isDisabled());
-    assert.equal(
-      await page
-        .locator(".app-navigation")
-        .evaluate((element) => getComputedStyle(element).backdropFilter),
-      "none",
-    );
+    assert.equal(await backdropFilter(solid), "none");
+    assert.equal(await page.locator(".nav-glass svg").count(), 0);
     await page.reload();
     await liquid.waitFor();
     assert(!(await liquid.isChecked()));
     assert(!(await haptics.isChecked()));
     await page.getByTestId("liquid-ui-toggle").tap();
     await ready.waitFor();
-    const originalCanvas = await ready.locator("canvas").elementHandle();
-    assert(originalCanvas);
+    const originalGlass = await ready.elementHandle();
+    assert(originalGlass);
     for (const slider of [refraction, blur, opacity]) {
       await slider.focus();
       await slider.press("End");
@@ -71,20 +71,25 @@ export async function checkSettings(signedInPage: Page) {
     assert.equal(await blur.getAttribute("value"), "20");
     assert.equal(await opacity.getAttribute("value"), "100");
     assert(
-      await originalCanvas.evaluate((element) => element.isConnected),
-      "Adjusting optics must reuse the active renderer",
+      await originalGlass.evaluate((element) => element.isConnected),
+      "Adjusting optics must reuse the mounted glass",
     );
-    assert.equal(
-      await page.evaluate(
-        () => window.__liquidGLRenderer__?.lenses[0]?.options.refraction,
-      ),
-      0.02,
-    );
-    const material = await ready.evaluate((element) => ({
-      blur: element.style.getPropertyValue("--liquid-ui-blur"),
-      opacity: element.style.getPropertyValue("--liquid-ui-opacity"),
-    }));
-    assert.deepEqual(material, { blur: "20px", opacity: "100%" });
+    // Refraction 100% → 96px displacement, blur 20px → 2px frost, opacity
+    // 100% → 60% body tint.
+    await page.waitForFunction(() => {
+      const glass = document.querySelector<HTMLElement>(
+        ".app-navigation > .nav-glass",
+      );
+      const filter = glass?.querySelector(":scope > svg filter");
+      return (
+        filter
+          ?.querySelector('feDisplacementMap[result="dispG"]')
+          ?.getAttribute("scale") === "96" &&
+        filter.querySelector("feGaussianBlur")?.getAttribute("stdDeviation") ===
+          "2" &&
+        glass?.style.background.includes(" 60%")
+      );
+    });
     await page.reload();
     await ready.waitFor();
     assert.equal(await refraction.getAttribute("value"), "100");
@@ -100,22 +105,14 @@ export async function checkSettings(signedInPage: Page) {
     const otherTab = await context.newPage();
     await otherTab.goto(`${baseURL}/settings`);
     await otherTab.getByTestId("liquid-ui-toggle").tap();
-    await page.waitForFunction(
-      () =>
-        document
-          .querySelector(".app-navigation")
-          ?.getAttribute("data-liquid-ui") === "off",
-    );
+    await solid.waitFor();
     assert(!(await liquid.isChecked()), "Preferences must update across tabs");
     await page
       .getByRole("button", { name: "Reset liquid UI", exact: true })
       .tap();
-    await otherTab.waitForFunction(
-      () =>
-        document
-          .querySelector(".app-navigation")
-          ?.getAttribute("data-liquid-ui") === "on",
-    );
+    await otherTab
+      .locator('.app-navigation > .nav-glass[data-glass="refract"]')
+      .waitFor();
     await otherTab.close();
     await ready.waitFor();
     await (await sectionLink(page, "Settings", true)).tap();
@@ -143,7 +140,7 @@ export async function checkSettings(signedInPage: Page) {
     assert(await haptics.isChecked());
     const fallback = await context.newPage();
     fallback.on("pageerror", (error) => errors.push(error.message));
-    await fallback.addInitScript("window.__liquidGLNoWebGL__ = true");
+    await fallback.addInitScript(forceFrostedGlass);
     await fallback.goto(`${baseURL}/settings`);
     await fallback.getByRole("slider", { name: "Blur", exact: true }).focus();
     await fallback
@@ -155,32 +152,25 @@ export async function checkSettings(signedInPage: Page) {
     await fallback
       .getByRole("slider", { name: "Opacity", exact: true })
       .press("End");
-    await fallback.waitForFunction(
-      () =>
-        !document.querySelector(".app-navigation")?.hasAttribute("data-glass"),
+    const frosted = fallback.locator(
+      '.app-navigation > .nav-glass[data-glass="frost"]',
     );
-    assert.equal(
-      await fallback.locator("canvas[data-liquid-ignore]").count(),
-      0,
+    await frosted.waitFor();
+    await fallback.waitForFunction(() =>
+      getComputedStyle(
+        document.querySelector(".app-navigation > .nav-glass")!,
+      ).backdropFilter.includes("blur(20px)"),
     );
+    assert.equal(await fallback.locator(".nav-glass svg").count(), 0);
     assert(
-      await fallback
-        .locator(".app-navigation")
-        .evaluate((element) =>
-          getComputedStyle(element).backdropFilter.includes("blur(20px)"),
-        ),
-    );
-    assert(
-      await fallback
-        .locator(".app-navigation")
-        .evaluate((element) => {
-          const canvas = document.createElement("canvas");
-          const context = canvas.getContext("2d");
-          if (!context) throw new Error("A color decoder is required");
-          context.fillStyle = getComputedStyle(element).backgroundColor;
-          context.fillRect(0, 0, 1, 1);
-          return context.getImageData(0, 0, 1, 1).data[3] === 255;
-        }),
+      await frosted.evaluate((element) => {
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("A color decoder is required");
+        context.fillStyle = getComputedStyle(element).backgroundColor;
+        context.fillRect(0, 0, 1, 1);
+        return context.getImageData(0, 0, 1, 1).data[3] === 255;
+      }),
       "The CSS fallback must honor full opacity",
     );
     await fallback
@@ -202,8 +192,8 @@ export async function checkSettings(signedInPage: Page) {
     await restricted.goto(`${baseURL}/settings`);
     await restricted.getByTestId("liquid-ui-toggle").tap();
     await restricted
-      .locator("canvas[data-liquid-ignore]")
-      .waitFor({ state: "detached" });
+      .locator('.app-navigation > .nav-glass[data-glass="solid"]')
+      .waitFor();
     await restricted.getByRole("link", { name: "Play", exact: true }).tap();
     await (await sectionLink(restricted, "Settings", true)).tap();
     assert(
@@ -227,7 +217,7 @@ export async function checkSettings(signedInPage: Page) {
     }
     assert.deepEqual(errors, []);
     console.log(
-      "Settings checks passed: desktop/mobile access, immediate controls, renderer reuse, reload persistence, cross-tab updates, invalid/blocked storage and responsive layout.",
+      "Settings checks passed: desktop/mobile access, immediate controls, glass reuse, reload persistence, cross-tab updates, invalid/blocked storage and responsive layout.",
     );
   } finally {
     await context.close();

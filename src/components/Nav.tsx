@@ -1,13 +1,13 @@
 import { Popover, Tooltip } from "@heroui/react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { clsx } from "clsx";
 import { Link, useLocation } from "@tanstack/react-router";
 import { authClient } from "../lib/auth-client";
 import { haptic } from "../lib/haptics";
-import { useNavigationGlass } from "../lib/liquid-glass";
 import { HapticButton as Button } from "./HapticButton";
 import { Avatar } from "./Avatar";
 import { Icon, type IconName } from "./Icon";
+import { LiquidGlass } from "./LiquidGlass";
 
 const destinations = [
   {
@@ -88,19 +88,9 @@ function routeFeedback(to: string) {
   );
 }
 
-function NavigationGlass() {
-  const glassId = useId();
-  const glassRef = useRef<HTMLDivElement>(null);
-  useNavigationGlass(glassRef);
-  return (
-    <div
-      id={glassId}
-      ref={glassRef}
-      className="nav-glass"
-      aria-hidden="true"
-      data-liquid-ignore
-    />
-  );
+/** Glass layer behind the bar or popup's controls; mobile only. */
+function NavigationGlass({ radius }: { radius: number }) {
+  return <LiquidGlass className="nav-glass" radius={radius} aria-hidden />;
 }
 
 export function Nav() {
@@ -123,8 +113,8 @@ export function Nav() {
   const selectedSecondary = secondary.find(({ to }) => to === section);
 
   return (
-    <nav aria-label="Primary" className="app-navigation">
-      <NavigationGlass />
+    <nav aria-label="Primary" className="app-navigation liquid-glass-panel">
+      <NavigationGlass radius={999} />
       <div className="nav-pages">
         {destinations.map(({ to, label, shortLabel, icon, primary }) => (
           <Tooltip key={to} delay={200}>
@@ -176,9 +166,9 @@ export function Nav() {
             <Popover.Content
               placement="top"
               offset={12}
-              className="nav-overflow-panel w-60 max-w-[calc(100vw-2rem)]"
+              className="nav-overflow-panel liquid-glass-panel w-60 max-w-[calc(100vw-2rem)]"
             >
-              <NavigationGlass />
+              <NavigationGlass radius={24} />
               <Popover.Dialog
                 aria-label="More sections"
                 className="nav-overflow-content p-2"
