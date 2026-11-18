@@ -1,23 +1,20 @@
 import {
-  ArrowRight,
-  Download,
-  Ellipsis,
   ArrowLeftRight,
+  ArrowRight,
   ArrowUpRight,
-  Zap,
-  Layers,
   Check,
   ChevronDown,
-  X,
   Coins,
   Copy,
-  Swords,
+  Download,
+  Ellipsis,
   ExternalLink,
-  SlidersHorizontal,
   Flame,
+  Gem,
   Gift,
   Globe2,
   Info,
+  Layers,
   LockKeyhole,
   LogOut,
   Menu,
@@ -27,14 +24,19 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   Sword,
+  Swords,
   Trash2,
   Trophy,
+  TriangleAlert,
   UserRound,
   Wallet,
-  type LucideIcon,
-} from "lucide-react";
+  X,
+  Zap,
+  type IconNode,
+} from "lucide";
 
 const icons = {
   "arrow-right": ArrowRight,
@@ -51,6 +53,7 @@ const icons = {
   external: ExternalLink,
   filter: SlidersHorizontal,
   flame: Flame,
+  gem: Gem,
   gift: Gift,
   globe: Globe2,
   info: Info,
@@ -71,24 +74,49 @@ const icons = {
   trophy: Trophy,
   user: UserRound,
   wallet: Wallet,
-} satisfies Record<string, LucideIcon>;
+  warning: TriangleAlert,
+} satisfies Record<string, IconNode>;
 export type IconName = keyof typeof icons;
-export function Icon({
-  name,
-  size = 18,
-  className,
-}: {
+
+// Lucide ships plain icon data. The markup comes from the library, never from
+// user input, so it is safe to set as the SVG's contents.
+const markup = new Map<IconName, string>();
+function iconMarkup(name: IconName) {
+  let html = markup.get(name);
+  if (html === undefined) {
+    html = icons[name]
+      .map(([tag, attributes]) => {
+        const pairs = Object.entries(attributes)
+          .map(([key, value]) => `${key}="${String(value)}"`)
+          .join(" ");
+        return `<${tag} ${pairs}/>`;
+      })
+      .join("");
+    markup.set(name, html);
+  }
+  return html;
+}
+
+export function Icon(props: {
   name: IconName;
   size?: number;
-  className?: string;
+  strokeWidth?: number;
+  class?: string;
 }) {
-  const Symbol = icons[name];
   return (
-    <Symbol
-      size={size}
-      strokeWidth={1.7}
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={props.size ?? 18}
+      height={props.size ?? 18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width={props.strokeWidth ?? 1.7}
+      stroke-linecap="round"
+      stroke-linejoin="round"
       aria-hidden="true"
-      className={className ? `shrink-0 ${className}` : "shrink-0"}
+      class={["shrink-0", props.class]}
+      innerHTML={iconMarkup(props.name)}
     />
   );
 }

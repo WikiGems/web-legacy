@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Context, Effect, Layer, Schema } from "effect";
 import {
   AccountProfileSchema,
   UsernameAvailabilitySchema,
@@ -269,3 +269,15 @@ export function runApi<A>(
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>;
+
+/**
+ * The HTTP client as an Effect service. Provide it once per platform with a
+ * transport; every consumer asks for `Api` and never sees a browser origin.
+ */
+export class Api extends Context.Service<Api, ApiClient>()(
+  "@wikigems/client/Api",
+) {
+  static layer(options: ApiClientOptions) {
+    return Layer.succeed(Api, Api.of(createApiClient(options)));
+  }
+}

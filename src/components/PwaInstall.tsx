@@ -1,30 +1,30 @@
-import { useId, useState } from "react";
-import { Card } from "@heroui/react";
-import { HapticButton as Button } from "./HapticButton";
-import { WebDialog } from "./WebDialog";
-import { Icon } from "./Icon";
+import { createSignal, createUniqueId, Show } from "solid-js";
 import {
   dismissInstallOffer,
   installPlatform,
   requestPwaInstall,
   usePwaInstall,
 } from "../lib/pwa-install";
+import { Icon } from "./Icon";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { WebDialog } from "./WebDialog";
+
+const hidden = (kind: string) =>
+  ["unavailable", "installed", "accepted"].includes(kind);
 
 export function InstallAppButton() {
-  const { availability } = usePwaInstall();
-  const [instructions, setInstructions] = useState(false);
-  const titleId = useId();
-  if (["unavailable", "installed", "accepted"].includes(availability.kind))
-    return null;
-  const platform = installPlatform();
+  const install = usePwaInstall();
+  const [instructions, setInstructions] = createSignal(false);
+  const titleId = createUniqueId();
+  const kind = () => install().availability.kind;
   return (
-    <>
+    <Show when={!hidden(kind())}>
       <Button
         variant="secondary"
-        isPending={availability.kind === "prompting"}
-        isDisabled={availability.kind === "prompting"}
-        onPress={() => {
-          if (availability.kind === "ready")
+        pending={kind() === "prompting"}
+        onClick={() => {
+          if (kind() === "ready")
             void requestPwaInstall().then((result) => {
               if (result === "manual") setInstructions(true);
             });
@@ -32,105 +32,94 @@ export function InstallAppButton() {
         }}
       >
         <Icon name="download" size={16} />
-        {availability.kind === "ready" || availability.kind === "prompting"
+        {kind() === "ready" || kind() === "prompting"
           ? "Install app"
           : "How to install"}
       </Button>
-      {instructions && (
+      <Show when={instructions()}>
         <WebDialog labelId={titleId} onClose={() => setInstructions(false)}>
-          <div className="flex items-start justify-between gap-3">
-            <h2 id={titleId} className="text-2xl font-semibold">
+          <div class="flex items-start justify-between gap-3">
+            <h2 id={titleId} class="text-2xl font-semibold">
               Install WikiGems
             </h2>
             <Button
-              isIconOnly
+              iconOnly
               variant="ghost"
               aria-label="Close installation instructions"
-              onPress={() => setInstructions(false)}
+              onClick={() => setInstructions(false)}
             >
               <Icon name="close" />
             </Button>
           </div>
-          {platform === "ios" ? (
-            <p className="text-sm leading-relaxed text-muted">
-              Open your browser’s Share menu, choose Add to Home Screen, then
-              tap Add. If Open as Web App appears, leave it enabled.
-            </p>
-          ) : platform === "mac-safari" ? (
-            <p className="text-sm leading-relaxed text-muted">
-              In Safari, choose File → Add to Dock, then click Add.
-            </p>
-          ) : (
-            <p className="text-sm leading-relaxed text-muted">
-              Open your browser’s menu and choose Install WikiGems or Install
-              page as app. You can also use the install icon in the address bar
-              when it appears. If your browser has no install option, open this
-              page in Chrome, Edge, or Safari.
-            </p>
-          )}
-          <p className="text-xs text-muted">
+          <p class="text-sm leading-relaxed text-muted">
+            {installPlatform() === "ios"
+              ? "Open your browser’s Share menu, choose Add to Home Screen, then tap Add. If Open as Web App appears, leave it enabled."
+              : installPlatform() === "mac-safari"
+                ? "In Safari, choose File → Add to Dock, then click Add."
+                : "Open your browser’s menu and choose Install WikiGems or Install page as app. You can also use the install icon in the address bar when it appears. If your browser has no install option, open this page in Chrome, Edge, or Safari."}
+          </p>
+          <p class="text-xs text-muted">
             The app opens in its own window. Sign-in, card syncing, trading, and
             minting need an internet connection.
           </p>
-          <Button onPress={() => setInstructions(false)}>Got it</Button>
+          <Button onClick={() => setInstructions(false)}>Got it</Button>
         </WebDialog>
-      )}
-    </>
+      </Show>
+    </Show>
   );
 }
 
 export function PwaInstallOffer() {
-  const { availability, dismissed } = usePwaInstall();
-  if (
-    dismissed ||
-    ["unavailable", "accepted", "installed"].includes(availability.kind)
-  )
-    return null;
+  const install = usePwaInstall();
   return (
-    <aside
-      aria-label="Install WikiGems"
-      className="border-b border-separator bg-surface"
+    <Show
+      when={!install().dismissed && !hidden(install().availability.kind)}
     >
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-10">
-        <div className="flex min-w-0 items-center gap-3">
-          <img
-            src="/icons/gem-192.png"
-            width={40}
-            height={40}
-            alt=""
-            className="size-10 shrink-0 rounded-xl grayscale"
-          />
-          <div>
-            <p className="text-sm font-semibold">Install WikiGems</p>
-            <p className="text-xs text-muted">Your collection, one tap away.</p>
+      <aside
+        aria-label="Install WikiGems"
+        class="border-b border-base-300 bg-base-200"
+      >
+        <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-10">
+          <div class="flex min-w-0 items-center gap-3">
+            <img
+              src="/icons/gem-192.png"
+              width={40}
+              height={40}
+              alt=""
+              class="size-10 shrink-0 rounded-xl grayscale"
+            />
+            <div>
+              <p class="text-sm font-semibold">Install WikiGems</p>
+              <p class="text-xs text-muted">Your collection, one tap away.</p>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <InstallAppButton />
+            <Button variant="ghost" onClick={dismissInstallOffer}>
+              Not now
+            </Button>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <InstallAppButton />
-          <Button variant="ghost" onPress={dismissInstallOffer}>
-            Not now
-          </Button>
-        </div>
-      </div>
-    </aside>
+      </aside>
+    </Show>
   );
 }
 
 export function PwaInstallSettings() {
-  const { availability } = usePwaInstall();
-  if (["unavailable", "accepted", "installed"].includes(availability.kind))
-    return null;
+  const install = usePwaInstall();
   return (
-    <Card>
-      <Card.Header>
-        <Card.Title>Install WikiGems</Card.Title>
-        <Card.Description>
-          Open your collection from your home screen or desktop.
-        </Card.Description>
-      </Card.Header>
-      <Card.Content>
-        <InstallAppButton />
-      </Card.Content>
-    </Card>
+    <Show when={!hidden(install().availability.kind)}>
+      <Card>
+        <CardHeader>
+          <CardTitle>Install WikiGems</CardTitle>
+          <CardDescription>
+            Open your collection from your home screen or desktop.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <InstallAppButton />
+        </CardContent>
+      </Card>
+    </Show>
   );
 }

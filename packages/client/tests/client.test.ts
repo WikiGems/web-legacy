@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { QueryClient } from "@tanstack/react-query";
-import { ApiError, createApiClient, runApi } from "../src/api";
-import { createQueries } from "../src/queries";
-import { searchWikipedia } from "../src/wikipedia";
+import { Effect } from "effect";
+import { Api, ApiError, createApiClient, runApi } from "../src/api";
+import { searchWikipedia, searchWikipediaEffect } from "../src/wikipedia";
 
 const profile = {
   userId: "alice",
@@ -52,18 +51,23 @@ describe("portable client", () => {
     });
   });
 
-  test("separates account caches and disables queries without a session", async () => {
-    const api = client(() => Response.json(profile));
-    const queries = createQueries(api);
-    expect(queries.profile("").enabled).toBe(false);
-    const cache = new QueryClient();
-    cache.setQueryData(queries.profile("alice").queryKey, profile);
-    expect(cache.getQueryData(queries.profile("bob").queryKey)).toBeUndefined();
-    expect(await cache.fetchQuery(queries.profile("alice"))).toEqual(profile);
-    cache.clear();
+  test("provides the client as an Effect service over the injected transport", async () => {
+    const requests: Request[] = [];
+    const layer = Api.layer({
+      baseURL: "https://api.example.test",
+      fetch: (input, init) => {
+        requests.push(new Request(input, init));
+        return Promise.resolve(Response.json(profile));
+      },
+    });
+    const result = await Effect.runPromise(
+      Api.use((api) => api.fetchAccountProfile()).pipe(Effect.provide(layer)),
+    );
+    expect(result).toEqual(profile);
+    expect(requests[0]?.url).toBe("https://api.example.test/api/profile");
   });
 
-  test("query cancellation aborts the injected transport", async () => {
+  test("interrupting a request aborts the injected transport", async () => {
     let started!: () => void;
     const requestStarted = new Promise<void>((resolve) => {
       started = resolve;
@@ -81,15 +85,14 @@ describe("portable client", () => {
           started();
         }),
     );
-    const cache = new QueryClient();
-    const options = createQueries(api).profile("alice");
-    const pending = cache.fetchQuery(options).catch(() => undefined);
+    const controller = new AbortController();
+    const pending = runApi(api.fetchAccountProfile(), {
+      signal: controller.signal,
+    }).catch(() => undefined);
     await requestStarted;
-    await cache.cancelQueries({ queryKey: options.queryKey });
+    controller.abort();
     await pending;
     expect(transportSignal?.aborted).toBe(true);
-    expect(cache.getQueryData(options.queryKey)).toBeUndefined();
-    cache.clear();
   });
 
   test("validates Wikipedia results, sorts rank and passes cancellation", async () => {
@@ -127,5 +130,18 @@ describe("portable client", () => {
           Response.json({ query: { pages: { invalid: { title: "Moon" } } } }),
       }),
     ).rejects.toThrow();
+  });
+
+  test("wraps Wikipedia failures in a typed error", async () => {
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        searchWikipediaEffect({
+          term: "Moon",
+          fetch: async () => new Response("nope", { status: 500 }),
+        }),
+      ),
+    );
+    expect(failure._tag).toBe("WikipediaError");
+    expect(failure.message).toContain("unavailable");
   });
 });

@@ -1,22 +1,22 @@
-import { Popover, Tooltip } from "@heroui/react";
-import { useEffect, useState } from "react";
-import { clsx } from "clsx";
-import { Link, useLocation } from "@tanstack/react-router";
-import { authClient } from "../lib/auth-client";
+import {
+  type Accessor,
+  type ParentProps,
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onSettled,
+  Show,
+} from "solid-js";
+import { useLinkProps, useLocation } from "@tanstack/solid-router";
+import { useSession } from "../lib/session";
 import { haptic } from "../lib/haptics";
-import { HapticButton as Button } from "./HapticButton";
 import { Avatar } from "./Avatar";
 import { Icon, type IconName } from "./Icon";
 import { LiquidGlass } from "./LiquidGlass";
 
 const destinations = [
-  {
-    to: "/play",
-    label: "Play",
-    shortLabel: "Play",
-    icon: "search",
-    primary: true,
-  },
+  { to: "/play", label: "Play", shortLabel: "Play", icon: "search", primary: true },
   {
     to: "/collection",
     label: "My collection",
@@ -24,21 +24,9 @@ const destinations = [
     icon: "cards",
     primary: true,
   },
-  {
-    to: "/trade",
-    label: "Trade",
-    shortLabel: "Trade",
-    icon: "swap",
-    primary: true,
-  },
+  { to: "/trade", label: "Trade", shortLabel: "Trade", icon: "swap", primary: true },
   { to: "/buy", label: "Buy", shortLabel: "Buy", icon: "coin", primary: false },
-  {
-    to: "/sell",
-    label: "Sell",
-    shortLabel: "Sell",
-    icon: "plus",
-    primary: false,
-  },
+  { to: "/sell", label: "Sell", shortLabel: "Sell", icon: "plus", primary: false },
   {
     to: "/action",
     label: "Action",
@@ -88,145 +76,200 @@ function routeFeedback(to: string) {
   );
 }
 
+type SectionPath = (typeof destinations)[number]["to"] | "/account";
+
+/**
+ * A navigation link whose current state follows the app's section, so an
+ * auction page keeps "Buy" highlighted. The router marks only exact matches,
+ * and it always overwrites `aria-current`, hence the explicit override.
+ */
+function SectionLink(
+  props: ParentProps<{
+    to: SectionPath;
+    section: Accessor<string>;
+    class: string;
+    label?: string;
+    testid?: string;
+    onClick: () => void;
+  }>,
+) {
+  const link = useLinkProps({
+    to: props.to,
+    activeOptions: { exact: true },
+    class: props.class,
+  });
+  return (
+    <a
+      {...link}
+      aria-label={props.label}
+      aria-current={props.section() === props.to ? "page" : undefined}
+      data-testid={props.testid}
+      onClick={(event) => {
+        props.onClick();
+        const handler = (link as { onClick?: (event: MouseEvent) => void })
+          .onClick;
+        handler?.(event);
+      }}
+    >
+      {props.children}
+    </a>
+  );
+}
+
 /** Glass layer behind the bar or popup's controls; mobile only. */
-function NavigationGlass({ radius }: { radius: number }) {
-  return <LiquidGlass className="nav-glass" radius={radius} aria-hidden />;
+function NavigationGlass(props: { radius: number }) {
+  return <LiquidGlass class="nav-glass" radius={props.radius} aria-hidden="true" />;
 }
 
 export function Nav() {
-  const { data } = authClient.useSession();
+  const session = useSession();
   const pathname = useLocation({ select: (location) => location.pathname });
-  const section =
-    pathname === "/auctions/new"
+  const section = createMemo(() =>
+    pathname() === "/auctions/new"
       ? "/sell"
-      : pathname.startsWith("/auctions/")
+      : pathname().startsWith("/auctions/")
         ? "/buy"
-        : pathname;
-  const [moreOpen, setMoreOpen] = useState(false);
-  useEffect(() => setMoreOpen(false), [pathname]);
-  useEffect(() => {
-    const close = () => setMoreOpen(false);
-    window.addEventListener("resize", close);
-    return () => window.removeEventListener("resize", close);
-  }, []);
+        : pathname(),
+  );
+  const [moreOpen, setMoreOpen] = createSignal(false);
   const secondary = destinations.filter((destination) => !destination.primary);
-  const selectedSecondary = secondary.find(({ to }) => to === section);
+  const selectedSecondary = createMemo(() =>
+    secondary.find(({ to }) => to === section()),
+  );
+  let more: HTMLDivElement | undefined;
+
+  // Navigating, resizing, pressing Escape or clicking elsewhere closes the menu.
+  createEffect(pathname, () => {
+    setMoreOpen(false);
+  });
+  onSettled(() => {
+    const close = () => setMoreOpen(false);
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !more?.contains(event.target)) close();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("resize", close);
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("resize", close);
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  });
 
   return (
-    <nav aria-label="Primary" className="app-navigation liquid-glass-panel">
+    <nav aria-label="Primary" class="app-navigation liquid-glass-panel">
       <NavigationGlass radius={999} />
-      <div className="nav-pages">
-        {destinations.map(({ to, label, shortLabel, icon, primary }) => (
-          <Tooltip key={to} delay={200}>
-            <Tooltip.Trigger<"a">
-              role="link"
-              render={(props) => (
-                <Link
-                  {...props}
-                  to={to}
-                  aria-label={label}
-                  aria-current={section === to ? "page" : undefined}
-                  activeOptions={{ exact: true }}
-                  className={clsx("nav-item", !primary && "nav-secondary")}
-                  onClick={() => {
-                    routeFeedback(to);
-                    setMoreOpen(false);
-                  }}
-                >
-                  <span className="nav-icon">
-                    <Icon name={icon} size={23} />
-                  </span>
-                  <span className="nav-label" aria-hidden="true">
-                    {shortLabel}
-                  </span>
-                </Link>
-              )}
-            />
-            <Tooltip.Content placement="right" className="nav-tooltip">
-              {label}
-            </Tooltip.Content>
-          </Tooltip>
-        ))}
-        <div className="nav-more">
-          <Popover key={pathname} isOpen={moreOpen} onOpenChange={setMoreOpen}>
-            <Button
-              variant="ghost"
-              className="nav-item"
-              aria-label="More sections"
-              data-active={Boolean(selectedSecondary)}
-              aria-current={selectedSecondary ? "page" : undefined}
+      <div class="nav-pages">
+        <For each={destinations}>
+          {(destination) => (
+            <div
+              class={["nav-tip flex", { "nav-secondary": !destination.primary }]}
             >
-              <span className="nav-icon">
-                <Icon name={selectedSecondary?.icon ?? "more"} size={23} />
-              </span>
-              <span className="nav-label" aria-hidden="true">
-                {selectedSecondary?.shortLabel ?? "More"}
-              </span>
-            </Button>
-            <Popover.Content
-              placement="top"
-              offset={12}
-              className="nav-overflow-panel liquid-glass-panel w-60 max-w-[calc(100vw-2rem)]"
-            >
-              <NavigationGlass radius={24} />
-              <Popover.Dialog
-                aria-label="More sections"
-                className="nav-overflow-content p-2"
-              >
-                <p className="px-3 pb-2 pt-1 text-xs font-medium text-muted">
-                  More sections
-                </p>
-                {secondary.map(({ to, label, icon }) => (
-                  <Link
-                    key={to}
-                    to={to}
-                    activeOptions={{ exact: true }}
-                    aria-current={section === to ? "page" : undefined}
-                    className="nav-overflow-link"
-                    onClick={() => {
-                      routeFeedback(to);
-                      setMoreOpen(false);
-                    }}
-                  >
-                    <Icon name={icon} size={20} />
-                    {label}
-                  </Link>
-                ))}
-              </Popover.Dialog>
-            </Popover.Content>
-          </Popover>
-        </div>
-        <Tooltip delay={200}>
-          <Tooltip.Trigger<"a">
-            role="link"
-            render={(props) => (
-              <Link
-                {...props}
-                to="/account"
-                aria-label="Account menu"
-                className="nav-item nav-account"
-                data-testid="account-menu"
+              <SectionLink
+                to={destination.to}
+                section={section}
+                label={destination.label}
+                class="nav-item"
                 onClick={() => {
-                  haptic("selection");
+                  routeFeedback(destination.to);
                   setMoreOpen(false);
                 }}
               >
-                <span className="nav-icon">
-                  <Avatar
-                    name={data?.user.name ?? "Collector"}
-                    image={data?.user.image}
-                  />
+                <span class="nav-icon">
+                  <Icon name={destination.icon} size={23} />
                 </span>
-                <span className="nav-label" aria-hidden="true">
-                  Account
+                <span class="nav-label" aria-hidden="true">
+                  {destination.shortLabel}
                 </span>
-              </Link>
-            )}
-          />
-          <Tooltip.Content placement="right" className="nav-tooltip">
+              </SectionLink>
+              <span role="tooltip" class="nav-tooltip">
+                {destination.label}
+              </span>
+            </div>
+          )}
+        </For>
+        <div class="nav-more" ref={more}>
+          <button
+            type="button"
+            class="nav-item"
+            aria-label="More sections"
+            aria-haspopup="dialog"
+            aria-expanded={moreOpen() ? "true" : "false"}
+            data-active={selectedSecondary() ? "true" : "false"}
+            aria-current={selectedSecondary() ? "page" : undefined}
+            onClick={() => {
+              haptic("selection");
+              setMoreOpen((open) => !open);
+            }}
+          >
+            <span class="nav-icon">
+              <Icon name={selectedSecondary()?.icon ?? "more"} size={23} />
+            </span>
+            <span class="nav-label" aria-hidden="true">
+              {selectedSecondary()?.shortLabel ?? "More"}
+            </span>
+          </button>
+          <Show when={moreOpen()}>
+            <div
+              role="dialog"
+              aria-label="More sections"
+              class="nav-overflow-panel liquid-glass-panel w-60 max-w-[calc(100vw-2rem)]"
+            >
+              <NavigationGlass radius={24} />
+              <div class="nav-overflow-content p-2">
+                <p class="px-3 pb-2 pt-1 text-xs font-medium text-muted">
+                  More sections
+                </p>
+                <For each={secondary}>
+                  {(destination) => (
+                    <SectionLink
+                      to={destination.to}
+                      section={section}
+                      class="nav-overflow-link"
+                      onClick={() => {
+                        routeFeedback(destination.to);
+                        setMoreOpen(false);
+                      }}
+                    >
+                      <Icon name={destination.icon} size={20} />
+                      {destination.label}
+                    </SectionLink>
+                  )}
+                </For>
+              </div>
+            </div>
+          </Show>
+        </div>
+        <div class="nav-tip flex">
+          <SectionLink
+            to="/account"
+            section={section}
+            label="Account menu"
+            class="nav-item nav-account"
+            testid="account-menu"
+            onClick={() => {
+              haptic("selection");
+              setMoreOpen(false);
+            }}
+          >
+            <span class="nav-icon">
+              <Avatar
+                name={session().data?.user.name ?? "Collector"}
+                image={session().data?.user.image}
+              />
+            </span>
+            <span class="nav-label" aria-hidden="true">
+              Account
+            </span>
+          </SectionLink>
+          <span role="tooltip" class="nav-tooltip">
             Account
-          </Tooltip.Content>
-        </Tooltip>
+          </span>
+        </div>
       </div>
     </nav>
   );

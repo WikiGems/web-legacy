@@ -1,25 +1,26 @@
-import { Link } from "@tanstack/react-router";
+import { Link } from "@tanstack/solid-router";
 import { Logo } from "./Logo";
+
 export function Footer() {
   return (
-    <footer className="border-t border-separator">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-6 px-4 py-8 sm:px-6 lg:px-10">
-        <div className="space-y-3">
+    <footer class="border-t border-base-300">
+      <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-6 px-4 py-8 sm:px-6 lg:px-10">
+        <div class="space-y-3">
           <Logo />
-          <p className="text-xs text-muted">
+          <p class="text-xs text-muted">
             An independent project for curious minds. Not affiliated with
             Wikimedia.
           </p>
         </div>
-        <div className="flex flex-wrap gap-5 text-sm text-muted">
-          <Link to="/play" className="hover:text-foreground">
+        <div class="flex flex-wrap gap-5 text-sm text-muted">
+          <Link to="/play" class="hover:text-base-content">
             Discover
           </Link>
           <a
             href="https://www.wikipedia.org/"
             target="_blank"
             rel="noreferrer"
-            className="hover:text-foreground"
+            class="hover:text-base-content"
           >
             Wikipedia ↗
           </a>
@@ -27,7 +28,7 @@ export function Footer() {
             href="https://creativecommons.org/licenses/by-sa/4.0/"
             target="_blank"
             rel="noreferrer"
-            className="hover:text-foreground"
+            class="hover:text-base-content"
           >
             CC BY-SA 4.0
           </a>

@@ -1,114 +1,128 @@
-import { WebDialog } from "./WebDialog";
-import { Spinner } from "@heroui/react";
-import { HapticButton as Button } from "./HapticButton";
-import { useState } from "react";
+import { createMemo, createSignal, For, Show } from "solid-js";
+import { Api } from "@wikigems/client";
 import type { Card } from "@wikigems/domain/domain";
-import { createTradeOffer, runApi } from "../lib/api";
 import { showToast } from "../lib/ui";
+import { runUi } from "../runtime";
 import { GameCard } from "./GameCard";
 import { Icon } from "./Icon";
+import { Button } from "./ui/button";
+import { Spinner } from "./ui/feedback";
+import { WebDialog } from "./WebDialog";
+
 export function TradeOfferModal(props: {
   target: Card;
   cards: Card[];
   onClose: () => void;
   onSubmitted: () => void;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const choices = props.cards.filter((card) => card.status === "claimed");
-  async function submit() {
-    const offered = selectedId;
+  const [selectedId, setSelectedId] = createSignal<string | null>(null);
+  const [busy, setBusy] = createSignal(false);
+  const choices = createMemo(() =>
+    props.cards.filter((card) => card.status === "claimed"),
+  );
+
+  function submit() {
+    const offered = selectedId();
     if (!offered) return;
+    const target = props.target;
     setBusy(true);
-    try {
-      await runApi(createTradeOffer(offered, props.target.id));
+    void runUi(
+      Api.use((api) => api.createTradeOffer(offered, target.id)),
+      (failure) =>
+        showToast("Could not propose that trade", {
+          body: failure.message,
+          tone: "error",
+        }),
+    ).then((outcome) => {
+      setBusy(false);
+      if (!outcome.ok) return;
       showToast("Trade proposed", {
-        body: `${props.target.ownerName ?? "The owner"} can accept or decline from their exchange.`,
+        body: `${target.ownerName ?? "The owner"} can accept or decline from their exchange.`,
         tone: "success",
       });
       props.onSubmitted();
-    } catch (error) {
-      showToast("Could not propose that trade", {
-        body: error instanceof Error ? error.message : undefined,
-        tone: "error",
-      });
-    } finally {
-      setBusy(false);
-    }
+    });
   }
+
   return (
-    <WebDialog onClose={props.onClose} labelId="trade-title" busy={busy} wide>
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-accent">Propose a trade</p>
-          <h2 id="trade-title" className="text-2xl font-semibold">
+    <WebDialog onClose={props.onClose} labelId="trade-title" busy={busy()} wide>
+      <div class="flex items-start justify-between gap-3">
+        <div class="space-y-2">
+          <p class="text-xs font-medium text-primary">Propose a trade</p>
+          <h2 id="trade-title" class="text-2xl font-semibold">
             What will you offer?
           </h2>
         </div>
         <Button
-          isIconOnly
+          iconOnly
           variant="ghost"
           size="sm"
-          isDisabled={busy}
-          onPress={props.onClose}
+          disabled={busy()}
+          onClick={props.onClose}
           aria-label="Close trade dialog"
         >
           <Icon name="close" />
         </Button>
       </div>
-      <div className="rounded-xl bg-default/50 p-4">
-        <p className="text-xs text-muted">You want</p>
-        <h3 className="mt-1 font-semibold">{props.target.title}</h3>
-        <p className="mt-1 text-xs text-muted">
+      <div class="rounded-xl bg-base-200 p-4">
+        <p class="text-xs text-muted">You want</p>
+        <h3 class="mt-1 font-semibold">{props.target.title}</h3>
+        <p class="mt-1 text-xs text-muted">
           Owned by {props.target.ownerName ?? "another collector"}
         </p>
       </div>
-      {choices.length ? (
-        <>
-          <p className="text-sm text-muted">
-            Choose one of your unminted cards.
+      <Show
+        when={choices().length}
+        fallback={
+          <p class="rounded-xl bg-base-200 p-6 text-sm text-muted">
+            You need an unminted card to offer. Open a pack first.
           </p>
-          <div className="grid grid-cols-1 items-start gap-3 min-[400px]:grid-cols-2 sm:grid-cols-3">
-            {choices.map((card) => (
+        }
+      >
+        <p class="text-sm text-muted">Choose one of your unminted cards.</p>
+        <div class="grid grid-cols-1 items-start gap-3 min-[400px]:grid-cols-2 sm:grid-cols-3">
+          <For each={choices()}>
+            {(card) => (
               <Button
-                key={card.id}
                 variant="ghost"
-                isDisabled={busy}
-                onPress={() => setSelectedId(card.id)}
+                disabled={busy()}
+                onClick={() => setSelectedId(card.id)}
                 data-testid="trade-choice"
                 aria-label={`Offer ${card.title}`}
-                aria-pressed={selectedId === card.id}
-                className={`h-auto w-full min-w-0 rounded-2xl p-1 text-left whitespace-normal ${selectedId === card.id ? "ring-2 ring-accent" : "ring-1 ring-separator"}`}
+                aria-pressed={selectedId() === card.id ? "true" : "false"}
+                class={[
+                  "h-auto w-full min-w-0 rounded-2xl p-1 text-left whitespace-normal",
+                  selectedId() === card.id
+                    ? "ring-2 ring-primary"
+                    : "ring-1 ring-base-300",
+                ]}
               >
                 <GameCard card={card} size="xs" />
               </Button>
-            ))}
-          </div>
-          <Button
-            className="w-full"
-            feedback="swap"
-            onPress={submit}
-            isDisabled={!selectedId || busy}
-          >
-            {busy ? (
-              <>
-                <Spinner size="sm" />
-                Sending…
-              </>
-            ) : (
+            )}
+          </For>
+        </div>
+        <Button
+          class="w-full"
+          feedback="swap"
+          onClick={submit}
+          disabled={!selectedId() || busy()}
+        >
+          <Show
+            when={busy()}
+            fallback={
               <>
                 <Icon name="swap" />
                 Send trade offer
               </>
-            )}
-          </Button>
-        </>
-      ) : (
-        <p className="rounded-xl bg-default/50 p-6 text-sm text-muted">
-          You need an unminted card to offer. Open a pack first.
-        </p>
-      )}
-      <p className="text-xs leading-relaxed text-muted">
+            }
+          >
+            <Spinner size="sm" />
+            Sending…
+          </Show>
+        </Button>
+      </Show>
+      <p class="text-xs leading-relaxed text-muted">
         Trades exchange unminted in-game claims. Minted cards belong to their
         Solana wallet.
       </p>

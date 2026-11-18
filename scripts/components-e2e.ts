@@ -1,3 +1,6 @@
+import solid from "@solidjs/vite-plugin";
+
+import { build, type Rollup } from "vite";
 import { showcaseCards } from "../src/lib/preview";
 import { strict as assert } from "node:assert";
 import { chromium } from "playwright-core";
@@ -6,15 +9,30 @@ import { checkMoneyAmounts } from "./money-checks";
 import { checkToasts } from "./toast-checks";
 
 const root = join(import.meta.dir, "..");
-const build = await Bun.build({
-  entrypoints: [join(root, "tests/frontend-harness.tsx")],
-  target: "browser",
-  define: { "import.meta.env": "{}", "process.env.NODE_ENV": '"production"' },
+// The harness is Solid JSX, so it is compiled by Vite with the app's plugin.
+const built = await build({
+  configFile: false,
+  root,
+  logLevel: "error",
+  plugins: [solid()],
+  // Library builds leave this for the host page, and the harness has none.
+  define: { "process.env.NODE_ENV": '"production"' },
+  build: {
+    write: false,
+    minify: false,
+    lib: {
+      entry: join(root, "tests/frontend-harness.tsx"),
+      formats: ["es"],
+      fileName: "bundle",
+    },
+    rolldownOptions: { output: { codeSplitting: false } },
+  },
 });
-if (!build.success)
-  throw new AggregateError(build.logs, "Component harness build failed");
-const bundle = build.outputs[0];
-if (!bundle) throw new Error("Missing component bundle");
+const output = (Array.isArray(built) ? built[0] : built) as Rollup.RollupOutput;
+const chunk = output.output.find((item) => item.type === "chunk");
+if (!chunk || chunk.type !== "chunk")
+  throw new Error("Component harness build failed");
+const bundle = chunk.code;
 const styles = Array.from(
   new Bun.Glob("index-*.css").scanSync(join(root, "dist/client/assets")),
 )[0];
@@ -68,7 +86,7 @@ try {
   await checkToasts(page);
   await page.getByRole("button", { name: "Open card", exact: true }).click();
   await page.getByRole("dialog").waitFor();
-  // React Aria traps keyboard focus within the active dialog.
+  // The dialog traps keyboard focus while it is open.
   for (let index = 0; index < 8; index += 1) {
     await page.keyboard.press("Tab");
     assert(
@@ -173,7 +191,7 @@ try {
     await checkMoneyAmounts(mobile, true);
     await checkToasts(mobile, true);
     console.log(
-      "Rare UI toast checks passed: success/error/info, stack, timed expiry, pause on hover, keyboard/touch dismissal and reduced motion.",
+      "Toast checks passed: success/error/info, stack, timed expiry, pause on hover, keyboard/touch dismissal and reduced motion.",
     );
     console.log(
       "Money counters passed: desktop, 320px mobile, reduced motion, decimals, rounding, sign changes and large-value fallback.",
@@ -183,7 +201,7 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log(
-    "React component browser checks passed: modal focus/Escape/restoration, pack reveal, trade submission, wallet fallback, final duel score.",
+    "Solid component browser checks passed: modal focus/Escape/restoration, pack reveal, trade submission, wallet fallback, final duel score.",
   );
 } finally {
   await browser.close();

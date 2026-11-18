@@ -1,6 +1,8 @@
-import { useLayoutEffect } from "react";
+import { onSettled } from "solid-js";
+
+/** Mirrors the device's light/dark preference onto the document. */
 export function SystemTheme() {
-  useLayoutEffect(() => {
+  onSettled(() => {
     const preference = window.matchMedia("(prefers-color-scheme: dark)");
     const update = () => {
       document.documentElement.dataset.theme = preference.matches
@@ -10,6 +12,6 @@ export function SystemTheme() {
     update();
     preference.addEventListener("change", update);
     return () => preference.removeEventListener("change", update);
-  }, []);
+  });
   return null;
 }

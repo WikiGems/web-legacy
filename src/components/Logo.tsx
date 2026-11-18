@@ -1,21 +1,22 @@
-import { Link } from "@tanstack/react-router";
-import { Gem } from "lucide-react";
+import { Link } from "@tanstack/solid-router";
+import { Show } from "solid-js";
+import { Icon } from "./Icon";
 
-export function Logo({ compact = false }: { compact?: boolean }) {
+export function Logo(props: { compact?: boolean }) {
   return (
     <Link
       to="/"
       aria-label="WikiGems home"
-      className="inline-flex shrink-0 items-center gap-2.5 font-semibold tracking-tight"
+      class="inline-flex shrink-0 items-center gap-2.5 font-semibold tracking-tight"
     >
-      <span className="flex size-9 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-        <Gem size={22} strokeWidth={1.7} aria-hidden="true" />
+      <span class="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-content">
+        <Icon name="gem" size={22} />
       </span>
-      {!compact && (
-        <span className="text-lg">
-          WikiGems<span className="text-accent">.</span>
+      <Show when={!props.compact}>
+        <span class="text-lg">
+          WikiGems<span class="text-primary">.</span>
         </span>
-      )}
+      </Show>
     </Link>
   );
 }

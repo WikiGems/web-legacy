@@ -1,7 +1,12 @@
 import { dirname, join, resolve, sep } from "node:path";
 
 const root = resolve(import.meta.dir, "..");
-const transpiler = new Bun.Transpiler({ loader: "tsx" });
+// Generic arrow functions are only valid TypeScript outside TSX, so each file
+// is scanned with the loader for its own extension.
+const transpilers = {
+  ts: new Bun.Transpiler({ loader: "ts" }),
+  tsx: new Bun.Transpiler({ loader: "tsx" }),
+};
 const portableRoots = [
   "shared",
   "packages/client/src",
@@ -9,7 +14,9 @@ const portableRoots = [
 ];
 const browserGlobals =
   /\b(window|document|navigator|localStorage|sessionStorage|indexedDB|HTMLElement|HTMLCanvasElement|PublicKeyCredential)\b/;
-const obsoleteFrameworks = /solid-js|@solidjs|@stylexjs|vite-plugin-solid/;
+// The web app is Solid; React, its UI kits and its query layer must not return.
+const obsoleteFrameworks =
+  /^(react|react-dom|react\/.*|react-dom\/.*|@heroui\/.*|@tanstack\/react-.*|lucide-react|sonner|@stylexjs\/.*)$/;
 const errors: string[] = [];
 const isWithin = (path: string, directory: string) =>
   path.startsWith(resolve(root, directory) + sep);
@@ -21,7 +28,7 @@ for (const directory of [...portableRoots, "src"]) {
     if (file.endsWith(".test.ts")) continue;
     const relative = join(directory, file);
     const source = await Bun.file(join(root, relative)).text();
-    const { imports } = transpiler.scan(source);
+    const { imports } = transpilers[file.endsWith(".tsx") ? "tsx" : "ts"].scan(source);
     for (const dependency of imports) {
       if (obsoleteFrameworks.test(dependency.path))
         errors.push(
@@ -58,5 +65,5 @@ for (const name of Object.keys({
 }
 if (errors.length) throw new Error(errors.join("\n"));
 console.log(
-  "Architecture checks passed: portable packages, web boundary, React-only frontend.",
+  "Architecture checks passed: portable packages, web boundary, Solid-only frontend.",
 );

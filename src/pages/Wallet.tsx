@@ -1,7 +1,6 @@
-import { MoneyAmount } from "../components/MoneyAmount";
-import { Card, Chip, Separator } from "@heroui/react";
-import { HapticButton as Button } from "../components/HapticButton";
+import { For } from "solid-js";
 import { Icon } from "../components/Icon";
+import { MoneyAmount } from "../components/MoneyAmount";
 import {
   Page,
   PageHeader,
@@ -9,7 +8,18 @@ import {
   PreviewNotice,
   StatCard,
 } from "../components/Page";
+import { Button } from "../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Chip, Separator } from "../components/ui/feedback";
+
 const examplePublicKey = "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi";
+
 export default function Wallet() {
   return (
     <Page>
@@ -23,35 +33,33 @@ export default function Wallet() {
         This is an example wallet. The address and balances are sample data, and
         connection controls are inactive.
       </PreviewNotice>
-      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+      <div class="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         <Card>
-          <Card.Header className="flex-row items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs text-muted">Solana wallet</p>
-              <Card.Title>Example public key</Card.Title>
+          <CardHeader class="flex-row items-center justify-between">
+            <div class="space-y-1">
+              <p class="text-xs text-muted">Solana wallet</p>
+              <CardTitle>Example public key</CardTitle>
             </div>
-            <Chip color="accent" size="sm" variant="soft">
-              <Chip.Label>Devnet</Chip.Label>
-            </Chip>
-          </Card.Header>
-          <Card.Content className="space-y-5">
-            <code className="block rounded-xl bg-default/60 p-4 text-sm leading-relaxed break-all">
+            <Chip tone="accent">Devnet</Chip>
+          </CardHeader>
+          <CardContent class="space-y-5">
+            <code class="block rounded-xl bg-base-200 p-4 text-sm leading-relaxed break-all">
               {examplePublicKey}
             </code>
-            <p className="flex items-center gap-2 text-xs text-muted">
+            <p class="flex items-center gap-2 text-xs text-muted">
               <Icon name="shield" size={15} />A sample address. No wallet is
               connected here.
             </p>
-          </Card.Content>
+          </CardContent>
         </Card>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
           <StatCard
             label="Example network balance"
             value={
               <MoneyAmount
                 amount={2.5}
                 currency="SOL"
-                unitClassName="text-sm font-normal text-muted"
+                unitClass="text-sm font-normal text-muted"
               />
             }
             icon="wallet"
@@ -63,7 +71,7 @@ export default function Wallet() {
               <MoneyAmount
                 amount={125}
                 currency="USDC"
-                unitClassName="text-sm font-normal text-muted"
+                unitClass="text-sm font-normal text-muted"
               />
             }
             icon="coin"
@@ -71,49 +79,49 @@ export default function Wallet() {
         </div>
       </div>
       <Card>
-        <Card.Header>
-          <Card.Title>Connected accounts</Card.Title>
-          <Card.Description>
+        <CardHeader>
+          <CardTitle>Connected accounts</CardTitle>
+          <CardDescription>
             Keep your collection close, wherever you sign in.
-          </Card.Description>
-        </Card.Header>
-        <Card.Content className="space-y-4">
-          {["Google", "Apple ID"].map((provider, index) => (
-            <div key={provider}>
-              {index > 0 && <Separator className="mb-4" />}
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-10 items-center justify-center rounded-xl bg-default text-sm font-semibold">
-                    {provider[0]}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium">{provider}</p>
-                    <p className="text-xs text-muted">
-                      Not connected · preview
-                    </p>
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <For each={["Google", "Apple ID"]}>
+            {(provider, index) => (
+              <div>
+                {index() > 0 && <Separator class="mb-4" />}
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                  <div class="flex items-center gap-3">
+                    <span class="flex size-10 items-center justify-center rounded-xl bg-base-200 text-sm font-semibold">
+                      {provider[0]}
+                    </span>
+                    <div>
+                      <p class="text-sm font-medium">{provider}</p>
+                      <p class="text-xs text-muted">Not connected · preview</p>
+                    </div>
                   </div>
+                  <Button variant="secondary" size="sm" disabled>
+                    Connect {provider}
+                  </Button>
                 </div>
-                <Button variant="secondary" size="sm" isDisabled>
-                  Connect {provider}
-                </Button>
               </div>
-            </div>
-          ))}
-        </Card.Content>
+            )}
+          </For>
+        </CardContent>
       </Card>
       <Card>
-        <Card.Content className="flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h2 className="font-semibold">Private key</h2>
-            <p className="text-sm text-muted">
+        <CardContent class="flex flex-wrap items-center justify-between gap-4">
+          <div class="space-y-1">
+            <h2 class="font-semibold">Private key</h2>
+            <p class="text-sm text-muted">
               Key export is not available in this preview.
             </p>
           </div>
-          <Button variant="secondary" isDisabled>
+          <Button variant="secondary" disabled>
             <Icon name="lock" size={16} />
             Export private key
           </Button>
-        </Card.Content>
+        </CardContent>
       </Card>
     </Page>
   );

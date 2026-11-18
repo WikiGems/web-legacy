@@ -1,85 +1,88 @@
-import { HapticButton as Button } from "./HapticButton";
-import { useState } from "react";
+import { createSignal, For, Show } from "solid-js";
 import type { Card } from "@wikigems/domain/domain";
-import { WebDialog } from "./WebDialog";
 import { CardBack, GameCard } from "./GameCard";
 import { Icon } from "./Icon";
+import { Button } from "./ui/button";
+import { WebDialog } from "./WebDialog";
 
-export function PackOpening({
-  cards,
-  onClose,
-  onComplete,
-}: {
+export function PackOpening(props: {
   cards: Card[];
   onClose: () => void;
   onComplete: () => void;
 }) {
-  const [revealed, setRevealed] = useState(() => cards.map(() => false));
-  const allRevealed = revealed.every(Boolean);
-  const revealAll = () => setRevealed(cards.map(() => true));
+  const [revealed, setRevealed] = createSignal(props.cards.map(() => false));
+  const allRevealed = () => revealed().every(Boolean);
+  const count = () => revealed().filter(Boolean).length;
   return (
-    <WebDialog onClose={onClose} labelId="pack-title" wide>
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-accent">
-            A new pack · {cards.length} cards
+    <WebDialog onClose={props.onClose} labelId="pack-title" wide>
+      <div class="flex items-start justify-between gap-3">
+        <div class="space-y-2">
+          <p class="text-xs font-medium text-primary">
+            A new pack · {props.cards.length} cards
           </p>
-          <h2 id="pack-title" className="text-2xl font-semibold">
-            {allRevealed
+          <h2 id="pack-title" class="text-2xl font-semibold">
+            {allRevealed()
               ? "A new page in your collection."
               : "A little mystery awaits."}
           </h2>
         </div>
         <Button
-          isIconOnly
+          iconOnly
           size="sm"
           variant="ghost"
-          onPress={onClose}
+          onClick={props.onClose}
           aria-label="Close pack"
         >
           <Icon name="close" />
         </Button>
       </div>
-      <div className="grid grid-cols-1 items-start gap-4 min-[400px]:grid-cols-2 sm:grid-cols-3">
-        {cards.map((card, index) => (
-          <div key={card.id}>
-            {revealed[index] ? (
-              <GameCard card={card} size="sm" />
-            ) : (
-              <Button
-                variant="ghost"
-                className="h-auto w-full p-0"
-                aria-label={`Reveal card ${index + 1} of ${cards.length}`}
-                onPress={() =>
-                  setRevealed((current) =>
-                    current.map(
-                      (value, position) => position === index || value,
-                    ),
-                  )
+      <div class="grid grid-cols-1 items-start gap-4 min-[400px]:grid-cols-2 sm:grid-cols-3">
+        <For each={props.cards}>
+          {(card, index) => (
+            <div>
+              <Show
+                when={revealed()[index()]}
+                fallback={
+                  <Button
+                    variant="ghost"
+                    class="h-auto w-full p-0"
+                    aria-label={`Reveal card ${index() + 1} of ${props.cards.length}`}
+                    onClick={() =>
+                      setRevealed((current) =>
+                        current.map(
+                          (value, position) => position === index() || value,
+                        ),
+                      )
+                    }
+                  >
+                    <CardBack label={`Card ${index() + 1}`} class="w-full" />
+                  </Button>
                 }
               >
-                <CardBack label={`Card ${index + 1}`} className="w-full" />
-              </Button>
-            )}
-          </div>
-        ))}
+                <GameCard card={card} size="sm" />
+              </Show>
+            </div>
+          )}
+        </For>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-xs text-muted">
-          {revealed.filter(Boolean).length} / {cards.length} revealed · each one
-          unique
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <p class="text-xs text-muted">
+          {count()} / {props.cards.length} revealed · each one unique
         </p>
-        {allRevealed ? (
-          <Button onPress={onComplete}>
-            Keep all {cards.length}
+        <Show
+          when={allRevealed()}
+          fallback={
+            <Button onClick={() => setRevealed(props.cards.map(() => true))}>
+              Reveal all cards
+              <Icon name="spark" size={16} />
+            </Button>
+          }
+        >
+          <Button onClick={props.onComplete}>
+            Keep all {props.cards.length}
             <Icon name="arrow-right" size={16} />
           </Button>
-        ) : (
-          <Button onPress={revealAll}>
-            Reveal all cards
-            <Icon name="spark" size={16} />
-          </Button>
-        )}
+        </Show>
       </div>
     </WebDialog>
   );

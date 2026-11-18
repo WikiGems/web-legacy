@@ -1,12 +1,16 @@
-import { Card, Chip, Label, ProgressBar } from "@heroui/react";
-import { HapticButton as Button } from "../components/HapticButton";
+import { For } from "solid-js";
 import { Icon } from "../components/Icon";
+import { Page, PageHeader, PreviewChip, PreviewNotice } from "../components/Page";
+import { Button } from "../components/ui/button";
 import {
-  Page,
-  PageHeader,
-  PreviewChip,
-  PreviewNotice,
-} from "../components/Page";
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Chip, ProgressBar } from "../components/ui/feedback";
 
 const missions = [
   {
@@ -31,6 +35,8 @@ const missions = [
     reward: "+50 points",
   },
 ];
+const answers = ["Alexandria", "Athens", "Carthage", "Pergamon"];
+
 export default function Action() {
   return (
     <Page>
@@ -44,111 +50,89 @@ export default function Action() {
         Challenges, progress and rewards are a preview. Quiz answers are
         examples and do not record a score.
       </PreviewNotice>
-      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-        <Card className="p-2 sm:p-4">
-          <Card.Header>
-            <Chip
-              color="accent"
-              size="sm"
-              variant="soft"
-              className="mb-3 w-fit"
-            >
+      <div class="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+        <Card class="sm:p-2">
+          <CardHeader>
+            <Chip tone="accent" class="mb-3 w-fit">
               <Icon name="spark" size={13} />
-              <Chip.Label>The daily question</Chip.Label>
+              The daily question
             </Chip>
-            <Card.Title className="text-2xl">
+            <CardTitle class="text-2xl">
               A library, a city, a lasting legacy.
-            </Card.Title>
-            <Card.Description>
+            </CardTitle>
+            <CardDescription>
               Which ancient city was home to the famous Great Library?
-            </Card.Description>
-          </Card.Header>
-          <Card.Content>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {["Alexandria", "Athens", "Carthage", "Pergamon"].map(
-                (answer, index) => (
-                  <Button
-                    key={answer}
-                    isDisabled
-                    variant="secondary"
-                    className="justify-start"
-                  >
-                    <span className="mr-2 text-muted">
-                      {String.fromCharCode(65 + index)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <For each={answers}>
+                {(answer, index) => (
+                  <Button disabled variant="secondary" class="justify-start">
+                    <span class="mr-2 text-muted">
+                      {String.fromCharCode(65 + index())}
                     </span>
                     {answer}
                   </Button>
-                ),
-              )}
+                )}
+              </For>
             </div>
-          </Card.Content>
-          <Card.Footer>
-            <span className="text-xs text-muted">
+          </CardContent>
+          <CardFooter>
+            <span class="text-xs text-muted">
               Sample question · quiz coming soon
             </span>
-          </Card.Footer>
+          </CardFooter>
         </Card>
         <Card>
-          <Card.Header>
-            <span className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-accent-soft text-accent-soft-foreground">
+          <CardHeader>
+            <span class="mb-3 flex size-12 items-center justify-center rounded-2xl bg-base-200">
               <Icon name="trophy" size={25} />
             </span>
-            <Card.Title>A small habit of discovery.</Card.Title>
-            <Card.Description>
+            <CardTitle>A small habit of discovery.</CardTitle>
+            <CardDescription>
               Every article is a chance to find a new connection. Follow your
               interests and let the collection grow.
-            </Card.Description>
-          </Card.Header>
-          <Card.Content className="space-y-2">
-            <p className="text-4xl font-semibold tracking-tight">
+            </CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-2">
+            <p class="text-4xl font-semibold tracking-tight">
               120{" "}
-              <span className="text-base font-normal text-muted">
-                sample points
-              </span>
+              <span class="text-base font-normal text-muted">sample points</span>
             </p>
-            <p className="text-xs text-muted">
+            <p class="text-xs text-muted">
               Preview activity, just to show you around.
             </p>
-          </Card.Content>
+          </CardContent>
         </Card>
       </div>
-      <section className="space-y-5">
-        <h2 className="text-xl font-semibold">Little things to discover</h2>
-        <div className="grid gap-5 md:grid-cols-3">
-          {missions.map((mission) => (
-            <Card key={mission.title}>
-              <Card.Header>
-                <div className="mb-2 flex items-center justify-between">
-                  <Icon
-                    name={mission.value === 100 ? "check" : "globe"}
-                    className={
-                      mission.value === 100 ? "text-success" : "text-accent"
-                    }
-                  />
-                  <Chip size="sm" variant="soft">
-                    <Chip.Label>{mission.reward}</Chip.Label>
-                  </Chip>
-                </div>
-                <Card.Title>{mission.title}</Card.Title>
-                <Card.Description>{mission.detail}</Card.Description>
-              </Card.Header>
-              <Card.Content>
-                <ProgressBar
-                  value={mission.value}
-                  aria-label={mission.title}
-                  className="space-y-3"
-                >
-                  <div className="flex items-center justify-between text-xs text-muted">
-                    <Label>Example progress</Label>
+      <section class="space-y-5">
+        <h2 class="text-xl font-semibold">Little things to discover</h2>
+        <div class="grid gap-5 md:grid-cols-3">
+          <For each={missions}>
+            {(mission) => (
+              <Card>
+                <CardHeader>
+                  <div class="mb-2 flex items-center justify-between">
+                    <Icon
+                      name={mission.value === 100 ? "check" : "globe"}
+                      class="text-primary"
+                    />
+                    <Chip>{mission.reward}</Chip>
+                  </div>
+                  <CardTitle>{mission.title}</CardTitle>
+                  <CardDescription>{mission.detail}</CardDescription>
+                </CardHeader>
+                <CardContent class="space-y-3">
+                  <div class="flex items-center justify-between text-xs text-muted">
+                    <span>Example progress</span>
                     <span>{mission.progress}</span>
                   </div>
-                  <ProgressBar.Track>
-                    <ProgressBar.Fill />
-                  </ProgressBar.Track>
-                </ProgressBar>
-              </Card.Content>
-            </Card>
-          ))}
+                  <ProgressBar value={mission.value} aria-label={mission.title} />
+                </CardContent>
+              </Card>
+            )}
+          </For>
         </div>
       </section>
     </Page>

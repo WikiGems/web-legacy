@@ -55,12 +55,12 @@ export async function checkToasts(page: Page, touch = false) {
   await page.waitForFunction(
     () => document.querySelectorAll('[data-slot="toast"]').length === 3,
   );
-  // Expand the stack before dismissing its front card one at a time.
+  // Dismiss the stack from its front (newest) card, one at a time.
   if (!touch)
-    await page.locator('[data-sonner-toast][data-front="true"]').hover();
+    await page.locator('[data-slot="toast"][data-front="true"]').hover();
   for (let index = 0; index < 3; index++) {
     const dismiss = page
-      .locator('[data-sonner-toast][data-front="true"]')
+      .locator('[data-slot="toast"][data-front="true"]')
       .getByRole("button", { name: "Dismiss", exact: true });
     if (touch) await dismiss.tap();
     else await dismiss.click();

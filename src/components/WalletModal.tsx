@@ -1,154 +1,166 @@
+import { createSignal, For, Show } from "solid-js";
+import { Effect } from "effect";
+import { Api } from "@wikigems/client";
 import { haptic } from "../lib/haptics";
-import { WebDialog } from "./WebDialog";
-import { Alert, Spinner } from "@heroui/react";
-import { HapticButton as Button } from "./HapticButton";
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { linkWallet, requestWalletChallenge, runApi } from "../lib/api";
-import { base64FromBytes } from "../lib/solana";
-import { closeWalletModal, showToast, useUi } from "../lib/ui";
-import { connectWallet, walletOptions } from "../lib/wallet";
+import { closeWalletModal, showToast, useWalletState } from "../lib/ui";
+import { getService, runUi } from "../runtime";
+import { Wallet, type WalletId } from "../services/wallet";
 import { Icon } from "./Icon";
+import { Button, buttonClass } from "./ui/button";
+import { Alert, Spinner } from "./ui/feedback";
+import { WebDialog } from "./WebDialog";
+
 type Step = "idle" | "connecting" | "signing" | "linking";
+
 export function WalletModal() {
-  const { walletModalOpen } = useUi();
-  const queryClient = useQueryClient();
-  const [step, setStep] = useState<Step>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [activeWallet, setActiveWallet] = useState<string | null>(null);
-  const options = walletOptions();
+  const state = useWalletState();
+  const [step, setStep] = createSignal<Step>("idle");
+  const [error, setError] = createSignal<string | null>(null);
+  const [activeWallet, setActiveWallet] = createSignal<string | null>(null);
+  const wallets = getService(Wallet);
+  const options = () => (state().modalOpen ? Effect.runSync(wallets.options) : []);
+
   function close() {
-    if (step !== "idle") return;
+    if (step() !== "idle") return;
     closeWalletModal();
     setError(null);
-    setStep("idle");
   }
-  async function connect(id: "phantom" | "solflare" | "backpack") {
+
+  // Connect, prove ownership by signing the server's challenge, then link.
+  function connect(id: WalletId) {
     setError(null);
     setActiveWallet(id);
     setStep("connecting");
-    try {
-      const wallet = await connectWallet(id);
-      setStep("signing");
-      const challenge = await runApi(requestWalletChallenge(wallet.address));
-      const signature = await wallet.adapter.signMessage(
-        new TextEncoder().encode(challenge.message),
-      );
-      setStep("linking");
-      await runApi(linkWallet(wallet.address, base64FromBytes(signature)));
-      await queryClient.invalidateQueries({ queryKey: ["account"] });
+    void runUi(
+      Effect.gen(function* () {
+        const wallet = yield* wallets.connect(id);
+        yield* Effect.sync(() => setStep("signing"));
+        const challenge = yield* Api.use((api) =>
+          api.requestWalletChallenge(wallet.address),
+        );
+        const signature = yield* wallets.signMessage(wallet, challenge.message);
+        yield* Effect.sync(() => setStep("linking"));
+        yield* Api.use((api) => api.linkWallet(wallet.address, signature));
+        return wallet;
+      }),
+      (failure) => {
+        haptic("error");
+        const message = failure.message || "The wallet could not be linked.";
+        setError(
+          /user rejected|denied|cancel/i.test(message)
+            ? "The wallet request was cancelled. Nothing was linked."
+            : message,
+        );
+      },
+    ).then((outcome) => {
+      setStep("idle");
+      if (!outcome.ok) return;
+      const wallet = outcome.value;
       showToast("Wallet linked", {
         body: `${wallet.name} · ${wallet.address.slice(0, 4)}…${wallet.address.slice(-4)}`,
         tone: "success",
       });
-      setStep("idle");
       closeWalletModal();
-    } catch (cause) {
-      haptic("error");
-      const message =
-        cause instanceof Error
-          ? cause.message
-          : "The wallet could not be linked.";
-      setError(
-        /user rejected|denied|cancel/i.test(message)
-          ? "The wallet request was cancelled. Nothing was linked."
-          : message,
-      );
-      setStep("idle");
-    }
+    });
   }
-  return walletModalOpen ? (
-    <WebDialog onClose={close} labelId="wallet-title" busy={step !== "idle"}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-accent">Solana wallet</p>
-          <h2 id="wallet-title" className="text-2xl font-semibold">
-            Your cards. Your wallet.
-          </h2>
+
+  return (
+    <Show when={state().modalOpen}>
+      <WebDialog onClose={close} labelId="wallet-title" busy={step() !== "idle"}>
+        <div class="flex items-start justify-between gap-3">
+          <div class="space-y-2">
+            <p class="text-xs font-medium text-primary">Solana wallet</p>
+            <h2 id="wallet-title" class="text-2xl font-semibold">
+              Your cards. Your wallet.
+            </h2>
+          </div>
+          <Button
+            iconOnly
+            size="sm"
+            variant="ghost"
+            onClick={close}
+            disabled={step() !== "idle"}
+            aria-label="Close wallet dialog"
+          >
+            <Icon name="close" />
+          </Button>
         </div>
-        <Button
-          isIconOnly
-          size="sm"
-          variant="ghost"
-          onPress={close}
-          isDisabled={step !== "idle"}
-          aria-label="Close wallet dialog"
+        <p class="text-sm leading-relaxed text-muted">
+          Link a devnet wallet to mint unique article cards. Your wallet signs
+          each transaction; WikiGems never holds your keys.
+        </p>
+        <Show
+          when={options().length}
+          fallback={
+            <div class="space-y-4 rounded-2xl bg-base-200 px-5 py-8 text-center">
+              <Icon name="wallet" size={32} class="mx-auto text-muted" />
+              <h3 class="font-semibold">No Solana wallet found.</h3>
+              <p class="text-sm text-muted">
+                Install Phantom, Solflare, or Backpack, then refresh this page.
+              </p>
+              <a
+                href="https://phantom.app/"
+                target="_blank"
+                rel="noreferrer"
+                class={buttonClass("secondary")}
+              >
+                Get Phantom
+                <Icon name="external" size={14} />
+              </a>
+            </div>
+          }
         >
-          <Icon name="close" />
-        </Button>
-      </div>
-      <p className="text-sm leading-relaxed text-muted">
-        Link a devnet wallet to mint unique article cards. Your wallet signs
-        each transaction; WikiGems never holds your keys.
-      </p>
-      {options.length ? (
-        <div className="space-y-3">
-          {options.map((option) => (
-            <Button
-              key={option.id}
-              variant="secondary"
-              className="h-auto w-full justify-between py-4"
-              onPress={() => connect(option.id)}
-              isDisabled={step !== "idle"}
-            >
-              <span className="flex items-center gap-3">
-                <Icon name="wallet" />
-                <span>{option.name}</span>
-              </span>
-              {step !== "idle" && activeWallet === option.id ? (
-                <Spinner size="sm" />
-              ) : (
-                <Icon name="arrow-right" size={16} />
+          <div class="space-y-3">
+            <For each={options()}>
+              {(option) => (
+                <Button
+                  variant="secondary"
+                  class="h-auto w-full justify-between py-4"
+                  onClick={() => connect(option.id)}
+                  disabled={step() !== "idle"}
+                >
+                  <span class="flex items-center gap-3">
+                    <Icon name="wallet" />
+                    <span>{option.name}</span>
+                  </span>
+                  <Show
+                    when={step() !== "idle" && activeWallet() === option.id}
+                    fallback={<Icon name="arrow-right" size={16} />}
+                  >
+                    <Spinner size="sm" />
+                  </Show>
+                </Button>
               )}
-            </Button>
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-4 rounded-2xl bg-default/50 px-5 py-8 text-center">
-          <Icon name="wallet" size={32} className="mx-auto text-muted" />
-          <h3 className="font-semibold">No Solana wallet found.</h3>
-          <p className="text-sm text-muted">
-            Install Phantom, Solflare, or Backpack, then refresh this page.
-          </p>
+            </For>
+          </div>
+        </Show>
+        <p class="text-xs leading-relaxed text-muted">
+          Use Devnet in your wallet. Need test SOL?{" "}
           <a
-            href="https://phantom.app/"
+            href="https://faucet.solana.com/"
             target="_blank"
             rel="noreferrer"
-            className="button button--secondary"
+            class="text-primary hover:underline"
           >
-            Get Phantom
-            <Icon name="external" size={14} />
+            Open the Solana faucet ↗
           </a>
-        </div>
-      )}
-      <p className="text-xs leading-relaxed text-muted">
-        Use Devnet in your wallet. Need test SOL?{" "}
-        <a
-          href="https://faucet.solana.com/"
-          target="_blank"
-          rel="noreferrer"
-          className="text-accent hover:underline"
-        >
-          Open the Solana faucet ↗
-        </a>
-      </p>
-      {step !== "idle" && (
-        <p role="status" className="flex items-center gap-2 text-sm">
-          <Spinner size="sm" />
-          {step === "connecting"
-            ? "Connecting to wallet…"
-            : step === "signing"
-              ? "Sign the link message in your wallet…"
-              : "Verifying wallet ownership…"}
         </p>
-      )}
-      {error && (
-        <Alert status="danger" role="alert">
-          <Alert.Content>
-            <Alert.Description>{error}</Alert.Description>
-          </Alert.Content>
-        </Alert>
-      )}
-    </WebDialog>
-  ) : null;
+        <Show when={step() !== "idle"}>
+          <p role="status" class="flex items-center gap-2 text-sm">
+            <Spinner size="sm" />
+            {step() === "connecting"
+              ? "Connecting to wallet…"
+              : step() === "signing"
+                ? "Sign the link message in your wallet…"
+                : "Verifying wallet ownership…"}
+          </p>
+        </Show>
+        <Show when={error()}>
+          <Alert status="danger" role="alert">
+            {error()}
+          </Alert>
+        </Show>
+      </WebDialog>
+    </Show>
+  );
 }

@@ -1,127 +1,113 @@
-import { Card, Chip } from "@heroui/react";
-import { HapticButton as Button } from "./HapticButton";
-import { useState, type ReactNode } from "react";
-import { clsx } from "clsx";
+import { createSignal, Show, type ParentProps } from "solid-js";
 import type { Card as ArticleCard } from "@wikigems/domain/domain";
 import { Icon } from "./Icon";
 import { RarityBadge } from "./RarityBadge";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardFooter, CardTitle } from "./ui/card";
+import { Chip } from "./ui/feedback";
 
 type CardSize = "xs" | "sm" | "md" | "lg";
-export function CardArtwork({
-  card,
-  className,
-  children,
-}: {
-  card: ArticleCard;
-  className?: string;
-  children?: ReactNode;
-}) {
-  const [failedImage, setFailedImage] = useState<string | null>(null);
+
+export function CardArtwork(
+  props: ParentProps<{ card: ArticleCard; class?: string }>,
+) {
+  const [failedImage, setFailedImage] = createSignal<string | null>(null);
   return (
     <div
-      className={clsx(
-        "relative isolate flex aspect-[4/3] items-center justify-center overflow-hidden rounded-xl bg-default",
-        className,
-      )}
+      class={[
+        "relative isolate flex aspect-[4/3] items-center justify-center overflow-hidden rounded-xl bg-base-200",
+        props.class,
+      ]}
     >
-      {card.imageUrl && failedImage !== card.imageUrl ? (
+      <Show
+        when={props.card.imageUrl && failedImage() !== props.card.imageUrl}
+        fallback={<Icon name="globe" size={48} class="text-muted/40" />}
+      >
         <img
-          src={card.imageUrl}
+          src={props.card.imageUrl ?? undefined}
           alt=""
           loading="lazy"
-          referrerPolicy="no-referrer"
-          className="size-full object-cover"
-          onError={() => setFailedImage(card.imageUrl)}
+          referrerpolicy="no-referrer"
+          class="size-full object-cover"
+          onError={() => setFailedImage(props.card.imageUrl)}
         />
-      ) : (
-        <Icon name="globe" size={48} className="text-muted/40" />
-      )}
-      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/55 to-transparent" />
-      <div className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3">
-        <span className="min-w-0 truncate text-xs font-medium text-white">
-          {card.category}
+      </Show>
+      <div class="absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/55 to-transparent" />
+      <div class="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3">
+        <span class="min-w-0 truncate text-xs font-medium text-white">
+          {props.card.category}
         </span>
-        {children}
+        {props.children}
       </div>
-      <span className="absolute top-3 right-3 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-black backdrop-blur-sm">
+      <span class="absolute top-3 right-3 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-black backdrop-blur-sm">
         1 of 1
       </span>
     </div>
   );
 }
 
-export function GameCard({
-  card,
-  size = "md",
-  onClick,
-  className,
-}: {
+export function GameCard(props: {
   card: ArticleCard;
   size?: CardSize;
   onClick?: (card: ArticleCard) => void;
-  className?: string;
+  class?: string;
 }) {
   return (
-    <Card className={clsx("h-full min-w-0", className)}>
-      <CardArtwork card={card} />
-      <Card.Content className="flex-1 space-y-3 pt-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <RarityBadge rarity={card.rarity} />
-          {(card.status === "minted" || card.forTrade) && (
-            <span className="text-xs text-muted">
-              {card.status === "minted" ? "On Solana" : "Open to trades"}
+    <Card class={["h-full", props.class]}>
+      <div class="p-2 pb-0">
+        <CardArtwork card={props.card} />
+      </div>
+      <CardContent class="flex-1 space-y-3 pt-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <RarityBadge rarity={props.card.rarity} />
+          <Show when={props.card.status === "minted" || props.card.forTrade}>
+            <span class="text-xs text-muted">
+              {props.card.status === "minted" ? "On Solana" : "Open to trades"}
             </span>
-          )}
+          </Show>
         </div>
-        <Card.Title className={size === "xs" ? "text-sm" : "text-lg"}>
-          {card.title}
-        </Card.Title>
-        {size !== "xs" && (
-          <Card.Description className="line-clamp-2 text-sm leading-relaxed">
-            {card.description || card.extract}
-          </Card.Description>
+        <CardTitle class={props.size === "xs" ? "text-sm" : "text-lg"}>
+          {props.card.title}
+        </CardTitle>
+        <Show when={props.size !== "xs"}>
+          <p class="line-clamp-2 text-sm leading-relaxed text-muted">
+            {props.card.description || props.card.extract}
+          </p>
+        </Show>
+      </CardContent>
+      <Show when={props.onClick}>
+        {(onClick) => (
+          <CardFooter>
+            <Button
+              variant="secondary"
+              size="sm"
+              class="w-full"
+              aria-label={`View details for ${props.card.title}`}
+              onClick={() => onClick()(props.card)}
+            >
+              View details
+              <Icon name="arrow-up-right" size={14} />
+            </Button>
+          </CardFooter>
         )}
-      </Card.Content>
-      {onClick && (
-        <Card.Footer>
-          <Button
-            variant="secondary"
-            size="sm"
-            onPress={() => onClick(card)}
-            className="w-full"
-            aria-label={`View details for ${card.title}`}
-          >
-            View details
-            <Icon name="arrow-up-right" size={14} />
-          </Button>
-        </Card.Footer>
-      )}
+      </Show>
     </Card>
   );
 }
 
-export function CardBack({
-  className,
-  label = "1 of 1",
-}: {
-  size?: CardSize;
-  className?: string;
-  label?: string;
-}) {
+export function CardBack(props: { class?: string; label?: string }) {
   return (
     <Card
       aria-hidden="true"
-      className={clsx(
-        "flex aspect-[3/4] items-center justify-center bg-accent-soft text-accent-soft-foreground",
-        className,
-      )}
+      class={[
+        "flex aspect-[3/4] items-center justify-center bg-base-200",
+        props.class,
+      ]}
     >
-      <div className="space-y-4 text-center">
-        <Icon name="spark" size={38} className="mx-auto" />
-        <p className="font-semibold">WikiGems</p>
-        <Chip size="sm" color="accent" variant="soft">
-          <Chip.Label>{label}</Chip.Label>
-        </Chip>
+      <div class="space-y-4 text-center">
+        <Icon name="spark" size={38} class="mx-auto" />
+        <p class="font-semibold">WikiGems</p>
+        <Chip tone="accent">{props.label ?? "1 of 1"}</Chip>
       </div>
     </Card>
   );

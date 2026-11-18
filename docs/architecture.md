@@ -6,7 +6,7 @@ the root for now. No frontend imports or API routes have been migrated.
 
 | Location | Responsibility |
 | --- | --- |
-| `src/` | Existing Solid frontend |
+| `src/` | Solid 2 frontend (Effect services, TanStack Solid Router, DaisyUI) |
 | `worker/`, `shared/`, `migrations/` | Existing API, game contracts, and database migrations |
 | `apps/server/` | New TypeScript / Effect v4 server and service composition |
 | `packages/contracts/` | New server contracts; independent of legacy UI and worker |

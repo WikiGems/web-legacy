@@ -26,7 +26,7 @@ implementation status, and Solana build instructions.
 
 ## Current web app
 
-The React frontend provides passkey login, account/profile management and Wikipedia article search. Collection, marketplace, action and wallet routes currently display labeled previews. Pack, trade, duel and mint components remain in the codebase; the current routes do not expose the complete game loop described below.
+The Solid frontend provides passkey login, account/profile management and Wikipedia article search. Collection, marketplace, action and wallet routes currently display labeled previews. Pack, trade, duel and mint components remain in the codebase; the current routes do not expose the complete game loop described below.
 
 Run `bun run test:e2e` for the isolated account, route, search and component browser checks. These checks use disposable data and a virtual passkey. The older `test:mint` and `test:trade` scripts target the earlier pack-based UI and require updating before they can verify the current app or a live provider.
 
@@ -62,8 +62,8 @@ cards, so the complete game is playable without a wallet.
 | Layer                     | Choice                                     |
 | ------------------------- | ------------------------------------------ |
 | Runtime / package manager | Bun 1.4.2 (pinned by Flox)                 |
-| UI                        | React 19 + HeroUI 3 + TanStack Router     |
-| Build                     | Vite 8 + React plugin + Tailwind CSS 4               |
+| UI                        | Solid 2 + DaisyUI 5 + TanStack Router (Solid) + Effect |
+| Build                     | Vite 8 + Solid plugin + Tailwind CSS 4               |
 | Domain / API composition  | Effect 4.0                                 |
 | Auth                      | Better Auth 1.7 + `@better-auth/passkey`   |
 | Solana                    | `@solana/web3.js`, Umi, Metaplex Core      |
@@ -349,7 +349,7 @@ scripts/                     dev orchestrator, migrations, e2e tests
 
 ## Frontend architecture
 
-The React/HeroUI web app shares domain rules and its validated API/query layer with a future React Native app. Read [the architecture and native integration guide](docs/frontend-architecture.md) for package ownership, usage and validation. Run `bun run check:architecture` to check these boundaries.
+The Solid web app shares domain rules and its validated, Effect-based API client with any future native app. Read [the architecture and native integration guide](docs/frontend-architecture.md) for package ownership, usage and validation. Run `bun run check:architecture` to check these boundaries.
 
 ## Component credits
 

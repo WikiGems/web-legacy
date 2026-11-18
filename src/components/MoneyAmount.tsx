@@ -1,53 +1,51 @@
-import { clsx } from "clsx";
+import { createMemo, Show } from "solid-js";
 import { AnimatedCounter } from "./ui/animated-counter";
 
-export function MoneyAmount({
-  amount,
-  currency,
-  decimals = 2,
-  className,
-  unitClassName,
-}: {
+export function MoneyAmount(props: {
   amount: number;
   currency: "USDC" | "SOL";
   decimals?: number;
-  className?: string;
-  unitClassName?: string;
+  class?: string;
+  unitClass?: string;
 }) {
-  const formatter = new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-  const formatted = formatter.format(amount);
+  const decimals = () => props.decimals ?? 2;
+  const formatted = createMemo(() =>
+    new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: decimals(),
+      maximumFractionDigits: decimals(),
+    }).format(props.amount),
+  );
   // Round for display before passing to the wheels; payment values stay untouched.
-  const rounded = Number(formatted.replaceAll(",", ""));
-  const canAnimate =
-    Number.isFinite(amount) &&
-    Number.isSafeInteger(Math.round(Math.abs(rounded) * 10 ** decimals));
-
+  const rounded = createMemo(() => Number(formatted().replaceAll(",", "")));
+  const canAnimate = createMemo(
+    () =>
+      Number.isFinite(props.amount) &&
+      Number.isSafeInteger(Math.round(Math.abs(rounded()) * 10 ** decimals())),
+  );
   return (
     <span
       data-slot="money-amount"
-      className={clsx(
+      class={[
         "inline-flex items-baseline gap-1 whitespace-nowrap tabular-nums",
-        className,
-      )}
+        props.class,
+      ]}
     >
-      <span className="sr-only">
-        {formatted} {currency}
+      <span class="sr-only">
+        {formatted()} {props.currency}
       </span>
-      {canAnimate ? (
+      <Show
+        when={canAnimate()}
+        fallback={<span aria-hidden="true">{formatted()}</span>}
+      >
         <AnimatedCounter
           aria-hidden
-          value={rounded}
-          decimals={decimals}
+          value={rounded()}
+          decimals={decimals()}
           duration={0.4}
         />
-      ) : (
-        <span aria-hidden>{formatted}</span>
-      )}
-      <span aria-hidden className={unitClassName}>
-        {currency}
+      </Show>
+      <span aria-hidden="true" class={props.unitClass}>
+        {props.currency}
       </span>
     </span>
   );

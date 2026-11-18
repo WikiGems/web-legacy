@@ -1,10 +1,8 @@
-import { Chip } from "@heroui/react";
-import { HapticButton as Button } from "../components/HapticButton";
-import { useState } from "react";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import type { Card, Rarity } from "@wikigems/domain/domain";
 import { RARITY_META } from "@wikigems/domain/card-engine";
-import { GameCard } from "../components/GameCard";
 import { CardModal } from "../components/CardModal";
+import { GameCard } from "../components/GameCard";
 import {
   Page,
   PageHeader,
@@ -12,19 +10,24 @@ import {
   PreviewNotice,
   StatCard,
 } from "../components/Page";
+import { Button } from "../components/ui/button";
+import { Chip } from "../components/ui/feedback";
 import { showcaseCards } from "../lib/preview";
 
 const cards = showcaseCards().slice(0, 8);
 const topics = [...new Set(cards.map((card) => card.category))];
 const rarities = [...new Set(cards.map((card) => card.rarity))];
+
 export default function Collection() {
-  const [topic, setTopic] = useState<string | null>(null);
-  const [rarity, setRarity] = useState<Rarity | null>(null);
-  const [selected, setSelected] = useState<Card | null>(null);
-  const visible = cards.filter(
-    (card) =>
-      (!topic || card.category === topic) &&
-      (!rarity || card.rarity === rarity),
+  const [topic, setTopic] = createSignal<string | null>(null);
+  const [rarity, setRarity] = createSignal<Rarity | null>(null);
+  const [selected, setSelected] = createSignal<Card | null>(null);
+  const visible = createMemo(() =>
+    cards.filter(
+      (card) =>
+        (!topic() || card.category === topic()) &&
+        (!rarity() || card.rarity === rarity()),
+    ),
   );
   return (
     <Page>
@@ -34,7 +37,7 @@ export default function Collection() {
         description="Little pieces of a bigger world. Browse a sample album of remarkable articles."
         action={<PreviewChip />}
       />
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div class="grid gap-4 sm:grid-cols-3">
         <StatCard label="Sample cards" value={cards.length} icon="cards" />
         <StatCard
           label="Topics to explore"
@@ -44,9 +47,8 @@ export default function Collection() {
         <StatCard
           label="Rare or higher"
           value={
-            cards.filter(
-              (card) => !["common", "uncommon"].includes(card.rarity),
-            ).length
+            cards.filter((card) => !["common", "uncommon"].includes(card.rarity))
+              .length
           }
           icon="spark"
         />
@@ -55,99 +57,104 @@ export default function Collection() {
         This is a sample album. The cards and counts are preview content, not
         your owned collection.
       </PreviewNotice>
-      <section className="space-y-6" aria-label="Collected articles">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">The collection</h2>
-          <Chip size="sm" variant="soft">
-            <Chip.Label>{visible.length} articles</Chip.Label>
-          </Chip>
+      <section class="space-y-6" aria-label="Collected articles">
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="text-xl font-semibold">The collection</h2>
+          <Chip>{visible().length} articles</Chip>
         </div>
-        <div className="space-y-3">
+        <div class="space-y-3">
           <div
-            className="flex flex-wrap items-center gap-2"
+            class="flex flex-wrap items-center gap-2"
             role="group"
             aria-label="Filter by topic"
           >
             <Button
               size="sm"
-              variant={topic === null ? "primary" : "tertiary"}
-              aria-pressed={topic === null}
-              onPress={() => setTopic(null)}
+              variant={topic() === null ? "primary" : "tertiary"}
+              aria-pressed={topic() === null ? "true" : "false"}
+              onClick={() => setTopic(null)}
             >
               All topics
             </Button>
-            {topics.map((name) => (
-              <Button
-                key={name}
-                size="sm"
-                variant={topic === name ? "primary" : "tertiary"}
-                aria-pressed={topic === name}
-                onPress={() => setTopic(name)}
-              >
-                {name}
-              </Button>
-            ))}
+            <For each={topics}>
+              {(name) => (
+                <Button
+                  size="sm"
+                  variant={topic() === name ? "primary" : "tertiary"}
+                  aria-pressed={topic() === name ? "true" : "false"}
+                  onClick={() => setTopic(name)}
+                >
+                  {name}
+                </Button>
+              )}
+            </For>
           </div>
           <div
-            className="flex flex-wrap items-center gap-2"
+            class="flex flex-wrap items-center gap-2"
             role="group"
             aria-label="Filter by rarity"
           >
             <Button
               size="sm"
-              variant={rarity === null ? "secondary" : "ghost"}
-              aria-pressed={rarity === null}
-              onPress={() => setRarity(null)}
+              variant={rarity() === null ? "secondary" : "ghost"}
+              aria-pressed={rarity() === null ? "true" : "false"}
+              onClick={() => setRarity(null)}
             >
               All rarities
             </Button>
-            {rarities.map((name) => (
-              <Button
-                key={name}
-                size="sm"
-                variant={rarity === name ? "secondary" : "ghost"}
-                aria-pressed={rarity === name}
-                onPress={() => setRarity(name)}
-              >
-                {RARITY_META[name].label}
-              </Button>
-            ))}
+            <For each={rarities}>
+              {(name) => (
+                <Button
+                  size="sm"
+                  variant={rarity() === name ? "secondary" : "ghost"}
+                  aria-pressed={rarity() === name ? "true" : "false"}
+                  onClick={() => setRarity(name)}
+                >
+                  {RARITY_META[name].label}
+                </Button>
+              )}
+            </For>
           </div>
         </div>
-        {visible.length ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {visible.map((card) => (
-              <GameCard key={card.id} card={card} onClick={setSelected} />
-            ))}
+        <Show
+          when={visible().length}
+          fallback={
+            <div class="space-y-3 rounded-2xl border border-dashed border-base-300 px-6 py-12 text-center">
+              <p class="text-sm text-muted">
+                No sample cards match these filters.
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setTopic(null);
+                  setRarity(null);
+                }}
+              >
+                Clear filters
+              </Button>
+            </div>
+          }
+        >
+          <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <For each={visible()}>
+              {(card) => <GameCard card={card} onClick={setSelected} />}
+            </For>
           </div>
-        ) : (
-          <div className="space-y-3 rounded-2xl border border-dashed border-separator px-6 py-12 text-center">
-            <p className="text-sm text-muted">
-              No sample cards match these filters.
-            </p>
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={() => {
-                setTopic(null);
-                setRarity(null);
-              }}
-            >
-              Clear filters
-            </Button>
-          </div>
-        )}
+        </Show>
       </section>
-      {selected && (
-        <CardModal
-          card={selected}
-          owned={false}
-          linkedWallet={null}
-          onClose={() => setSelected(null)}
-          onChanged={setSelected}
-          onOpenWallet={() => {}}
-        />
-      )}
+      <Show when={selected()}>
+        {(card) => (
+          <CardModal
+            card={card()}
+            owned={false}
+            linkedWallet={null}
+            onClose={() => setSelected(null)}
+            onChanged={setSelected}
+            onOpenWallet={() => {}}
+          />
+        )}
+      </Show>
     </Page>
   );
 }

@@ -1,14 +1,10 @@
-import { clsx } from "clsx";
-import type { PropsWithChildren } from "react";
+import type { ParentProps } from "solid-js";
 import { LiquidGlass } from "./LiquidGlass";
 
-export function LiquidAction({
-  children,
-  className,
-}: PropsWithChildren<{ className?: string }>) {
+export function LiquidAction(props: ParentProps<{ class?: string }>) {
   return (
-    <LiquidGlass className={clsx("listing-action", className)} radius={999}>
-      {children}
+    <LiquidGlass class={["listing-action", props.class]} radius={999}>
+      {props.children}
     </LiquidGlass>
   );
 }

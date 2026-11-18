@@ -1,12 +1,14 @@
-import { haptic } from "../lib/haptics";
-import { Card as HeroCard, Chip, ProgressBar } from "@heroui/react";
-import { HapticButton as Button } from "./HapticButton";
-import { useState, useEffect, useRef } from "react";
-import type { Card } from "@wikigems/domain/domain";
+import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import type { Card as ArticleCard } from "@wikigems/domain/domain";
 import { RARITY_META } from "@wikigems/domain/card-engine";
+import { haptic } from "../lib/haptics";
 import { Icon } from "./Icon";
+import { Button } from "./ui/button";
+import { Card, CardContent } from "./ui/card";
+import { Chip, ProgressBar } from "./ui/feedback";
+
 interface Round {
-  correct: Card;
+  correct: ArticleCard;
   options: string[];
 }
 function shuffle<T>(values: T[]): T[] {
@@ -17,41 +19,47 @@ function shuffle<T>(values: T[]): T[] {
   }
   return copy;
 }
+
 export function DuelGame(props: {
-  cards: Card[];
+  cards: ArticleCard[];
   onFinished: (won: boolean, score: number) => void;
 }) {
-  const [phase, setPhase] = useState<"intro" | "playing" | "result">("intro");
-  const [roundIndex, setRoundIndex] = useState(0);
-  const [score, setScore] = useState(0);
-  const [botScore, setBotScore] = useState(0);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [rounds, setRounds] = useState<Round[]>([]);
-  const [won, setWon] = useState(false);
-  const [answered, setAnswered] = useState(false);
-  const questionCards = props.cards.length >= 4 ? props.cards : [];
+  const [phase, setPhase] = createSignal<"intro" | "playing" | "result">(
+    "intro",
+  );
+  const [roundIndex, setRoundIndex] = createSignal(0);
+  const [score, setScore] = createSignal(0);
+  const [botScore, setBotScore] = createSignal(0);
+  const [selected, setSelected] = createSignal<string | null>(null);
+  const [rounds, setRounds] = createSignal<Round[]>([]);
+  const [won, setWon] = createSignal(false);
+  const [answered, setAnswered] = createSignal(false);
+  const questionCards = createMemo(() =>
+    props.cards.length >= 4 ? props.cards : [],
+  );
+  let answerTimer: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(answerTimer));
+
   function buildRounds(): Round[] {
-    const pool = questionCards;
-    const rounds: Round[] = [];
+    const pool = questionCards();
+    const built: Round[] = [];
     for (let index = 0; index < 3 && pool.length >= 4; index += 1) {
       const correct = pool[Math.floor(Math.random() * pool.length)]!;
       const distractors = shuffle(
         pool.filter((card) => card.id !== correct.id),
       ).slice(0, 3);
-      const options = shuffle([
-        correct.title,
-        ...distractors.map((card) => card.title),
-      ]);
-      rounds.push({ correct, options });
+      built.push({
+        correct,
+        options: shuffle([
+          correct.title,
+          ...distractors.map((card) => card.title),
+        ]),
+      });
     }
-    return rounds;
+    return built;
   }
-  const answerTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
-  useEffect(() => () => clearTimeout(answerTimer.current), []);
   function start() {
-    clearTimeout(answerTimer.current);
+    clearTimeout(answerTimer);
     setRounds(buildRounds());
     setPhase("playing");
     setRoundIndex(0);
@@ -60,142 +68,145 @@ export function DuelGame(props: {
     setSelected(null);
     setAnswered(false);
   }
-  const currentRound = rounds[roundIndex];
-  const bot = currentRound?.correct
-    ? RARITY_META[currentRound.correct.rarity]
-    : null;
-  function answer(option: string) {
-    if (answered || !currentRound) return;
+  const currentRound = createMemo(() => rounds()[roundIndex()]);
+  function answer(option: string, round: Round) {
+    if (answered()) return;
     setAnswered(true);
     setSelected(option);
-    const correct = option === currentRound.correct.title;
+    const correct = option === round.correct.title;
     haptic(correct ? "success" : "error");
-    const nextScore = score + (correct ? 250 : 0);
-    const nextBotScore = botScore + (Math.random() < 0.64 ? 230 : 0);
+    const nextScore = score() + (correct ? 250 : 0);
+    const nextBotScore = botScore() + (Math.random() < 0.64 ? 230 : 0);
+    const index = roundIndex();
     setScore(nextScore);
     setBotScore(nextBotScore);
-    answerTimer.current = setTimeout(() => {
-      if (roundIndex >= 2) {
+    answerTimer = setTimeout(() => {
+      if (index >= 2) {
         const playerWon = nextScore > nextBotScore;
         setWon(playerWon);
         setPhase("result");
         props.onFinished(playerWon, nextScore);
       } else {
-        setRoundIndex((index) => index + 1);
+        setRoundIndex(index + 1);
         setSelected(null);
         setAnswered(false);
       }
     }, 1300);
   }
+
   return (
-    <HeroCard className="mx-auto w-full max-w-2xl">
-      {phase === "intro" && (
-        <HeroCard.Content className="space-y-5 py-8 text-center">
-          <span className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-accent-soft text-accent-soft-foreground">
+    <Card class="mx-auto w-full max-w-2xl">
+      <Show when={phase() === "intro"}>
+        <CardContent class="space-y-5 py-8 text-center">
+          <span class="mx-auto flex size-16 items-center justify-center rounded-2xl bg-base-200">
             <Icon name="duel" size={32} />
           </span>
-          <h2 className="text-2xl font-semibold">Meet The Librarian.</h2>
-          <p className="mx-auto max-w-md text-sm leading-relaxed text-muted">
+          <h2 class="text-2xl font-semibold">Meet The Librarian.</h2>
+          <p class="mx-auto max-w-md text-sm leading-relaxed text-muted">
             Three questions from your collection. Put your knowledge to the test
             against the archive’s resident expert.
           </p>
-          <Button onPress={start} isDisabled={questionCards.length < 4}>
+          <Button onClick={start} disabled={questionCards().length < 4}>
             <Icon name="duel" />
             Start the duel
           </Button>
-          {questionCards.length < 4 && (
-            <p className="text-xs text-muted">
+          <Show when={questionCards().length < 4}>
+            <p class="text-xs text-muted">
               Collect at least four cards to unlock a duel.
             </p>
-          )}
-        </HeroCard.Content>
-      )}
-      {phase === "playing" && currentRound && (
-        <HeroCard.Content className="space-y-6 py-5">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs text-muted">You</p>
-              <p className="text-2xl font-semibold tabular-nums">{score}</p>
+          </Show>
+        </CardContent>
+      </Show>
+      <Show when={phase() === "playing" && currentRound()}>
+        {(round) => (
+          <CardContent class="space-y-6 py-5">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <p class="text-xs text-muted">You</p>
+                <p class="text-2xl font-semibold tabular-nums">{score()}</p>
+              </div>
+              <Chip>Round {roundIndex() + 1} / 3</Chip>
+              <div class="text-right">
+                <p class="text-xs text-muted">The Librarian</p>
+                <p class="text-2xl font-semibold tabular-nums">{botScore()}</p>
+              </div>
             </div>
-            <Chip size="sm" variant="soft">
-              <Chip.Label>Round {roundIndex + 1} / 3</Chip.Label>
-            </Chip>
-            <div className="text-right">
-              <p className="text-xs text-muted">The Librarian</p>
-              <p className="text-2xl font-semibold tabular-nums">{botScore}</p>
+            <ProgressBar
+              value={roundIndex() + 1}
+              max={3}
+              aria-label="Duel progress"
+            />
+            <div class="space-y-3" data-testid="duel-question">
+              <p class="text-xs text-muted">Which article is described as…</p>
+              <h2 class="text-xl leading-relaxed font-semibold">
+                “
+                {round().correct.description ||
+                  round().correct.extract.slice(0, 120)}
+                ”
+              </h2>
             </div>
-          </div>
-          <ProgressBar
-            value={roundIndex + 1}
-            maxValue={3}
-            aria-label="Duel progress"
-          >
-            <ProgressBar.Track>
-              <ProgressBar.Fill />
-            </ProgressBar.Track>
-          </ProgressBar>
-          <div className="space-y-3" data-testid="duel-question">
-            <p className="text-xs text-muted">Which article is described as…</p>
-            <h2 className="text-xl leading-relaxed font-semibold">
-              “
-              {currentRound.correct.description ||
-                currentRound.correct.extract.slice(0, 120)}
-              ”
-            </h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {currentRound.options.map((option) => (
-              <Button
-                key={option}
-                data-testid="duel-option"
-                variant={selected === option ? "primary" : "secondary"}
-                isDisabled={answered}
-                feedback={false}
-                onPress={() => answer(option)}
-                className={`h-auto min-h-12 justify-between py-3 text-left whitespace-normal ${answered && option === currentRound.correct.title ? "bg-success-soft text-success-soft-foreground" : ""}`}
-              >
-                {option}
-                {answered && option === currentRound.correct.title && (
-                  <Icon name="check" size={16} />
+            <div class="grid gap-3 sm:grid-cols-2">
+              <For each={round().options}>
+                {(option) => (
+                  <Button
+                    data-testid="duel-option"
+                    variant={selected() === option ? "primary" : "secondary"}
+                    disabled={answered()}
+                    feedback={false}
+                    onClick={() => answer(option, round())}
+                    class={[
+                      "h-auto min-h-12 justify-between py-3 text-left whitespace-normal",
+                      {
+                        "btn-success btn-soft":
+                          answered() && option === round().correct.title,
+                      },
+                    ]}
+                  >
+                    {option}
+                    <Show when={answered() && option === round().correct.title}>
+                      <Icon name="check" size={16} />
+                    </Show>
+                  </Button>
                 )}
-              </Button>
-            ))}
-          </div>
-          <p className="text-xs text-muted">
-            {bot?.label} card · 250 points for a correct answer
-          </p>
-        </HeroCard.Content>
-      )}
-      {phase === "result" && (
-        <HeroCard.Content className="space-y-5 py-8 text-center">
+              </For>
+            </div>
+            <p class="text-xs text-muted">
+              {RARITY_META[round().correct.rarity].label} card · 250 points for
+              a correct answer
+            </p>
+          </CardContent>
+        )}
+      </Show>
+      <Show when={phase() === "result"}>
+        <CardContent class="space-y-5 py-8 text-center">
           <Icon
-            name={won ? "trophy" : "cards"}
+            name={won() ? "trophy" : "cards"}
             size={40}
-            className="mx-auto text-accent"
+            class="mx-auto text-primary"
           />
-          <h2 className="text-2xl font-semibold">
-            {won ? "Curiosity wins." : "A little wiser already."}
+          <h2 class="text-2xl font-semibold">
+            {won() ? "Curiosity wins." : "A little wiser already."}
           </h2>
-          <p className="text-sm text-muted">
-            {won
+          <p class="text-sm text-muted">
+            {won()
               ? "You outread The Librarian."
               : "There’s always another story to learn."}
           </p>
-          <p className="text-4xl font-semibold tabular-nums">
-            {score}
-            <span className="ml-2 text-sm font-normal text-muted">points</span>
+          <p class="text-4xl font-semibold tabular-nums">
+            {score()}
+            <span class="ml-2 text-sm font-normal text-muted">points</span>
           </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <Button onPress={start}>
+          <div class="flex flex-wrap justify-center gap-3">
+            <Button onClick={start}>
               <Icon name="refresh" size={16} />
               Duel again
             </Button>
-            <Button variant="secondary" onPress={() => setPhase("intro")}>
+            <Button variant="secondary" onClick={() => setPhase("intro")}>
               Leave the table
             </Button>
           </div>
-        </HeroCard.Content>
-      )}
-    </HeroCard>
+        </CardContent>
+      </Show>
+    </Card>
   );
 }

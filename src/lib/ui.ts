@@ -1,6 +1,8 @@
+import { Effect } from "effect";
+import { fromRef, getService } from "../runtime";
+import { Toasts, type ToastOptions } from "../services/toasts";
+import { Wallet } from "../services/wallet";
 import { haptic } from "./haptics";
-import { createStore } from "./store";
-import { toast } from "../components/ui/toast";
 
 const authToastKey = "wikigems.auth-toast";
 const authMessages = {
@@ -14,6 +16,10 @@ const authMessages = {
   },
 };
 
+export function showToast(title: string, options: ToastOptions = {}) {
+  return Effect.runSync(getService(Toasts).show(title, options));
+}
+
 // Auth changes deliberately reload the page to clear the previous account's state.
 // Carry only a short-lived message kind, never account data or credentials.
 export function queueAuthToast(kind: keyof typeof authMessages) {
@@ -25,7 +31,7 @@ export function queueAuthToast(kind: keyof typeof authMessages) {
     );
   } catch {
     const message = authMessages[kind];
-    toast.success(message.title, { description: message.body });
+    showToast(message.title, { body: message.body, tone: "success" });
   }
 }
 
@@ -47,32 +53,14 @@ export function restoreAuthToast() {
     )
       return;
     const message = authMessages[value.kind];
-    toast.success(message.title, { description: message.body });
+    showToast(message.title, { body: message.body, tone: "success" });
   } catch {
     /* Restricted storage must not prevent the page from loading. */
   }
 }
 
-const ui = createStore({ walletModalOpen: false });
-export const useUi = ui.useSnapshot;
-export function openWalletModal() {
-  ui.set((state) => ({ ...state, walletModalOpen: true }));
-}
-export function closeWalletModal() {
-  ui.set((state) => ({ ...state, walletModalOpen: false }));
-}
-export function showToast(
-  title: string,
-  options: {
-    body?: string;
-    tone?: "success" | "error" | "info";
-    duration?: number;
-  } = {},
-) {
-  if (options.tone === "error" || options.tone === "success")
-    haptic(options.tone);
-  return toast[options.tone ?? "info"](title, {
-    description: options.body,
-    duration: options.duration ?? 4600,
-  });
-}
+export const useWalletState = () => fromRef(getService(Wallet).state);
+export const openWalletModal = () =>
+  Effect.runSync(getService(Wallet).openModal);
+export const closeWalletModal = () =>
+  Effect.runSync(getService(Wallet).closeModal);

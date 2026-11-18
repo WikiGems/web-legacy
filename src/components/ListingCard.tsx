@@ -1,25 +1,17 @@
-import { MoneyAmount } from "./MoneyAmount";
-import type { HapticFeedback } from "../lib/haptics";
-import { Card, Separator } from "@heroui/react";
-import { HapticButton as Button } from "./HapticButton";
+import { Show } from "solid-js";
+import { Link } from "@tanstack/solid-router";
 import type { Card as ArticleCard } from "@wikigems/domain/domain";
+import { haptic, type HapticFeedback } from "../lib/haptics";
 import { CardArtwork } from "./GameCard";
-import { RarityBadge } from "./RarityBadge";
 import { Icon } from "./Icon";
-import { Link } from "@tanstack/react-router";
 import { LiquidAction } from "./LiquidAction";
-import { haptic } from "../lib/haptics";
+import { MoneyAmount } from "./MoneyAmount";
+import { RarityBadge } from "./RarityBadge";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardFooter, CardTitle } from "./ui/card";
+import { Separator } from "./ui/feedback";
 
-export function ListingCard({
-  card,
-  price,
-  owner,
-  action = "Buy now",
-  actionPlacement = "footer",
-  auctionId,
-  detail,
-  feedback = "buy",
-}: {
+export function ListingCard(props: {
   card: ArticleCard;
   price: number;
   owner: string;
@@ -29,62 +21,71 @@ export function ListingCard({
   detail?: string;
   feedback?: HapticFeedback;
 }) {
-  const actionButton = auctionId ? (
-    <Link
-      to="/auctions/$auctionId"
-      params={{ auctionId }}
-      className="button button--ghost listing-action-button"
-      onClick={() => haptic(feedback)}
-    >
-      {action}
-      <Icon name="arrow-up-right" size={15} />
-    </Link>
-  ) : (
-    <Button
-      feedback={feedback}
-      isDisabled
-      className={
-        actionPlacement === "image" ? "listing-action-button" : "w-full"
+  const action = () => props.action ?? "Buy now";
+  const placement = () => props.actionPlacement ?? "footer";
+  const actionButton = () => (
+    <Show
+      when={props.auctionId}
+      fallback={
+        <Button
+          feedback={props.feedback ?? "buy"}
+          disabled
+          class={placement() === "image" ? "listing-action-button" : "w-full"}
+          variant={placement() === "image" ? "ghost" : "secondary"}
+        >
+          {action()}
+          <Icon name="arrow-up-right" size={15} />
+        </Button>
       }
-      variant={actionPlacement === "image" ? "ghost" : "secondary"}
     >
-      {action}
-      <Icon name="arrow-up-right" size={15} />
-    </Button>
+      {(auctionId) => (
+        <Link
+          to="/auctions/$auctionId"
+          params={{ auctionId: auctionId() }}
+          class="btn btn-ghost listing-action-button"
+          onClick={() => haptic(props.feedback ?? "buy")}
+        >
+          {action()}
+          <Icon name="arrow-up-right" size={15} />
+        </Link>
+      )}
+    </Show>
   );
   return (
-    <Card className="h-full min-w-0">
-      <CardArtwork
-        card={card}
-        className={actionPlacement === "image" ? "listing-artwork" : undefined}
-      >
-        {actionPlacement === "image" && (
-          <LiquidAction>{actionButton}</LiquidAction>
-        )}
-      </CardArtwork>
-      <Card.Content className="space-y-3 pt-2">
-        <RarityBadge rarity={card.rarity} />
-        <Card.Title className="text-lg">{card.title}</Card.Title>
-        <p className="text-xs text-muted">@{owner}</p>
-        <Card.Description className="line-clamp-2 text-sm">
-          {card.description}
-        </Card.Description>
+    <Card class="h-full">
+      <div class="p-2 pb-0">
+        <CardArtwork
+          card={props.card}
+          class={placement() === "image" ? "listing-artwork" : undefined}
+        >
+          <Show when={placement() === "image"}>
+            <LiquidAction>{actionButton()}</LiquidAction>
+          </Show>
+        </CardArtwork>
+      </div>
+      <CardContent class="space-y-3 pt-4">
+        <RarityBadge rarity={props.card.rarity} />
+        <CardTitle class="text-lg">{props.card.title}</CardTitle>
+        <p class="text-xs text-muted">@{props.owner}</p>
+        <p class="line-clamp-2 text-sm text-muted">{props.card.description}</p>
         <Separator />
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-muted">Example price</span>
-          <p className="font-semibold tabular-nums">
+        <div class="flex items-center justify-between gap-3">
+          <span class="text-xs text-muted">Example price</span>
+          <p class="font-semibold tabular-nums">
             <MoneyAmount
-              amount={price}
+              amount={props.price}
               currency="USDC"
-              unitClassName="text-xs font-normal text-muted"
+              unitClass="text-xs font-normal text-muted"
             />
           </p>
         </div>
-        {detail && <p className="text-xs text-muted">{detail}</p>}
-      </Card.Content>
-      {actionPlacement === "footer" && (
-        <Card.Footer>{actionButton}</Card.Footer>
-      )}
+        <Show when={props.detail}>
+          <p class="text-xs text-muted">{props.detail}</p>
+        </Show>
+      </CardContent>
+      <Show when={placement() === "footer"}>
+        <CardFooter>{actionButton()}</CardFooter>
+      </Show>
     </Card>
   );
 }

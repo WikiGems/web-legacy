@@ -1,7 +1,15 @@
-import { Card, Description, Label, Slider, Switch } from "@heroui/react";
-import { HapticButton as Button } from "../components/HapticButton";
+import { For } from "solid-js";
 import { HapticSettings } from "../components/HapticSettings";
 import { Page, PageHeader } from "../components/Page";
+import { Button } from "../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Slider, Switch } from "../components/ui/form";
 import {
   resetLiquidUiPreferences,
   setLiquidUiPreferences,
@@ -24,7 +32,7 @@ export default function Settings() {
   const preferences = useLiquidUiPreferences();
   const enabled = useLiquidUiEnabled();
   return (
-    <Page className="lg:max-w-3xl">
+    <Page class="lg:max-w-3xl">
       <PageHeader
         eyebrow="Make yourself comfortable"
         title="Settings"
@@ -32,66 +40,49 @@ export default function Settings() {
       />
       <HapticSettings />
       <Card>
-        <Card.Header>
-          <Card.Title>Liquid UI</Card.Title>
-          <Card.Description>
+        <CardHeader>
+          <CardTitle>Liquid UI</CardTitle>
+          <CardDescription>
             Tune the glass on the mobile navigation bar, More menu and listing
             actions.
-          </Card.Description>
-        </Card.Header>
-        <Card.Content className="space-y-6">
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-6">
           <Switch
-            isSelected={enabled}
+            checked={enabled()}
             onChange={(selected) =>
               setLiquidUiPreferences({ mode: selected ? "on" : "off" })
             }
-          >
-            <Switch.Content className="min-h-11" data-testid="liquid-ui-toggle">
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-              <Label>Liquid UI</Label>
-            </Switch.Content>
-            <Description>
-              Add refractive glass to floating panels. Turn it off for solid
-              surfaces.
-            </Description>
-          </Switch>
-          {glassControls.map(({ key, label, max, unit }) => (
-            <Slider
-              key={key}
-              value={preferences[key]}
-              minValue={0}
-              maxValue={max}
-              step={1}
-              isDisabled={!enabled}
-              onChange={(value) => {
-                if (typeof value === "number")
-                  setLiquidUiPreferences({ [key]: value });
-              }}
-            >
-              <Label>{label}</Label>
-              <Slider.Output>
-                {preferences[key]}
-                {unit}
-              </Slider.Output>
-              <Slider.Track>
-                <Slider.Fill />
-                <Slider.Thumb />
-              </Slider.Track>
-            </Slider>
-          ))}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted">
-              {preferences.mode === "system"
+            label="Liquid UI"
+            description="Add refractive glass to floating panels. Turn it off for solid surfaces."
+            data-testid="liquid-ui-toggle"
+          />
+          <For each={glassControls}>
+            {(control) => (
+              <Slider
+                label={control.label}
+                value={preferences()[control.key]}
+                min={0}
+                max={control.max}
+                unit={control.unit}
+                disabled={!enabled()}
+                onChange={(value) =>
+                  setLiquidUiPreferences({ [control.key]: value })
+                }
+              />
+            )}
+          </For>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-sm text-muted">
+              {preferences().mode === "system"
                 ? "Following your device’s transparency preference."
                 : "Using your choice for this browser."}
             </p>
-            <Button variant="ghost" onPress={resetLiquidUiPreferences}>
+            <Button variant="ghost" onClick={resetLiquidUiPreferences}>
               Reset liquid UI
             </Button>
           </div>
-        </Card.Content>
+        </CardContent>
       </Card>
     </Page>
   );

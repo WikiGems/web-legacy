@@ -1,11 +1,4 @@
-import { useHapticsLifecycle } from "./lib/haptics";
-import { useLiquidUiLifecycle } from "./lib/liquid-ui";
-import { Page } from "./components/Page";
-import { SystemTheme } from "./components/SystemTheme";
-import { lazy, Suspense, type PropsWithChildren } from "react";
-import { Spinner } from "@heroui/react";
-import { HapticButton as Button } from "./components/HapticButton";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { lazy, Loading, Match, Show, Switch, type ParentProps } from "solid-js";
 import {
   createRootRoute,
   createRoute,
@@ -16,14 +9,17 @@ import {
   Outlet,
   RouterProvider,
   useSearch,
-} from "@tanstack/react-router";
-
+} from "@tanstack/solid-router";
 import { Nav } from "./components/Nav";
 import { OfflineNotice } from "./components/OfflineNotice";
-import { ToastHost } from "./components/ToastHost";
+import { Page } from "./components/Page";
 import { PwaInstallOffer } from "./components/PwaInstall";
-import { useUi } from "./lib/ui";
-import { authClient } from "./lib/auth-client";
+import { SystemTheme } from "./components/SystemTheme";
+import { ToastHost } from "./components/ToastHost";
+import { Button, buttonClass } from "./components/ui/button";
+import { Spinner } from "./components/ui/feedback";
+import { refreshSession, useSession } from "./lib/session";
+import { useWalletState } from "./lib/ui";
 
 const AuthPage = lazy(() =>
   import("./components/AuthPage").then((module) => ({
@@ -36,12 +32,14 @@ const WalletModal = lazy(() =>
   })),
 );
 function WalletOverlay() {
-  const { walletModalOpen } = useUi();
-  return walletModalOpen ? (
-    <Suspense fallback={null}>
-      <WalletModal />
-    </Suspense>
-  ) : null;
+  const wallet = useWalletState();
+  return (
+    <Show when={wallet().modalOpen}>
+      <Loading fallback={null}>
+        <WalletModal />
+      </Loading>
+    </Show>
+  );
 }
 
 const Landing = lazyRouteComponent(() => import("./pages/Landing"));
@@ -58,91 +56,95 @@ const Bid = lazyRouteComponent(() => import("./pages/Bid"));
 const CreateAuction = lazyRouteComponent(() => import("./pages/CreateAuction"));
 const VerifyEmail = lazyRouteComponent(() => import("./pages/VerifyEmail"));
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { staleTime: 30_000, retry: false },
-    mutations: { retry: false },
-  },
-});
-
-function Loading() {
+function PageLoading() {
   return (
     <main
-      className="flex min-h-[50vh] flex-col items-center justify-center gap-4 text-sm text-muted"
+      class="flex min-h-[50vh] flex-col items-center justify-center gap-4 text-sm text-muted"
       role="status"
     >
-      <Spinner />
+      <Spinner size="md" />
       <p>Loading your archive…</p>
     </main>
   );
 }
 
-function SiteFrame({
-  children,
-  signedIn = false,
-}: PropsWithChildren<{ signedIn?: boolean }>) {
-  if (!signedIn)
-    return (
-      <>
-        <PwaInstallOffer />
-        {children}
-      </>
-    );
+function SiteFrame(props: ParentProps<{ signedIn?: boolean }>) {
   return (
-    <div className="app-shell">
-      <Nav />
-      <div className="app-content">
-        <PwaInstallOffer />
-        {children}
+    <Show
+      when={props.signedIn}
+      fallback={
+        <>
+          <PwaInstallOffer />
+          {props.children}
+        </>
+      }
+    >
+      <div class="app-shell">
+        <Nav />
+        <div class="app-content">
+          <PwaInstallOffer />
+          {props.children}
+        </div>
       </div>
-    </div>
+    </Show>
   );
 }
 
-function SessionGate({
-  children,
-  signedIn = true,
-}: PropsWithChildren<{ signedIn?: boolean }>) {
-  const session = authClient.useSession();
-  if (session.isPending)
-    return (
-      <SiteFrame>
-        <Loading />
-      </SiteFrame>
-    );
-  if (session.error)
-    return (
-      <SiteFrame>
-        <Page className="space-y-4" role="alert">
-          <p>Your session could not be checked.</p>
-          <Button onPress={() => void session.refetch()}>Try again</Button>
-        </Page>
-      </SiteFrame>
-    );
-  if (Boolean(session.data?.user) !== signedIn)
-    return <Navigate to={signedIn ? "/login" : "/play"} replace />;
-  return <SiteFrame signedIn={signedIn}>{children}</SiteFrame>;
+/** Admits only the audience a route is for, and redirects everyone else. */
+function SessionGate(props: ParentProps<{ signedIn?: boolean }>) {
+  const session = useSession();
+  const signedIn = () => props.signedIn ?? true;
+  return (
+    <Switch>
+      <Match when={session().pending}>
+        <SiteFrame>
+          <PageLoading />
+        </SiteFrame>
+      </Match>
+      {/* A session that cannot be checked gets a retry, not a redirect. */}
+      <Match when={session().failed}>
+        <SiteFrame>
+          <Page class="space-y-4" role="alert">
+            <p>Your session could not be checked.</p>
+            <Button onClick={() => void refreshSession()}>Try again</Button>
+          </Page>
+        </SiteFrame>
+      </Match>
+      <Match when={Boolean(session().data?.user) !== signedIn()}>
+        <Navigate to={signedIn() ? "/login" : "/play"} replace />
+      </Match>
+      <Match when={true}>
+        <SiteFrame signedIn={signedIn()}>{props.children}</SiteFrame>
+      </Match>
+    </Switch>
+  );
 }
 
 function Login() {
   const search = useSearch({ from: "/login" });
-  return search.add === 1 ? (
-    <SiteFrame>
-      <AuthPage />
-    </SiteFrame>
-  ) : (
-    <SessionGate signedIn={false}>
-      <AuthPage />
-    </SessionGate>
+  // Adding an account is for signed-in users, so it skips the gate.
+  return (
+    <Show
+      when={search().add === 1}
+      fallback={
+        <SessionGate signedIn={false}>
+          <AuthPage />
+        </SessionGate>
+      }
+    >
+      <SiteFrame>
+        <AuthPage />
+      </SiteFrame>
+    </Show>
   );
 }
 
 const rootRoute = createRootRoute({
   component: () => (
     <>
-      <Suspense fallback={<Loading />}>
+      <Loading fallback={<PageLoading />}>
         <Outlet />
-      </Suspense>
+      </Loading>
       <OfflineNotice />
       <WalletOverlay />
       <ToastHost />
@@ -150,22 +152,20 @@ const rootRoute = createRootRoute({
   ),
   errorComponent: ({ reset }) => (
     <SiteFrame>
-      <Page className="space-y-4" role="alert">
-        <h1 className="text-3xl font-semibold">
-          The page could not be loaded.
-        </h1>
-        <Button onPress={reset}>Try again</Button>
+      <Page class="space-y-4" role="alert">
+        <h1 class="text-3xl font-semibold">The page could not be loaded.</h1>
+        <Button onClick={reset}>Try again</Button>
       </Page>
     </SiteFrame>
   ),
   notFoundComponent: () => (
     <SiteFrame>
-      <Page className="space-y-5 py-24">
-        <p className="text-sm font-medium text-accent">404 / Torn page</p>
-        <h1 className="text-3xl font-semibold tracking-tight">
+      <Page class="space-y-5 py-24">
+        <p class="text-sm font-medium text-primary">404 / Torn page</p>
+        <h1 class="text-3xl font-semibold tracking-tight">
           This article is missing from the archive.
         </h1>
-        <Link to="/" className="button button--secondary w-fit">
+        <Link to="/" class={[buttonClass("secondary"), "w-fit"].join(" ")}>
           Return to the library
         </Link>
       </Page>
@@ -202,9 +202,9 @@ const protectedRoute = createRoute({
   id: "authenticated",
   component: () => (
     <SessionGate>
-      <Suspense fallback={<Loading />}>
+      <Loading fallback={<PageLoading />}>
         <Outlet />
-      </Suspense>
+      </Loading>
     </SessionGate>
   ),
 });
@@ -219,46 +219,18 @@ const routes = [
     path: "/auctions/$auctionId",
     component: Bid,
   }),
-  createRoute({
-    getParentRoute: () => protectedRoute,
-    path: "/play",
-    component: Play,
-  }),
-  createRoute({
-    getParentRoute: () => protectedRoute,
-    path: "/trade",
-    component: Trade,
-  }),
-  createRoute({
-    getParentRoute: () => protectedRoute,
-    path: "/buy",
-    component: Buy,
-  }),
-  createRoute({
-    getParentRoute: () => protectedRoute,
-    path: "/sell",
-    component: Sell,
-  }),
-  createRoute({
-    getParentRoute: () => protectedRoute,
-    path: "/action",
-    component: Action,
-  }),
+  createRoute({ getParentRoute: () => protectedRoute, path: "/play", component: Play }),
+  createRoute({ getParentRoute: () => protectedRoute, path: "/trade", component: Trade }),
+  createRoute({ getParentRoute: () => protectedRoute, path: "/buy", component: Buy }),
+  createRoute({ getParentRoute: () => protectedRoute, path: "/sell", component: Sell }),
+  createRoute({ getParentRoute: () => protectedRoute, path: "/action", component: Action }),
   createRoute({
     getParentRoute: () => protectedRoute,
     path: "/collection",
     component: Collection,
   }),
-  createRoute({
-    getParentRoute: () => protectedRoute,
-    path: "/wallet",
-    component: Wallet,
-  }),
-  createRoute({
-    getParentRoute: () => protectedRoute,
-    path: "/account",
-    component: Account,
-  }),
+  createRoute({ getParentRoute: () => protectedRoute, path: "/wallet", component: Wallet }),
+  createRoute({ getParentRoute: () => protectedRoute, path: "/account", component: Account }),
   createRoute({
     getParentRoute: () => protectedRoute,
     path: "/settings",
@@ -278,21 +250,19 @@ export const router = createRouter({
   ]),
   scrollRestoration: true,
   defaultPreload: "intent",
-  defaultPendingComponent: Loading,
+  defaultPendingComponent: PageLoading,
 });
-declare module "@tanstack/react-router" {
+declare module "@tanstack/solid-router" {
   interface Register {
     router: typeof router;
   }
 }
 
 export default function App() {
-  useHapticsLifecycle();
-  useLiquidUiLifecycle();
   return (
-    <QueryClientProvider client={queryClient}>
+    <>
       <SystemTheme />
       <RouterProvider router={router} />
-    </QueryClientProvider>
+    </>
   );
 }

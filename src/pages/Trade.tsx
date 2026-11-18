@@ -1,14 +1,11 @@
-import { Card, Chip, Separator } from "@heroui/react";
-import { HapticButton as Button } from "../components/HapticButton";
+import { For } from "solid-js";
 import { Avatar } from "../components/Avatar";
 import { Icon } from "../components/Icon";
 import { ListingCard } from "../components/ListingCard";
-import {
-  Page,
-  PageHeader,
-  PreviewChip,
-  PreviewNotice,
-} from "../components/Page";
+import { Page, PageHeader, PreviewChip, PreviewNotice } from "../components/Page";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
+import { Chip, Separator } from "../components/ui/feedback";
 import { showcaseCards } from "../lib/preview";
 
 const listings = showcaseCards()
@@ -35,6 +32,7 @@ const offers = [
     time: "Yesterday",
   },
 ];
+
 export default function Trade() {
   return (
     <Page>
@@ -48,67 +46,64 @@ export default function Trade() {
         Explore a sample exchange. Listings and offers are fictional; no cards
         or funds change hands here.
       </PreviewNotice>
-      <section className="space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Open to a good trade</h2>
-          <Chip size="sm" variant="soft">
-            <Chip.Label>4 sample listings</Chip.Label>
-          </Chip>
+      <section class="space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-xl font-semibold">Open to a good trade</h2>
+          <Chip>4 sample listings</Chip>
         </div>
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          {listings.map((listing) => (
-            <ListingCard
-              feedback="swap"
-              key={listing.card.id}
-              {...listing}
-              action="Propose a trade"
-            />
-          ))}
+        <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <For each={listings}>
+            {(listing) => (
+              <ListingCard
+                feedback="swap"
+                card={listing.card}
+                price={listing.price}
+                owner={listing.owner}
+                action="Propose a trade"
+              />
+            )}
+          </For>
         </div>
       </section>
-      <section className="space-y-5">
-        <h2 className="text-xl font-semibold">At the exchange table</h2>
-        <div className="grid gap-5 md:grid-cols-2">
-          {offers.map((offer) => (
-            <Card key={offer.person}>
-              <Card.Header className="flex-row items-center gap-3">
-                <Avatar name={offer.person} />
-                <div className="min-w-0 flex-1">
-                  <Card.Title className="truncate text-sm">
-                    {offer.person}
-                  </Card.Title>
-                  <p className="text-xs text-muted">{offer.time}</p>
-                </div>
-                <Chip
-                  size="sm"
-                  color={offer.direction === "Incoming" ? "accent" : "default"}
-                  variant="soft"
-                >
-                  <Chip.Label>{offer.direction}</Chip.Label>
-                </Chip>
-              </Card.Header>
-              <Card.Content className="space-y-4">
-                <Separator />
-                <div className="flex items-center justify-between gap-4 text-sm">
-                  <div className="min-w-0">
-                    <p className="mb-1 text-xs text-muted">Offered</p>
-                    <p className="font-medium">{offer.offered}</p>
+      <section class="space-y-5">
+        <h2 class="text-xl font-semibold">At the exchange table</h2>
+        <div class="grid gap-5 md:grid-cols-2">
+          <For each={offers}>
+            {(offer) => (
+              <Card>
+                <CardHeader class="flex-row items-center gap-3 pb-0">
+                  <Avatar name={offer.person} />
+                  <div class="min-w-0 flex-1">
+                    <CardTitle class="truncate text-sm">{offer.person}</CardTitle>
+                    <p class="text-xs text-muted">{offer.time}</p>
                   </div>
-                  <Icon name="swap" className="text-muted" />
-                  <div className="min-w-0 text-right">
-                    <p className="mb-1 text-xs text-muted">Requested</p>
-                    <p className="font-medium">{offer.wanted}</p>
+                  <Chip tone={offer.direction === "Incoming" ? "accent" : "default"}>
+                    {offer.direction}
+                  </Chip>
+                </CardHeader>
+                <CardContent class="space-y-4">
+                  <Separator />
+                  <div class="flex items-center justify-between gap-4 text-sm">
+                    <div class="min-w-0">
+                      <p class="mb-1 text-xs text-muted">Offered</p>
+                      <p class="font-medium">{offer.offered}</p>
+                    </div>
+                    <Icon name="swap" class="text-muted" />
+                    <div class="min-w-0 text-right">
+                      <p class="mb-1 text-xs text-muted">Requested</p>
+                      <p class="font-medium">{offer.wanted}</p>
+                    </div>
                   </div>
-                </div>
-              </Card.Content>
-              <Card.Footer className="gap-2">
-                <Button isDisabled variant="secondary" size="sm">
-                  Review offer
-                </Button>
-                <span className="text-xs text-muted">Sample offer</span>
-              </Card.Footer>
-            </Card>
-          ))}
+                </CardContent>
+                <CardFooter>
+                  <Button disabled variant="secondary" size="sm">
+                    Review offer
+                  </Button>
+                  <span class="text-xs text-muted">Sample offer</span>
+                </CardFooter>
+              </Card>
+            )}
+          </For>
         </div>
       </section>
     </Page>

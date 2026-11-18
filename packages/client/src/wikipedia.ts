@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 const ArticleSchema = Schema.Struct({
   pageid: Schema.Number,
@@ -53,3 +53,26 @@ export async function searchWikipedia(input: {
     (a, b) => a.index - b.index,
   );
 }
+
+export class WikipediaError extends Error {
+  readonly _tag = "WikipediaError";
+  constructor(message: string) {
+    super(message);
+    this.name = "WikipediaError";
+  }
+}
+
+/** Cancellable search: interrupting the fiber aborts the request. */
+export const searchWikipediaEffect = (input: {
+  term: string;
+  fetch: typeof globalThis.fetch;
+}) =>
+  Effect.tryPromise({
+    try: (signal) => searchWikipedia({ ...input, signal }),
+    catch: (error) =>
+      new WikipediaError(
+        error instanceof Error
+          ? error.message
+          : "Wikipedia search is unavailable. Please try again.",
+      ),
+  });
