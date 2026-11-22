@@ -30,3 +30,6 @@ secrets/.encrypted.*
 
 # Rust build output (including local Solana program keypairs)
 /target/
+
+# Third-party program binaries for LiteSVM tests (bun scripts/fetch-test-programs.ts)
+/programs/wikigems/tests/fixtures/*.so
