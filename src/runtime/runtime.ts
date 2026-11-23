@@ -1,4 +1,5 @@
-import { Context, Effect, Layer, ManagedRuntime } from "effect";
+import type { Context } from "effect";
+import { Effect, Layer, ManagedRuntime } from "effect";
 import { Api } from "@wikigems/client";
 import { Auth } from "../services/auth";
 import { Avatars } from "../services/avatars";

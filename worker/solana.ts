@@ -9,7 +9,11 @@ interface RpcResponse<T> {
   error?: { code: number; message: string };
 }
 
-async function rpc<T>(env: Env, method: string, params: unknown[]): Promise<T | null> {
+async function rpc<T>(
+  env: Env,
+  method: string,
+  params: unknown[],
+): Promise<T | null> {
   const endpoint = env.SOLANA_RPC_URL || DEFAULT_RPC;
   try {
     const response = await fetch(endpoint, {
@@ -41,15 +45,23 @@ export async function verifyMintTransaction(
   input: { signature: string; mintAddress: string },
 ): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const transaction = await rpc<ParsedTransaction | null>(env, "getTransaction", [
-      input.signature,
-      { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" },
-    ]);
+    const transaction = await rpc<ParsedTransaction | null>(
+      env,
+      "getTransaction",
+      [
+        input.signature,
+        {
+          encoding: "jsonParsed",
+          maxSupportedTransactionVersion: 0,
+          commitment: "confirmed",
+        },
+      ],
+    );
     if (transaction) {
       if (transaction.meta?.err) return false;
-      const accountKeys = (transaction.transaction?.message?.accountKeys ?? []).map((key) =>
-        typeof key === "string" ? key : (key.pubkey ?? ""),
-      );
+      const accountKeys = (
+        transaction.transaction?.message?.accountKeys ?? []
+      ).map((key) => (typeof key === "string" ? key : (key.pubkey ?? "")));
       return accountKeys.includes(input.mintAddress);
     }
     await new Promise((resolve) => setTimeout(resolve, 900));

@@ -7,7 +7,13 @@ import {
 } from "../lib/pwa-install";
 import { Icon } from "./Icon";
 import { Button } from "./ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
 import { WebDialog } from "./WebDialog";
 
 const hidden = (kind: string) =>
@@ -72,9 +78,7 @@ export function InstallAppButton() {
 export function PwaInstallOffer() {
   const install = usePwaInstall();
   return (
-    <Show
-      when={!install().dismissed && !hidden(install().availability.kind)}
-    >
+    <Show when={!install().dismissed && !hidden(install().availability.kind)}>
       <aside
         aria-label="Install WikiGems"
         class="border-b border-base-300 bg-base-200"

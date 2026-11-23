@@ -108,7 +108,10 @@ export class PwaInstall extends Context.Service<
           } catch {
             /* Optional device-local hint. */
           }
-          setRef(state, { availability: { kind: "installed" }, dismissed: false });
+          setRef(state, {
+            availability: { kind: "installed" },
+            dismissed: false,
+          });
         };
         const onMode = () => {
           if (standalone()) rememberInstalled();
@@ -168,8 +171,7 @@ export class PwaInstall extends Context.Service<
 
       const request = Effect.suspend(() => {
         const current = getRef(state).availability;
-        if (current.kind !== "ready")
-          return Effect.succeed("manual" as const);
+        if (current.kind !== "ready") return Effect.succeed("manual" as const);
         update((value) => ({
           ...value,
           availability: { kind: "prompting", event: current.event },

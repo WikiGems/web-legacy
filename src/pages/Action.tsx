@@ -1,6 +1,11 @@
 import { For } from "solid-js";
 import { Icon } from "../components/Icon";
-import { Page, PageHeader, PreviewChip, PreviewNotice } from "../components/Page";
+import {
+  Page,
+  PageHeader,
+  PreviewChip,
+  PreviewNotice,
+} from "../components/Page";
 import { Button } from "../components/ui/button";
 import {
   Card,
@@ -98,7 +103,9 @@ export default function Action() {
           <CardContent class="space-y-2">
             <p class="text-4xl font-semibold tracking-tight">
               120{" "}
-              <span class="text-base font-normal text-muted">sample points</span>
+              <span class="text-base font-normal text-muted">
+                sample points
+              </span>
             </p>
             <p class="text-xs text-muted">
               Preview activity, just to show you around.
@@ -128,7 +135,10 @@ export default function Action() {
                     <span>Example progress</span>
                     <span>{mission.progress}</span>
                   </div>
-                  <ProgressBar value={mission.value} aria-label={mission.title} />
+                  <ProgressBar
+                    value={mission.value}
+                    aria-label={mission.title}
+                  />
                 </CardContent>
               </Card>
             )}

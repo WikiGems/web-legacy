@@ -16,7 +16,13 @@ import { Icon, type IconName } from "./Icon";
 import { LiquidGlass } from "./LiquidGlass";
 
 const destinations = [
-  { to: "/play", label: "Play", shortLabel: "Play", icon: "search", primary: true },
+  {
+    to: "/play",
+    label: "Play",
+    shortLabel: "Play",
+    icon: "search",
+    primary: true,
+  },
   {
     to: "/collection",
     label: "My collection",
@@ -24,9 +30,21 @@ const destinations = [
     icon: "cards",
     primary: true,
   },
-  { to: "/trade", label: "Trade", shortLabel: "Trade", icon: "swap", primary: true },
+  {
+    to: "/trade",
+    label: "Trade",
+    shortLabel: "Trade",
+    icon: "swap",
+    primary: true,
+  },
   { to: "/buy", label: "Buy", shortLabel: "Buy", icon: "coin", primary: false },
-  { to: "/sell", label: "Sell", shortLabel: "Sell", icon: "plus", primary: false },
+  {
+    to: "/sell",
+    label: "Sell",
+    shortLabel: "Sell",
+    icon: "plus",
+    primary: false,
+  },
   {
     to: "/action",
     label: "Action",
@@ -118,7 +136,9 @@ function SectionLink(
 
 /** Glass layer behind the bar or popup's controls; mobile only. */
 function NavigationGlass(props: { radius: number }) {
-  return <LiquidGlass class="nav-glass" radius={props.radius} aria-hidden="true" />;
+  return (
+    <LiquidGlass class="nav-glass" radius={props.radius} aria-hidden="true" />
+  );
 }
 
 export function Nav() {
@@ -145,7 +165,8 @@ export function Nav() {
   onSettled(() => {
     const close = () => setMoreOpen(false);
     const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !more?.contains(event.target)) close();
+      if (event.target instanceof Node && !more?.contains(event.target))
+        close();
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") close();
@@ -167,7 +188,10 @@ export function Nav() {
         <For each={destinations}>
           {(destination) => (
             <div
-              class={["nav-tip flex", { "nav-secondary": !destination.primary }]}
+              class={[
+                "nav-tip flex",
+                { "nav-secondary": !destination.primary },
+              ]}
             >
               <SectionLink
                 to={destination.to}

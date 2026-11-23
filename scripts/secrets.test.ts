@@ -1,11 +1,21 @@
-import { afterEach, expect, test } from "bun:test";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { afterEach, expect, test } from "vitest";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 
 const fixtures: string[] = [];
 afterEach(() => {
-  for (const directory of fixtures.splice(0)) rmSync(directory, { recursive: true, force: true });
+  for (const directory of fixtures.splice(0))
+    rmSync(directory, { recursive: true, force: true });
 });
 
 const settings = {
@@ -23,9 +33,18 @@ function fixture(stored: Record<string, string> = settings) {
   symlinkSync(resolve("node_modules"), join(directory, "node_modules"));
   const store = join(directory, "keychain.json");
   const operations = join(directory, "operations.jsonl");
-  writeFileSync(store, JSON.stringify(Object.keys(stored).length ? { WIKIGEMS_ENV_JSON: JSON.stringify(stored) } : {}));
+  writeFileSync(
+    store,
+    JSON.stringify(
+      Object.keys(stored).length
+        ? { WIKIGEMS_ENV_JSON: JSON.stringify(stored) }
+        : {},
+    ),
+  );
   // Replace only the OS vault boundary; run the real launcher and child processes.
-  writeFileSync(join(directory, "bin/envchain"), `#!${process.execPath} --no-env-file
+  writeFileSync(
+    join(directory, "bin/envchain"),
+    `#!${process.execPath} --no-env-file
 import { appendFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 if (process.env.DENY_KEYCHAIN) process.exit(9);
@@ -45,39 +64,62 @@ if (args[0] === '--set') {
   });
   process.exit(await child.exited);
 }
-`, { mode: 0o700 });
+`,
+    { mode: 0o700 },
+  );
   function run(args: string[], extraEnv: Record<string, string> = {}) {
-    return Bun.spawnSync([process.execPath, "--no-env-file", "scripts/with-env.ts", ...args], {
-      cwd: directory,
-      env: {
-        PATH: join(directory, "bin") + delimiter + (process.env.PATH ?? ""),
-        HOME: directory,
-        TEST_STORE: store,
-        TEST_OPERATIONS: operations,
-        ...extraEnv,
+    return Bun.spawnSync(
+      [process.execPath, "--no-env-file", "scripts/with-env.ts", ...args],
+      {
+        cwd: directory,
+        env: {
+          PATH: join(directory, "bin") + delimiter + (process.env.PATH ?? ""),
+          HOME: directory,
+          TEST_STORE: store,
+          TEST_OPERATIONS: operations,
+          ...extraEnv,
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+        timeout: 15000,
       },
-      stdout: "pipe", stderr: "pipe", timeout: 15000,
-    });
+    );
   }
   return { directory, store, operations, run };
 }
 
-const child = (code: string) => ["run", process.execPath, "--no-env-file", "-e", code];
+const child = (code: string) => [
+  "run",
+  process.execPath,
+  "--no-env-file",
+  "-e",
+  code,
+];
 
 test("uses Keychain values despite inherited stale credentials and leaves plaintext untouched", () => {
   const { directory, run } = fixture();
   const plaintext = 'TURSO_AUTH_TOKEN="old-file-token"\n';
   writeFileSync(join(directory, ".env"), plaintext);
-  const result = run(child('if (process.env.TURSO_AUTH_TOKEN !== "keychain-token") process.exit(1)'), {
-    TURSO_AUTH_TOKEN: "stale-inherited-token",
-  });
+  const result = run(
+    child(
+      'if (process.env.TURSO_AUTH_TOKEN !== "keychain-token") process.exit(1)',
+    ),
+    {
+      TURSO_AUTH_TOKEN: "stale-inherited-token",
+    },
+  );
   expect(result.exitCode).toBe(0);
   expect(readFileSync(join(directory, ".env"), "utf8")).toBe(plaintext);
 });
 
 test("a missing namespace cannot fall back to inherited or file credentials", () => {
   const { directory, run } = fixture({});
-  writeFileSync(join(directory, ".env"), Object.entries(settings).map(([key, value]) => `${key}=${value}`).join("\n"));
+  writeFileSync(
+    join(directory, ".env"),
+    Object.entries(settings)
+      .map(([key, value]) => `${key}=${value}`)
+      .join("\n"),
+  );
   const result = run(child('console.log("CHILD_RAN")'), settings);
   expect(result.exitCode).not.toBe(0);
   expect(result.stderr.toString()).toContain("No settings bundle");
@@ -109,7 +151,11 @@ test("rejects a missing hosted token even when the parent has one", () => {
 });
 
 test("allows an empty token for the local database", () => {
-  const { run } = fixture({ ...settings, TURSO_DATABASE_URL: "http://127.0.0.1:8080", TURSO_AUTH_TOKEN: "" });
+  const { run } = fixture({
+    ...settings,
+    TURSO_DATABASE_URL: "http://127.0.0.1:8080",
+    TURSO_AUTH_TOKEN: "",
+  });
   expect(run(["check"]).exitCode).toBe(0);
 });
 
@@ -124,38 +170,65 @@ test("imports through stdin without echoing secrets or changing plaintext", () =
   expect(result.stderr.toString()).not.toContain(token);
   const entries = JSON.parse(readFileSync(store, "utf8"));
   expect(Object.keys(entries)).toEqual(["WIKIGEMS_ENV_JSON"]);
-  expect(JSON.parse(entries.WIKIGEMS_ENV_JSON)).toEqual({ ...settings, TURSO_AUTH_TOKEN: token });
+  expect(JSON.parse(entries.WIKIGEMS_ENV_JSON)).toEqual({
+    ...settings,
+    TURSO_AUTH_TOKEN: token,
+  });
   expect(readFileSync(join(directory, ".env"), "utf8")).toBe(plaintext);
 });
 
 test("passes command arguments and exit status through unchanged", () => {
   const { run } = fixture();
-  const result = run([...child('if (process.argv[1] !== "two words") process.exit(1); process.exit(7)'), "two words"]);
+  const result = run([
+    ...child(
+      'if (process.argv[1] !== "two words") process.exit(1); process.exit(7)',
+    ),
+    "two words",
+  ]);
   expect(result.exitCode).toBe(7);
 });
 
 test("stores multiline values inside a single protected JSON item", () => {
   const { directory, store, operations, run } = fixture();
-  writeFileSync(join(directory, ".env"), `TURSO_DATABASE_URL=${settings.TURSO_DATABASE_URL}\nTURSO_AUTH_TOKEN="line one\nline two"\nBETTER_AUTH_SECRET=${settings.BETTER_AUTH_SECRET}\n`);
+  writeFileSync(
+    join(directory, ".env"),
+    `TURSO_DATABASE_URL=${settings.TURSO_DATABASE_URL}\nTURSO_AUTH_TOKEN="line one\nline two"\nBETTER_AUTH_SECRET=${settings.BETTER_AUTH_SECRET}\n`,
+  );
   const result = run(["import"]);
   expect(result.exitCode).toBe(0);
   const entries = JSON.parse(readFileSync(store, "utf8"));
   expect(Object.keys(entries)).toEqual(["WIKIGEMS_ENV_JSON"]);
-  expect(JSON.parse(entries.WIKIGEMS_ENV_JSON).TURSO_AUTH_TOKEN).toBe("line one\nline two");
-  expect(JSON.parse(readFileSync(operations, "utf8"))).toEqual({ operation: "save", itemCount: 1, requirePassphrase: true });
+  expect(JSON.parse(entries.WIKIGEMS_ENV_JSON).TURSO_AUTH_TOKEN).toBe(
+    "line one\nline two",
+  );
+  expect(JSON.parse(readFileSync(operations, "utf8"))).toEqual({
+    operation: "save",
+    itemCount: 1,
+    requirePassphrase: true,
+  });
 });
 
 test("each launch reads the bundle once and does not pass the bundle to the service", () => {
   const { operations, run } = fixture();
-  const result = run(child('if (process.env.WIKIGEMS_ENV_JSON !== undefined || process.env.TURSO_AUTH_TOKEN !== "keychain-token") process.exit(1)'));
+  const result = run(
+    child(
+      'if (process.env.WIKIGEMS_ENV_JSON !== undefined || process.env.TURSO_AUTH_TOKEN !== "keychain-token") process.exit(1)',
+    ),
+  );
   expect(result.exitCode).toBe(0);
   expect(readFileSync(operations, "utf8").trim().split("\n")).toHaveLength(1);
-  expect(JSON.parse(readFileSync(operations, "utf8"))).toEqual({ operation: "read", itemCount: 1 });
+  expect(JSON.parse(readFileSync(operations, "utf8"))).toEqual({
+    operation: "read",
+    itemCount: 1,
+  });
 });
 
 test("rejects malformed or non-string bundles without printing their contents", () => {
   const { store, run } = fixture();
-  for (const value of ['{"token":"private-value",', '{"TURSO_DATABASE_URL":123,"token":"private-value"}']) {
+  for (const value of [
+    '{"token":"private-value",',
+    '{"TURSO_DATABASE_URL":123,"token":"private-value"}',
+  ]) {
     writeFileSync(store, JSON.stringify({ WIKIGEMS_ENV_JSON: value }));
     const result = run(["check"]);
     expect(result.exitCode).not.toBe(0);
@@ -166,7 +239,9 @@ test("rejects malformed or non-string bundles without printing their contents", 
 
 test("ignores an inherited bundle and rejects unsupported setting names before reading Keychain", () => {
   const { operations, run } = fixture({});
-  expect(run(["check"], { WIKIGEMS_ENV_JSON: JSON.stringify(settings) }).exitCode).not.toBe(0);
+  expect(
+    run(["check"], { WIKIGEMS_ENV_JSON: JSON.stringify(settings) }).exitCode,
+  ).not.toBe(0);
   const before = readFileSync(operations, "utf8");
   expect(run(["set", "UNSUPPORTED"]).exitCode).not.toBe(0);
   expect(readFileSync(operations, "utf8")).toBe(before);

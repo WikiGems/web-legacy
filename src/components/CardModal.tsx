@@ -251,7 +251,10 @@ export function CardModal(props: {
         </div>
       </Show>
       <Show when={!props.owned && props.card.forTrade}>
-        <Button feedback="swap" onClick={() => props.onProposeTrade?.(props.card)}>
+        <Button
+          feedback="swap"
+          onClick={() => props.onProposeTrade?.(props.card)}
+        >
           <Icon name="swap" />
           Propose a trade
         </Button>

@@ -3,7 +3,13 @@ import { Link } from "@tanstack/solid-router";
 import { Effect } from "effect";
 import { Page, PageHeader } from "../components/Page";
 import { Button, buttonClass } from "../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
 import { Alert } from "../components/ui/feedback";
 import { OtpInput } from "../components/ui/otp-input";
 import { haptic } from "../lib/haptics";
@@ -12,7 +18,9 @@ import { runUi } from "../runtime";
 import { Auth, type AuthError } from "../services/auth";
 
 type Step =
-  { kind: "ready" } | { kind: "code"; sentAt: number } | { kind: "verified" };
+  | { kind: "ready" }
+  | { kind: "code"; sentAt: number }
+  | { kind: "verified" };
 
 export default function VerifyEmail() {
   const session = useSession();

@@ -5,7 +5,12 @@ import { AuctionAmountField, AuctionReview } from "../components/AuctionUi";
 import { CardArtwork } from "../components/GameCard";
 import { Icon } from "../components/Icon";
 import { LiquidAction } from "../components/LiquidAction";
-import { Page, PageHeader, PreviewChip, PreviewNotice } from "../components/Page";
+import {
+  Page,
+  PageHeader,
+  PreviewChip,
+  PreviewNotice,
+} from "../components/Page";
 import { RarityBadge } from "../components/RarityBadge";
 import { Button } from "../components/ui/button";
 import {
@@ -56,7 +61,12 @@ export default function CreateAuction() {
       return;
     }
     setError("");
-    setReview({ card, startingBid: price, increment: step, duration: duration() });
+    setReview({
+      card,
+      startingBid: price,
+      increment: step,
+      duration: duration(),
+    });
     haptic("confirm");
   }
 
@@ -133,13 +143,19 @@ export default function CreateAuction() {
                     exceed the current bid by at least the minimum increment.
                   </p>
                   <fieldset class="space-y-3">
-                    <legend class="text-sm font-medium">Auction duration</legend>
+                    <legend class="text-sm font-medium">
+                      Auction duration
+                    </legend>
                     <div class="flex flex-wrap gap-2">
                       <For each={[1, 3, 7]}>
                         {(days) => (
                           <Button
-                            variant={duration() === days ? "primary" : "secondary"}
-                            aria-pressed={duration() === days ? "true" : "false"}
+                            variant={
+                              duration() === days ? "primary" : "secondary"
+                            }
+                            aria-pressed={
+                              duration() === days ? "true" : "false"
+                            }
                             onClick={() => setDuration(days)}
                           >
                             {days} {days === 1 ? "day" : "days"}
@@ -243,7 +259,8 @@ export default function CreateAuction() {
                   <div>
                     <dt class="text-muted">Duration</dt>
                     <dd class="mt-1">
-                      {draft().duration} {draft().duration === 1 ? "day" : "days"}
+                      {draft().duration}{" "}
+                      {draft().duration === 1 ? "day" : "days"}
                     </dd>
                   </div>
                 </dl>

@@ -67,7 +67,12 @@ function ToastPreview() {
         "success",
         "Your collection is up to date.",
       )}
-      {toast("Error notification", "Trade failed", "error", "Please try again.")}
+      {toast(
+        "Error notification",
+        "Trade failed",
+        "error",
+        "Please try again.",
+      )}
       {toast(
         "Info notification",
         "Wallet connection needed",

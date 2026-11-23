@@ -19,7 +19,9 @@ export function fromRef<A>(
 ): Accessor<A> {
   // Boxed, so a state that is itself a function is not mistaken for a
   // derived signal.
-  const [box, setBox] = createSignal({ current: SubscriptionRef.getUnsafe(ref) });
+  const [box, setBox] = createSignal({
+    current: SubscriptionRef.getUnsafe(ref),
+  });
   const owner = getOwner();
   // The ref replays its current value as soon as the stream starts. Start it
   // detached, so that first write is not made from inside the owner's scope.

@@ -1,7 +1,12 @@
 import { For } from "solid-js";
 import { Link } from "@tanstack/solid-router";
 import { ListingCard } from "../components/ListingCard";
-import { Page, PageHeader, PreviewChip, PreviewNotice } from "../components/Page";
+import {
+  Page,
+  PageHeader,
+  PreviewChip,
+  PreviewNotice,
+} from "../components/Page";
 import { buttonClass } from "../components/ui/button";
 import { Chip } from "../components/ui/feedback";
 import { previewAuctions } from "../lib/auction-preview";

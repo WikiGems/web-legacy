@@ -78,4 +78,3 @@ export function base64FromBytes(bytes: Uint8Array): string {
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
-

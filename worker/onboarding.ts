@@ -11,14 +11,17 @@ export interface OnboardingClaims {
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
 }
 
 function base64UrlToBytes(value: string): Uint8Array {
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(
-    value.length + ((4 - (value.length % 4)) % 4),
-    "=",
-  );
+  const padded = value
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(value.length + ((4 - (value.length % 4)) % 4), "=");
   const binary = atob(padded);
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
@@ -47,7 +50,11 @@ export async function createOnboardingToken(
     exp: now + ttlSeconds,
   };
   const payload = bytesToBase64Url(encoder.encode(JSON.stringify(claims)));
-  const signature = await crypto.subtle.sign("HMAC", await hmacKey(secret), encoder.encode(payload));
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    await hmacKey(secret),
+    encoder.encode(payload),
+  );
   return {
     token: `${payload}.${bytesToBase64Url(new Uint8Array(signature))}`,
     expiresIn: ttlSeconds,
@@ -60,7 +67,8 @@ export async function verifyOnboardingToken(
 ): Promise<OnboardingClaims> {
   if (!token) throw new Error("Missing onboarding context.");
   const [payload, signature, extra] = token.split(".");
-  if (!payload || !signature || extra) throw new Error("Malformed onboarding context.");
+  if (!payload || !signature || extra)
+    throw new Error("Malformed onboarding context.");
 
   const signatureBytes = base64UrlToBytes(signature);
   const valid = await crypto.subtle.verify(
@@ -76,7 +84,9 @@ export async function verifyOnboardingToken(
 
   let claims: OnboardingClaims;
   try {
-    claims = JSON.parse(new TextDecoder().decode(base64UrlToBytes(payload))) as OnboardingClaims;
+    claims = JSON.parse(
+      new TextDecoder().decode(base64UrlToBytes(payload)),
+    ) as OnboardingClaims;
   } catch {
     throw new Error("Malformed onboarding context.");
   }

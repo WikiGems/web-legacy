@@ -38,7 +38,10 @@ export function AnimatedCounter(props: {
             when={/^[0-9]$/.test(character())}
             fallback={<span>{character()}</span>}
           >
-            <span class="inline-block overflow-hidden" style={{ height: `${LINE}em` }}>
+            <span
+              class="inline-block overflow-hidden"
+              style={{ height: `${LINE}em` }}
+            >
               <span
                 class="flex flex-col motion-reduce:transition-none"
                 style={{
@@ -47,7 +50,9 @@ export function AnimatedCounter(props: {
                 }}
               >
                 <For each={FACES}>
-                  {(face) => <span style={{ height: `${LINE}em` }}>{face}</span>}
+                  {(face) => (
+                    <span style={{ height: `${LINE}em` }}>{face}</span>
+                  )}
                 </For>
               </span>
             </span>

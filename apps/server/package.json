@@ -9,7 +9,7 @@
     "start": "bun src/main.ts"
   },
   "dependencies": {
-    "effect": "4.0.5",
-    "@wikigems/contracts": "workspace:*"
+    "@wikigems/contracts": "workspace:*",
+    "effect": "4.0.5"
   }
 }

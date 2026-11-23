@@ -18,14 +18,7 @@ export function TextField(
     inputClass?: string;
   },
 ) {
-  const rest = omit(
-    props,
-    "label",
-    "value",
-    "onChange",
-    "class",
-    "inputClass",
-  );
+  const rest = omit(props, "label", "value", "onChange", "class", "inputClass");
   return (
     <label class={["flex min-w-0 flex-col gap-1.5", props.class]}>
       <span class="text-sm font-medium">{props.label}</span>

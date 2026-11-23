@@ -46,8 +46,13 @@ async function fetchPageviews(slug: string): Promise<number> {
       },
     );
     if (!response.ok) return 0;
-    const payload = (await response.json()) as { items?: Array<{ views?: number }> };
-    return (payload.items ?? []).reduce((total, item) => total + (item.views ?? 0), 0);
+    const payload = (await response.json()) as {
+      items?: Array<{ views?: number }>;
+    };
+    return (payload.items ?? []).reduce(
+      (total, item) => total + (item.views ?? 0),
+      0,
+    );
   } catch {
     return 0;
   }
@@ -77,7 +82,11 @@ function articleFromSummary(
     articleUrl:
       summary.content_urls?.desktop?.page ??
       `https://en.wikipedia.org/wiki/${encodeURIComponent(requestedTitle ?? slug)}`,
-    category: categoryFor(summary.title, summary.description ?? "", summary.extract),
+    category: categoryFor(
+      summary.title,
+      summary.description ?? "",
+      summary.extract,
+    ),
     pageviews,
     wikiSlug: slug,
   };
@@ -85,14 +94,17 @@ function articleFromSummary(
 
 async function fetchSummary(path: string): Promise<WikipediaSummary | null> {
   try {
-    const response = await fetch(`https://en.wikipedia.org/api/rest_v1/page/${path}`, {
-      redirect: "follow",
-      headers: {
-        "user-agent": USER_AGENT,
-        accept: "application/json",
+    const response = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/${path}`,
+      {
+        redirect: "follow",
+        headers: {
+          "user-agent": USER_AGENT,
+          accept: "application/json",
+        },
+        signal: AbortSignal.timeout(8000),
       },
-      signal: AbortSignal.timeout(8000),
-    });
+    );
     if (!response.ok) return null;
     return (await response.json()) as WikipediaSummary;
   } catch {
@@ -100,23 +112,38 @@ async function fetchSummary(path: string): Promise<WikipediaSummary | null> {
   }
 }
 
-export async function fetchArticle(title?: string): Promise<FeaturedArticle | null> {
+export async function fetchArticle(
+  title?: string,
+): Promise<FeaturedArticle | null> {
   const summary = await fetchSummary(
-    title ? `summary/${encodeURIComponent(title.replace(/ /g, "_"))}` : "random/summary",
+    title
+      ? `summary/${encodeURIComponent(title.replace(/ /g, "_"))}`
+      : "random/summary",
   );
   if (!summary) return null;
-  const slug = summary.titles?.canonical ?? summary.title?.replace(/ /g, "_") ?? "";
+  const slug =
+    summary.titles?.canonical ?? summary.title?.replace(/ /g, "_") ?? "";
   const views = slug ? await fetchPageviews(slug) : 0;
   return articleFromSummary(summary, views, title);
 }
 
-export function pickFeatured(exclude: ReadonlySet<string>): FeaturedArticle | null {
-  const available = featuredArticles.filter((article) => !exclude.has(article.articleId));
+export function pickFeatured(
+  exclude: ReadonlySet<string>,
+): FeaturedArticle | null {
+  const available = featuredArticles.filter(
+    (article) => !exclude.has(article.articleId),
+  );
   if (!available.length) return null;
-  return available[crypto.getRandomValues(new Uint32Array(1))[0]! % available.length] ?? null;
+  return (
+    available[
+      crypto.getRandomValues(new Uint32Array(1))[0]! % available.length
+    ] ?? null
+  );
 }
 
-export async function drawArticle(exclude: ReadonlySet<string>): Promise<FeaturedArticle | null> {
+export async function drawArticle(
+  exclude: ReadonlySet<string>,
+): Promise<FeaturedArticle | null> {
   const roll = crypto.getRandomValues(new Uint32Array(1))[0]! % 100;
   if (roll < 24) {
     const random = await fetchArticle();

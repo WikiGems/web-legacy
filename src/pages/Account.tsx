@@ -1,11 +1,4 @@
-import {
-  createSignal,
-  Errored,
-  For,
-  Loading,
-  refresh,
-  Show,
-} from "solid-js";
+import { createSignal, Errored, For, Loading, refresh, Show } from "solid-js";
 import { Link } from "@tanstack/solid-router";
 import { Effect } from "effect";
 import { Api } from "@wikigems/client";
@@ -272,8 +265,7 @@ function AccountList(props: {
         when={props.accounts.length < 5}
         fallback={
           <p class="text-sm text-muted">
-            You can keep five accounts signed in. Log out of one to add
-            another.
+            You can keep five accounts signed in. Log out of one to add another.
           </p>
         }
       >
@@ -320,7 +312,11 @@ function ProfileForm(props: {
   name: string;
   email: string;
   busy: boolean;
-  perform: <A>(work: Work<A>, success?: string, done?: (value: A) => void) => void;
+  perform: <A>(
+    work: Work<A>,
+    success?: string,
+    done?: (value: A) => void,
+  ) => void;
   reload: Effect.Effect<void, never, AppServices>;
   reloadProfile: () => void;
   pictureInput: (element: HTMLInputElement) => void;
@@ -393,9 +389,7 @@ function ProfileForm(props: {
   function removePicture() {
     const id = userId();
     props.perform(
-      Api.use((api) => api.removeAvatar(id)).pipe(
-        Effect.andThen(props.reload),
-      ),
+      Api.use((api) => api.removeAvatar(id)).pipe(Effect.andThen(props.reload)),
       "Profile picture removed.",
     );
   }
@@ -412,7 +406,10 @@ function ProfileForm(props: {
 
   return (
     <fieldset disabled={props.busy} class="min-w-0 space-y-6">
-      <div class="flex min-w-0 items-center gap-4" data-testid="account-identity">
+      <div
+        class="flex min-w-0 items-center gap-4"
+        data-testid="account-identity"
+      >
         <Button
           iconOnly
           variant="ghost"
@@ -550,4 +547,3 @@ function ProfileForm(props: {
     </fieldset>
   );
 }
-

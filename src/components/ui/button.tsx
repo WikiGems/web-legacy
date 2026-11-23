@@ -3,7 +3,11 @@ import type { JSX } from "@solidjs/web";
 import { haptic, type HapticFeedback } from "../../lib/haptics";
 
 export type ButtonVariant =
-  "primary" | "secondary" | "tertiary" | "ghost" | "danger-soft";
+  | "primary"
+  | "secondary"
+  | "tertiary"
+  | "ghost"
+  | "danger-soft";
 export type ButtonSize = "sm" | "md" | "lg";
 
 const variants: Record<ButtonVariant, string> = {

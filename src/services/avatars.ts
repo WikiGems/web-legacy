@@ -38,7 +38,9 @@ async function prepare(file: File): Promise<Blob> {
       canvas.toBlob(resolve, "image/webp", 0.85),
     );
     if (!blob || blob.size > MAX_AVATAR_BYTES)
-      throw new AvatarError("This picture is too large. Please choose another.");
+      throw new AvatarError(
+        "This picture is too large. Please choose another.",
+      );
     return blob;
   } finally {
     bitmap.close();

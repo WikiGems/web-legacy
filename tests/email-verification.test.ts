@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import { accountFixture } from "./account-fixture";
 import { sendVerificationCode, type VerificationEmail } from "../worker/email";
 

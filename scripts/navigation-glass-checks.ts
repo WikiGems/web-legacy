@@ -130,7 +130,8 @@ export async function checkNavigationGlass(signedInPage: Page) {
     await page.evaluate(() => window.scrollTo(0, 0));
 
     for (const colorScheme of ["dark", "light"] satisfies (
-      "dark" | "light"
+      | "dark"
+      | "light"
     )[]) {
       await page.emulateMedia({ colorScheme });
       await page.waitForFunction(

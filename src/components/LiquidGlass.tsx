@@ -3,7 +3,6 @@ import {
   createMemo,
   createSignal,
   createUniqueId,
-
   omit,
   onCleanup,
   Show,
@@ -266,4 +265,3 @@ function RefractionFilter(props: {
     </svg>
   );
 }
-

@@ -68,7 +68,7 @@ Web binds `authenticatedFetch` to same-origin fetch with cookies. The client nev
 
 ## Validation
 
-Run `bun run typecheck`, `bun run check:workspaces`, `bun run check:architecture`, `bun test`, `bun run build`, `bun run test:account` and `bun run test:components`. Component checks run in an isolated browser harness and cover modal focus, pack reveal, trade submission, wallet fallback and duel scoring. The account browser test uses disposable SQLite, isolated R2 and a virtual authenticator; it does not read production credentials. Preview marketplace, collection, wallet and action pages remain previews. Live mint, provider wallets, deployments and a native app require separate validation.
+Run `bun run typecheck`, `bun run check:workspaces`, `bun run check:architecture`, `bun run test`, `bun run build`, `bun run test:account` and `bun run test:components`. Component checks run in an isolated browser harness and cover modal focus, pack reveal, trade submission, wallet fallback and duel scoring. The account browser test uses disposable SQLite, isolated R2 and a virtual authenticator; it does not read production credentials. Preview marketplace, collection, wallet and action pages remain previews. Live mint, provider wallets, deployments and a native app require separate validation.
 
 ## Upstream references
 

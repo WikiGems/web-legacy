@@ -91,7 +91,10 @@ export async function checkMobileFrontend(signedInPage: Page) {
             navBounds.x + navBounds.width <= viewport.width - 12 &&
             navStyle.bottom >= 12 &&
             Math.abs(
-              viewport.height - navBounds.y - navBounds.height - navStyle.bottom,
+              viewport.height -
+                navBounds.y -
+                navBounds.height -
+                navStyle.bottom,
             ) <= 1 &&
             navStyle.radius >= navBounds.height / 2,
           "The mobile navigation must float above the bottom edge as an inset pill",

@@ -51,7 +51,9 @@ export function CardTitle(
   );
 }
 export function CardDescription(
-  props: ParentProps<Omit<JSX.HTMLAttributes<HTMLParagraphElement>, "children">>,
+  props: ParentProps<
+    Omit<JSX.HTMLAttributes<HTMLParagraphElement>, "children">
+  >,
 ) {
   const rest = omit(props, "class", "children");
   return (

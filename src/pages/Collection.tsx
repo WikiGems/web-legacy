@@ -47,8 +47,9 @@ export default function Collection() {
         <StatCard
           label="Rare or higher"
           value={
-            cards.filter((card) => !["common", "uncommon"].includes(card.rarity))
-              .length
+            cards.filter(
+              (card) => !["common", "uncommon"].includes(card.rarity),
+            ).length
           }
           icon="spark"
         />

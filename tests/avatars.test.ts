@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+  type MockInstance,
+} from "vitest";
 import { handleAccount } from "../worker/account";
 import { cleanupAvatars } from "../worker/avatars";
 import { accountFixture } from "./account-fixture";
@@ -13,11 +21,11 @@ const png = Uint8Array.from(
 );
 let fixture: Awaited<ReturnType<typeof accountFixture>>;
 let alice: Awaited<ReturnType<typeof fixture.addUser>>;
-let errors: ReturnType<typeof spyOn>;
+let errors: MockInstance;
 beforeEach(async () => {
   fixture = await accountFixture();
   alice = await fixture.addUser("Alice");
-  errors = spyOn(console, "error").mockImplementation(() => {});
+  errors = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 afterEach(async () => {
   errors.mockRestore();

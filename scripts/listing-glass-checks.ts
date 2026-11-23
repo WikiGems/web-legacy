@@ -105,8 +105,9 @@ export async function checkListingGlass(page: Page) {
           ) &&
           filter?.querySelector("feDisplacementMap")?.getAttribute("scale") ===
             "81" &&
-          filter.querySelector("feGaussianBlur")?.getAttribute("stdDeviation") ===
-            "1.2"
+          filter
+            .querySelector("feGaussianBlur")
+            ?.getAttribute("stdDeviation") === "1.2"
         );
       })
     );
@@ -153,9 +154,7 @@ export async function checkListingGlass(page: Page) {
   // WebKit/Gecko: the action keeps a frosted surface and native semantics.
   await page.addInitScript(forceFrostedGlass);
   await page.goto(`${baseURL}/buy`);
-  const fallback = page
-    .locator('.listing-action[data-glass="frost"]')
-    .first();
+  const fallback = page.locator('.listing-action[data-glass="frost"]').first();
   await fallback.waitFor();
   assert.equal(
     await fallback.evaluate((el) => getComputedStyle(el).backdropFilter),
