@@ -4,15 +4,15 @@ The repository is a private Bun workspace plus a Cargo workspace. The existing
 frontend, worker, shared modules, migrations, and development commands stay at
 the root for now. No frontend imports or API routes have been migrated.
 
-| Location | Responsibility |
-| --- | --- |
-| `src/` | Solid 2 frontend (Effect services, TanStack Solid Router, DaisyUI) |
-| `worker/`, `shared/`, `migrations/` | Existing API, game contracts, and database migrations |
-| `apps/server/` | New TypeScript / Effect v4 server and service composition |
-| `packages/contracts/` | New server contracts; independent of legacy UI and worker |
-| `programs/wikigems/` | Native Rust Solana program foundation |
-| `tsconfig.base.json` | Shared strict TypeScript settings for new workspaces |
-| `Cargo.toml`, `Cargo.lock` | Rust workspace and locked dependency graph |
+| Location                            | Responsibility                                                                   |
+| ----------------------------------- | -------------------------------------------------------------------------------- |
+| `src/`                              | Solid 2 frontend (Effect services, TanStack Solid Router, DaisyUI)               |
+| `worker/`, `shared/`, `migrations/` | Existing API, game contracts, and database migrations                            |
+| `apps/server/`                      | New TypeScript / Effect v4 server and service composition                        |
+| `packages/contracts/`               | New server contracts; independent of legacy UI and worker                        |
+| `programs/wikigems/`                | Anchor Solana program: minting, marketplace, dormancy ([onchain.md](onchain.md))  |
+| `tsconfig.base.json`                | Shared strict TypeScript settings for new workspaces                             |
+| `Cargo.toml`, `Cargo.lock`          | Rust workspace and locked dependency graph                                       |
 
 ## Local development
 
@@ -67,34 +67,32 @@ minting authority while the legacy mint path is active.
 
 ## Solana program
 
-The native Rust crate has an entrypoint and intentionally rejects every instruction
-with `InvalidInstructionData`. It has no accounts, transfers, mint authority,
-program ID, or settlement implementation. No keys or network configuration are
-required for host tests. The `no-entrypoint` feature allows future Rust clients to
-reuse types without including the entrypoint.
+`programs/wikigems` is an Anchor 1.2.2 program. The design, decisions, measured
+costs and roadmap are in [`onchain.md`](onchain.md). Phase 1 is implemented:
+minting, escrowless listings, public bids, and the notice-gated reclaim and burn
+of dormant cards. The backend that drives it comes next.
 
-Before adding instructions, define a versioned instruction/account format, PDA
-seeds and uniqueness rules, signer/owner validation, USDC account constraints,
-cancellation and settlement authority, and integration tests on a local validator.
-NFT issuance can continue to use Metaplex Core; the custom program's responsibility
-for listings/settlement versus mint authorization must be designed explicitly.
+Tests run the compiled program against the real mainnet Metaplex Core binary in
+LiteSVM, inside `cargo test`. No validator, keys or network configuration are
+needed beyond the one-time fixture download.
 
 `bun run build:program` invokes Solana's `cargo build-sbf`, which uses its own
 platform-tools compiler rather than host Rust. Flox's `solana-cli` package does
-not include this subcommand, and the Flox catalog has no separate package for it.
-Install the build tool explicitly before using that command:
+not include this subcommand, so install the tools explicitly (a separate local
+prerequisite, not run by repository setup):
 
 ```sh
-cargo install cargo-build-sbf --version 4.4.0 --locked
-cargo build-sbf --version
-bun run build:program
+cargo install cargo-build-sbf --version 4.6.0 --locked   # platform-tools v1.58
+cargo install anchor-cli --version 1.2.2 --locked        # IDL generation
+bun run test:program   # fetches Core, builds the .so, runs the LiteSVM tests
+bun run idl:program    # regenerates programs/wikigems/idl/wikigems_program.json
 ```
 
-This install is a separate local prerequisite, not run automatically by repository
-setup. Its first build may download Solana platform tools. The foundation was
-checked with host Rust; SBF compilation remains unverified until this prerequisite
-is installed. Generated artifacts and program keypairs stay under ignored `target/`.
-Host compilation alone does not verify an SBF build or on-chain behavior.
+`scripts/fetch-test-programs.ts` downloads Metaplex Core from mainnet into the
+ignored `programs/wikigems/tests/fixtures/` and pins it by SHA-256, so an upstream
+upgrade fails loudly. The program keypair that `cargo build-sbf` generates stays in
+ignored `target/deploy/`. It defines the devnet program ID in `declare_id!` and
+`Anchor.toml`. Generate and store a separate mainnet keypair before mainnet.
 
 ## Checks
 
@@ -117,4 +115,6 @@ publishing/deployment scripts belong to the legacy application and are unchanged
 ## References
 
 - [Effect v4 services and layers](https://effect.website/docs/v4/requirements-management/layers)
-- [Solana native Rust programs and SBF builds](https://solana.com/docs/programs/rust)
+- [Solana Rust programs and SBF builds](https://solana.com/docs/programs/rust)
+- [Metaplex Core](https://developers.metaplex.com/core)
+- [LiteSVM](https://github.com/LiteSVM/litesvm)

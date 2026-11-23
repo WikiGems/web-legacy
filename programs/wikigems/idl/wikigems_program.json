@@ -1,0 +1,2566 @@
+{
+  "address": "3KBQ1Y9YZbKmYKhnXM1u8fcEBHEtizgW3hcBZSYnuUjL",
+  "metadata": {
+    "name": "wikigems_program",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "accept_admin",
+      "discriminator": [
+        112,
+        42,
+        45,
+        90,
+        116,
+        181,
+        13,
+        170
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "new_admin",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "accept_bid",
+      "docs": [
+        "The owner sells the card to its best bid."
+      ],
+      "discriminator": [
+        196,
+        191,
+        1,
+        229,
+        144,
+        172,
+        122,
+        227
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "asset",
+          "writable": true
+        },
+        {
+          "name": "bid",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bid.asset",
+                "account": "Bid"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bid.asset",
+                "account": "Bid"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bidder",
+          "relations": [
+            "bid"
+          ]
+        },
+        {
+          "name": "seller",
+          "docs": [
+            "The card's current owner."
+          ],
+          "signer": true
+        },
+        {
+          "name": "seller_usdc",
+          "writable": true
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "usdc_mint",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "rent_payer",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "admin_burn",
+      "docs": [
+        "Admin, after the notice period: burns the card."
+      ],
+      "discriminator": [
+        152,
+        239,
+        221,
+        3,
+        192,
+        224,
+        121,
+        164
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "payer",
+          "docs": [
+            "Receives the asset's reclaimed rent."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "asset",
+          "writable": true
+        },
+        {
+          "name": "notice",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  111,
+                  116,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "notice.asset",
+                "account": "Notice"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rent_payer",
+          "writable": true
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "buy",
+      "docs": [
+        "Pays the seller (minus the listing's fee) and moves the card to the buyer."
+      ],
+      "discriminator": [
+        102,
+        6,
+        61,
+        18,
+        1,
+        218,
+        235,
+        234
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "asset",
+          "writable": true
+        },
+        {
+          "name": "listing",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing.asset",
+                "account": "Listing"
+              }
+            ]
+          }
+        },
+        {
+          "name": "seller",
+          "relations": [
+            "listing"
+          ]
+        },
+        {
+          "name": "seller_usdc",
+          "writable": true
+        },
+        {
+          "name": "buyer",
+          "signer": true
+        },
+        {
+          "name": "buyer_usdc",
+          "writable": true
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "usdc_mint",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "rent_payer",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "cancel_bid",
+      "discriminator": [
+        40,
+        243,
+        190,
+        217,
+        208,
+        253,
+        86,
+        206
+      ],
+      "accounts": [
+        {
+          "name": "bid",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bid.asset",
+                "account": "Bid"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bid.asset",
+                "account": "Bid"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bidder",
+          "signer": true,
+          "relations": [
+            "bid"
+          ]
+        },
+        {
+          "name": "bidder_usdc",
+          "writable": true
+        },
+        {
+          "name": "rent_payer",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_listing",
+      "docs": [
+        "The seller cancels; anyone can close a listing whose seller no longer",
+        "owns the card."
+      ],
+      "discriminator": [
+        41,
+        183,
+        50,
+        232,
+        230,
+        233,
+        157,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "asset"
+        },
+        {
+          "name": "listing",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing.asset",
+                "account": "Listing"
+              }
+            ]
+          }
+        },
+        {
+          "name": "closer",
+          "docs": [
+            "The seller, or anyone once the seller no longer owns the card."
+          ],
+          "signer": true
+        },
+        {
+          "name": "rent_payer",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_notice",
+      "docs": [
+        "The owner (or the admin) cancels a notice; anyone can close a stale one."
+      ],
+      "discriminator": [
+        11,
+        32,
+        186,
+        13,
+        241,
+        107,
+        40,
+        74
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "asset"
+        },
+        {
+          "name": "notice",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  111,
+                  116,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "notice.asset",
+                "account": "Notice"
+              }
+            ]
+          }
+        },
+        {
+          "name": "closer",
+          "docs": [
+            "The owner (\"I'm still here\"), the admin, or anyone once the card has",
+            "changed hands."
+          ],
+          "signer": true
+        },
+        {
+          "name": "rent_payer",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize",
+      "docs": [
+        "One-time setup. Only the program's upgrade authority can call it, so",
+        "nobody can front-run the deployment and install themselves as admin."
+      ],
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "usdc_mint",
+          "docs": [
+            "The settlement currency. Must be USDC; the deploy script checks the address."
+          ]
+        },
+        {
+          "name": "treasury"
+        },
+        {
+          "name": "deployer",
+          "docs": [
+            "Must be the program's upgrade authority."
+          ],
+          "signer": true
+        },
+        {
+          "name": "program",
+          "address": "3KBQ1Y9YZbKmYKhnXM1u8fcEBHEtizgW3hcBZSYnuUjL"
+        },
+        {
+          "name": "program_data"
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "InitializeArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "list",
+      "docs": [
+        "Lists a card for sale at `price` USDC minor units. The seller keeps it."
+      ],
+      "discriminator": [
+        54,
+        174,
+        193,
+        67,
+        17,
+        41,
+        132,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "asset"
+        },
+        {
+          "name": "listing",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset"
+              }
+            ]
+          }
+        },
+        {
+          "name": "seller",
+          "signer": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "mint_gem",
+      "docs": [
+        "Mints gem `gem_id` to `owner`. Requires the mint authority's signature;",
+        "the payer (normally the sponsor) funds rent and fees."
+      ],
+      "discriminator": [
+        54,
+        82,
+        153,
+        116,
+        79,
+        123,
+        7,
+        248
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_authority",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "asset",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  101,
+                  109
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "gem_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "gem_id",
+          "type": "u64"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "uri",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "place_bid",
+      "docs": [
+        "Escrows `amount` USDC as the card's best bid, refunding any lower bid."
+      ],
+      "discriminator": [
+        238,
+        77,
+        148,
+        91,
+        200,
+        151,
+        92,
+        146
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "asset"
+        },
+        {
+          "name": "bid",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bidder",
+          "signer": true
+        },
+        {
+          "name": "bidder_usdc",
+          "writable": true
+        },
+        {
+          "name": "previous_bidder",
+          "optional": true
+        },
+        {
+          "name": "previous_bidder_usdc",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "usdc_mint",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "post_notice",
+      "docs": [
+        "Admin: starts the public notice period on a dormant player's card."
+      ],
+      "discriminator": [
+        235,
+        105,
+        13,
+        222,
+        215,
+        80,
+        13,
+        125
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "collection",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "asset"
+        },
+        {
+          "name": "notice",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  111,
+                  116,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "propose_admin",
+      "docs": [
+        "First step of a two-step admin handover, so a typo cannot lock the",
+        "program out of its admin powers."
+      ],
+      "discriminator": [
+        121,
+        214,
+        199,
+        212,
+        87,
+        39,
+        117,
+        234
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "new_admin",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "reclaim",
+      "docs": [
+        "Admin, after the notice period: sells the card to its standing best bid,",
+        "paying the full amount to the owner."
+      ],
+      "discriminator": [
+        44,
+        177,
+        236,
+        249,
+        145,
+        109,
+        163,
+        186
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "collection",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "asset",
+          "writable": true
+        },
+        {
+          "name": "notice",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  111,
+                  116,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "notice.asset",
+                "account": "Notice"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bid",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "notice.asset",
+                "account": "Notice"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "notice.asset",
+                "account": "Notice"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bidder",
+          "relations": [
+            "bid"
+          ]
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "owner_usdc",
+          "writable": true
+        },
+        {
+          "name": "usdc_mint",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "notice_rent_payer",
+          "writable": true
+        },
+        {
+          "name": "bid_rent_payer",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_market_config",
+      "discriminator": [
+        128,
+        237,
+        216,
+        59,
+        122,
+        62,
+        156,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "treasury"
+        }
+      ],
+      "args": [
+        {
+          "name": "fee_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "set_mint_authority",
+      "discriminator": [
+        67,
+        127,
+        155,
+        187,
+        100,
+        174,
+        103,
+        121
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "mint_authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "update_listing",
+      "discriminator": [
+        192,
+        174,
+        210,
+        68,
+        116,
+        40,
+        242,
+        253
+      ],
+      "accounts": [
+        {
+          "name": "listing",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing.asset",
+                "account": "Listing"
+              }
+            ]
+          }
+        },
+        {
+          "name": "seller",
+          "signer": true,
+          "relations": [
+            "listing"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "price",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Bid",
+      "discriminator": [
+        143,
+        246,
+        48,
+        245,
+        42,
+        145,
+        180,
+        88
+      ]
+    },
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Listing",
+      "discriminator": [
+        218,
+        32,
+        50,
+        73,
+        43,
+        134,
+        26,
+        58
+      ]
+    },
+    {
+      "name": "Notice",
+      "discriminator": [
+        129,
+        245,
+        80,
+        51,
+        238,
+        239,
+        160,
+        110
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AdminBurned",
+      "discriminator": [
+        39,
+        66,
+        148,
+        65,
+        115,
+        19,
+        84,
+        97
+      ]
+    },
+    {
+      "name": "AdminChanged",
+      "discriminator": [
+        232,
+        34,
+        31,
+        226,
+        62,
+        18,
+        19,
+        114
+      ]
+    },
+    {
+      "name": "BidAccepted",
+      "discriminator": [
+        19,
+        140,
+        36,
+        175,
+        195,
+        5,
+        55,
+        193
+      ]
+    },
+    {
+      "name": "BidCancelled",
+      "discriminator": [
+        175,
+        52,
+        76,
+        11,
+        201,
+        1,
+        205,
+        65
+      ]
+    },
+    {
+      "name": "BidPlaced",
+      "discriminator": [
+        135,
+        53,
+        176,
+        83,
+        193,
+        69,
+        108,
+        61
+      ]
+    },
+    {
+      "name": "GemMinted",
+      "discriminator": [
+        137,
+        101,
+        115,
+        121,
+        188,
+        247,
+        55,
+        243
+      ]
+    },
+    {
+      "name": "Listed",
+      "discriminator": [
+        243,
+        173,
+        136,
+        195,
+        125,
+        241,
+        12,
+        99
+      ]
+    },
+    {
+      "name": "ListingCancelled",
+      "discriminator": [
+        11,
+        46,
+        163,
+        10,
+        103,
+        80,
+        139,
+        194
+      ]
+    },
+    {
+      "name": "MarketConfigChanged",
+      "discriminator": [
+        253,
+        0,
+        18,
+        59,
+        37,
+        8,
+        76,
+        21
+      ]
+    },
+    {
+      "name": "NoticeCancelled",
+      "discriminator": [
+        121,
+        83,
+        197,
+        0,
+        26,
+        165,
+        123,
+        37
+      ]
+    },
+    {
+      "name": "NoticePosted",
+      "discriminator": [
+        98,
+        25,
+        213,
+        237,
+        96,
+        133,
+        90,
+        224
+      ]
+    },
+    {
+      "name": "Reclaimed",
+      "discriminator": [
+        230,
+        25,
+        32,
+        135,
+        40,
+        167,
+        137,
+        130
+      ]
+    },
+    {
+      "name": "Sold",
+      "discriminator": [
+        205,
+        203,
+        210,
+        202,
+        96,
+        11,
+        192,
+        10
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NameTooLong",
+      "msg": "Name exceeds the maximum length"
+    },
+    {
+      "code": 6001,
+      "name": "UriTooLong",
+      "msg": "URI exceeds the maximum length"
+    },
+    {
+      "code": 6002,
+      "name": "GemAlreadyMinted",
+      "msg": "This gem has already been minted"
+    },
+    {
+      "code": 6003,
+      "name": "NoPendingAdmin",
+      "msg": "No admin transfer is pending"
+    },
+    {
+      "code": 6004,
+      "name": "NotPendingAdmin",
+      "msg": "Signer is not the pending admin"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidAsset",
+      "msg": "Account is not a WikiGems card"
+    },
+    {
+      "code": 6006,
+      "name": "FeeTooHigh",
+      "msg": "Fee exceeds the maximum"
+    },
+    {
+      "code": 6007,
+      "name": "ZeroAmount",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6008,
+      "name": "NotOwner",
+      "msg": "Signer does not own this card"
+    },
+    {
+      "code": 6009,
+      "name": "StaleListing",
+      "msg": "The seller no longer owns this card"
+    },
+    {
+      "code": 6010,
+      "name": "UnexpectedAmount",
+      "msg": "Price or amount differs from what the signer expected"
+    },
+    {
+      "code": 6011,
+      "name": "BidTooLow",
+      "msg": "A new bid must be higher than the current one"
+    },
+    {
+      "code": 6012,
+      "name": "OwnCard",
+      "msg": "Owners cannot bid on or buy their own card"
+    },
+    {
+      "code": 6013,
+      "name": "NotAllowed",
+      "msg": "Signer may not cancel this"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidTokenAccount",
+      "msg": "Token account is not the expected associated token account"
+    },
+    {
+      "code": 6015,
+      "name": "StaleNotice",
+      "msg": "The card has changed hands since the notice was posted"
+    },
+    {
+      "code": 6016,
+      "name": "NoticePeriodActive",
+      "msg": "The notice period has not elapsed"
+    },
+    {
+      "code": 6017,
+      "name": "BidTooRecent",
+      "msg": "The bid is too recent to be used for a reclaim"
+    },
+    {
+      "code": 6018,
+      "name": "Overflow",
+      "msg": "Arithmetic overflow"
+    }
+  ],
+  "types": [
+    {
+      "name": "AdminBurned",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AdminChanged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "previous",
+            "type": "pubkey"
+          },
+          {
+            "name": "admin",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Bid",
+      "docs": [
+        "The single best public bid on a card. A higher bid replaces it and refunds",
+        "the previous bidder in the same transaction, so this is always the highest",
+        "outstanding offer. The USDC sits in the `[\"bid_vault\", asset]` token",
+        "account, whose authority is this PDA."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "bidder",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "USDC minor units (6 decimals)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "rent_payer",
+            "type": "pubkey"
+          },
+          {
+            "name": "placed_at",
+            "docs": [
+              "When this bidder placed the bid; outbidding resets it."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BidAccepted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          },
+          {
+            "name": "bidder",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BidCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "bidder",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BidPlaced",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "bidder",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "outbid",
+            "docs": [
+              "The bidder who was refunded, if this bid replaced another."
+            ],
+            "type": {
+              "option": "pubkey"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "admin",
+            "docs": [
+              "Posts dormancy notices, reclaims and burns after the notice period, and",
+              "updates config. Intended to become a multisig vault before mainnet."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "pending_admin",
+            "docs": [
+              "Set by `propose_admin`; becomes `admin` only when it signs `accept_admin`."
+            ],
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "mint_authority",
+            "docs": [
+              "Online server key that co-signs mints. It cannot move or burn assets."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "collection",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "authority_bump",
+            "type": "u8"
+          },
+          {
+            "name": "collection_bump",
+            "type": "u8"
+          },
+          {
+            "name": "usdc_mint",
+            "docs": [
+              "The only currency the marketplace settles in."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury",
+            "docs": [
+              "USDC token account that receives marketplace fees."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_bps",
+            "docs": [
+              "Fee on sales and accepted bids, in basis points, capped by `MAX_FEE_BPS`."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "reserved",
+            "docs": [
+              "Space for later settings without a realloc migration."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                62
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "GemMinted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "gem_id",
+            "type": "u64"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitializeArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "collection_name",
+            "type": "string"
+          },
+          {
+            "name": "collection_uri",
+            "type": "string"
+          },
+          {
+            "name": "fee_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Listed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Listing",
+      "docs": [
+        "An escrowless sale offer. The seller keeps the card; `buy` checks the",
+        "seller still owns it and settles through the collection's transfer delegate."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          },
+          {
+            "name": "price",
+            "docs": [
+              "USDC minor units (6 decimals)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "fee_bps",
+            "docs": [
+              "Fee at listing time, so a later fee change cannot surprise the seller."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "rent_payer",
+            "docs": [
+              "Receives the account's rent when the listing closes."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ListingCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketConfigChanged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Notice",
+      "docs": [
+        "A public dormancy notice on a card. After `NOTICE_PERIOD_SECONDS`, the",
+        "admin can sell the card to its highest bid (all proceeds to the owner) or",
+        "burn it. The owner cancels it with one signature, and it is void as soon as",
+        "the card changes hands."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "docs": [
+              "Owner when the notice was posted."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "posted_at",
+            "type": "i64"
+          },
+          {
+            "name": "rent_payer",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "NoticeCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "by",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "NoticePosted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "posted_at",
+            "type": "i64"
+          },
+          {
+            "name": "actionable_at",
+            "docs": [
+              "Earliest time of a reclaim or burn."
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Reclaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "bidder",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Paid in full to the former owner; reclaims carry no fee."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Sold",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}
