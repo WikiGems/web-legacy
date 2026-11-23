@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { Effect } from "effect";
 import { Api, ApiError, createApiClient, runApi } from "../src/api";
 import { searchWikipedia, searchWikipediaEffect } from "../src/wikipedia";

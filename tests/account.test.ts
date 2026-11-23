@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { handleAccount } from "../worker/account";
 import { createOnboardingToken } from "../worker/onboarding";
 import { accountFixture } from "./account-fixture";
@@ -207,7 +207,9 @@ describe("account profiles", () => {
       await (await fixture.request("/api/profile", alice.cookie)).json(),
     );
     if (!profile.image) throw new Error("Expected a profile picture URL.");
-    expect(profile.image).toStartWith(`/api/profile/avatar/${alice.user.id}`);
+    expect(
+      profile.image.startsWith(`/api/profile/avatar/${alice.user.id}`),
+    ).toBe(true);
     const image = await fixture.request(profile.image, bob.cookie);
     expect(image.headers.get("content-type")).toBe("image/png");
     expect(new Uint8Array(await image.arrayBuffer())).toEqual(png);

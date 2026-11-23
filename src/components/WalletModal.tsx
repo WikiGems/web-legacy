@@ -18,7 +18,8 @@ export function WalletModal() {
   const [error, setError] = createSignal<string | null>(null);
   const [activeWallet, setActiveWallet] = createSignal<string | null>(null);
   const wallets = getService(Wallet);
-  const options = () => (state().modalOpen ? Effect.runSync(wallets.options) : []);
+  const options = () =>
+    state().modalOpen ? Effect.runSync(wallets.options) : [];
 
   function close() {
     if (step() !== "idle") return;
@@ -66,7 +67,11 @@ export function WalletModal() {
 
   return (
     <Show when={state().modalOpen}>
-      <WebDialog onClose={close} labelId="wallet-title" busy={step() !== "idle"}>
+      <WebDialog
+        onClose={close}
+        labelId="wallet-title"
+        busy={step() !== "idle"}
+      >
         <div class="flex items-start justify-between gap-3">
           <div class="space-y-2">
             <p class="text-xs font-medium text-primary">Solana wallet</p>

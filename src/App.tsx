@@ -219,18 +219,46 @@ const routes = [
     path: "/auctions/$auctionId",
     component: Bid,
   }),
-  createRoute({ getParentRoute: () => protectedRoute, path: "/play", component: Play }),
-  createRoute({ getParentRoute: () => protectedRoute, path: "/trade", component: Trade }),
-  createRoute({ getParentRoute: () => protectedRoute, path: "/buy", component: Buy }),
-  createRoute({ getParentRoute: () => protectedRoute, path: "/sell", component: Sell }),
-  createRoute({ getParentRoute: () => protectedRoute, path: "/action", component: Action }),
+  createRoute({
+    getParentRoute: () => protectedRoute,
+    path: "/play",
+    component: Play,
+  }),
+  createRoute({
+    getParentRoute: () => protectedRoute,
+    path: "/trade",
+    component: Trade,
+  }),
+  createRoute({
+    getParentRoute: () => protectedRoute,
+    path: "/buy",
+    component: Buy,
+  }),
+  createRoute({
+    getParentRoute: () => protectedRoute,
+    path: "/sell",
+    component: Sell,
+  }),
+  createRoute({
+    getParentRoute: () => protectedRoute,
+    path: "/action",
+    component: Action,
+  }),
   createRoute({
     getParentRoute: () => protectedRoute,
     path: "/collection",
     component: Collection,
   }),
-  createRoute({ getParentRoute: () => protectedRoute, path: "/wallet", component: Wallet }),
-  createRoute({ getParentRoute: () => protectedRoute, path: "/account", component: Account }),
+  createRoute({
+    getParentRoute: () => protectedRoute,
+    path: "/wallet",
+    component: Wallet,
+  }),
+  createRoute({
+    getParentRoute: () => protectedRoute,
+    path: "/account",
+    component: Account,
+  }),
   createRoute({
     getParentRoute: () => protectedRoute,
     path: "/settings",

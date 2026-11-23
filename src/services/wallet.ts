@@ -45,10 +45,7 @@ export class Wallet extends Context.Service<
     readonly mint: (
       card: Card,
       wallet: ConnectedWallet,
-    ) => Effect.Effect<
-      { mintAddress: string; signature: string },
-      WalletError
-    >;
+    ) => Effect.Effect<{ mintAddress: string; signature: string }, WalletError>;
     readonly openModal: Effect.Effect<void>;
     readonly closeModal: Effect.Effect<void>;
   }

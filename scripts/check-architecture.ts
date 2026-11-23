@@ -28,7 +28,8 @@ for (const directory of [...portableRoots, "src"]) {
     if (file.endsWith(".test.ts")) continue;
     const relative = join(directory, file);
     const source = await Bun.file(join(root, relative)).text();
-    const { imports } = transpilers[file.endsWith(".tsx") ? "tsx" : "ts"].scan(source);
+    const { imports } =
+      transpilers[file.endsWith(".tsx") ? "tsx" : "ts"].scan(source);
     for (const dependency of imports) {
       if (obsoleteFrameworks.test(dependency.path))
         errors.push(

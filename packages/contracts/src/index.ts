@@ -3,9 +3,13 @@ import { Schema } from "effect";
 // Decimal strings preserve u64 precision across JSON. USDC uses six decimals.
 export const UsdcAmountSchema = Schema.Struct({
   currency: Schema.Literal("USDC"),
-  minorUnits: Schema.String.check(Schema.makeFilter<string>((value) =>
-    /^(0|[1-9][0-9]{0,19})$/.test(value) && BigInt(value) <= 18_446_744_073_709_551_615n,
-  )),
+  minorUnits: Schema.String.check(
+    Schema.makeFilter<string>(
+      (value) =>
+        /^(0|[1-9][0-9]{0,19})$/.test(value) &&
+        BigInt(value) <= 18_446_744_073_709_551_615n,
+    ),
+  ),
 });
 export type UsdcAmount = typeof UsdcAmountSchema.Type;
 

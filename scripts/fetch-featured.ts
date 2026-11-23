@@ -1,36 +1,100 @@
 import { writeFile } from "node:fs/promises";
 
 const titles = [
-  "Albert Einstein", "Moon", "Coffee", "Bitcoin", "Octopus", "Mona Lisa",
-  "Dune (novel)", "Nintendo", "Stonehenge", "Marie Curie", "Machu Picchu",
-  "Titanic", "Saturn", "Great Wall of China", "Frida Kahlo", "Ada Lovelace",
-  "Cleopatra", "Mount Fuji", "Shrek", "Wikipedia", "Golden Gate Bridge",
-  "Aurora", "Blue whale", "Chess", "The Beatles", "Studio Ghibli",
-  "Roman Empire", "Black hole", "Croissant", "Jellyfish", "Pac-Man",
-  "Eiffel Tower", "Vincent van Gogh", "Photosynthesis", "Great Barrier Reef",
-  "Mario", "The Lord of the Rings", "Sushi", "Saturn V", "Penguin",
+  "Albert Einstein",
+  "Moon",
+  "Coffee",
+  "Bitcoin",
+  "Octopus",
+  "Mona Lisa",
+  "Dune (novel)",
+  "Nintendo",
+  "Stonehenge",
+  "Marie Curie",
+  "Machu Picchu",
+  "Titanic",
+  "Saturn",
+  "Great Wall of China",
+  "Frida Kahlo",
+  "Ada Lovelace",
+  "Cleopatra",
+  "Mount Fuji",
+  "Shrek",
+  "Wikipedia",
+  "Golden Gate Bridge",
+  "Aurora",
+  "Blue whale",
+  "Chess",
+  "The Beatles",
+  "Studio Ghibli",
+  "Roman Empire",
+  "Black hole",
+  "Croissant",
+  "Jellyfish",
+  "Pac-Man",
+  "Eiffel Tower",
+  "Vincent van Gogh",
+  "Photosynthesis",
+  "Great Barrier Reef",
+  "Mario",
+  "The Lord of the Rings",
+  "Sushi",
+  "Saturn V",
+  "Penguin",
 ];
 
 const UA = "WikiGemsClone/0.1 (https://github.com/osbyrne/wikigems)";
 const start = "20251001";
 const end = "20260930";
 
-function categoryFor(title: string, description: string, extract: string): string {
+function categoryFor(
+  title: string,
+  description: string,
+  extract: string,
+): string {
   const text = `${title} ${description} ${extract}`.toLowerCase();
-  if (/(physicist|chemist|scientist|mathematic|astronom|biology|photosynthesis|black hole|planet|saturn|moon)/.test(text)) return "Science";
-  if (/(species|animal|bird|fish|whale|octopus|jellyfish|penguin|tree|plant|reef|aurora)/.test(text)) return "Nature";
-  if (/(film|novel|band|album|artist|painter|game|manga|studio|music|beatles|shrek|mario)/.test(text)) return "Culture";
-  if (/(city|country|monument|mountain|wall|tower|bridge|ruins|empire|inca|pyramid|fuji)/.test(text)) return "Places";
-  if (/(company|software|computer|internet|bitcoin|crypto|technology|console)/.test(text)) return "Technology";
+  if (
+    /(physicist|chemist|scientist|mathematic|astronom|biology|photosynthesis|black hole|planet|saturn|moon)/.test(
+      text,
+    )
+  )
+    return "Science";
+  if (
+    /(species|animal|bird|fish|whale|octopus|jellyfish|penguin|tree|plant|reef|aurora)/.test(
+      text,
+    )
+  )
+    return "Nature";
+  if (
+    /(film|novel|band|album|artist|painter|game|manga|studio|music|beatles|shrek|mario)/.test(
+      text,
+    )
+  )
+    return "Culture";
+  if (
+    /(city|country|monument|mountain|wall|tower|bridge|ruins|empire|inca|pyramid|fuji)/.test(
+      text,
+    )
+  )
+    return "Places";
+  if (
+    /(company|software|computer|internet|bitcoin|crypto|technology|console)/.test(
+      text,
+    )
+  )
+    return "Technology";
   return "Knowledge";
 }
 
 const out: any[] = [];
 for (const title of titles) {
   const slug = encodeURIComponent(title.replace(/ /g, "_"));
-  const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`, {
-    headers: { "user-agent": UA },
-  });
+  const summaryRes = await fetch(
+    `https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`,
+    {
+      headers: { "user-agent": UA },
+    },
+  );
   if (!summaryRes.ok) {
     console.error("summary fail", title, summaryRes.status);
     continue;
@@ -48,13 +112,18 @@ for (const title of titles) {
     );
     if (pvRes.ok) {
       const pv: any = await pvRes.json();
-      views = (pv.items ?? []).reduce((total: number, item: any) => total + (item.views ?? 0), 0);
+      views = (pv.items ?? []).reduce(
+        (total: number, item: any) => total + (item.views ?? 0),
+        0,
+      );
     }
   } catch {}
-  const override = title === "Mona Lisa"
-    ? "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6a/Mona_Lisa.jpg/960px-Mona_Lisa.jpg"
-    : null;
-  const thumb = summary.thumbnail?.source ?? summary.originalimage?.source ?? null;
+  const override =
+    title === "Mona Lisa"
+      ? "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6a/Mona_Lisa.jpg/960px-Mona_Lisa.jpg"
+      : null;
+  const thumb =
+    summary.thumbnail?.source ?? summary.originalimage?.source ?? null;
   const image = override ?? (thumb ? thumb.split("?")[0] : null);
   out.push({
     articleId: String(summary.pageid),
@@ -62,12 +131,20 @@ for (const title of titles) {
     description: summary.description ?? "",
     extract: summary.extract ?? "",
     imageUrl: image,
-    articleUrl: summary.content_urls?.desktop?.page ?? `https://en.wikipedia.org/wiki/${slug}`,
-    category: categoryFor(summary.title, summary.description ?? "", summary.extract ?? ""),
+    articleUrl:
+      summary.content_urls?.desktop?.page ??
+      `https://en.wikipedia.org/wiki/${slug}`,
+    category: categoryFor(
+      summary.title,
+      summary.description ?? "",
+      summary.extract ?? "",
+    ),
     pageviews: views,
     wikiSlug: summary.titles?.canonical ?? title.replace(/ /g, "_"),
   });
-  console.log(`${summary.title} | ${views.toLocaleString()} views | ${image ? "image" : "no image"}`);
+  console.log(
+    `${summary.title} | ${views.toLocaleString()} views | ${image ? "image" : "no image"}`,
+  );
   await Bun.sleep(120);
 }
 

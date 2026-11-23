@@ -1,0 +1,40 @@
+# Git hooks (https://lefthook.dev). Installed by `bun install` via the `prepare` script.
+# Skip once with `LEFTHOOK=0 git commit ...`; CI re-runs every check regardless.
+
+# Fast feedback on every commit: only touches staged files.
+pre-commit:
+  parallel: false # formatting rewrites files, so run it before the checks that read them
+  jobs:
+    - name: oxfmt
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc,css,html}"
+      run: bunx oxfmt --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+
+    - name: oxlint
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
+      run: bunx oxlint --deny-warnings {staged_files}
+
+    - name: tsc
+      glob: "*.{ts,tsx}"
+      # tsc cannot check a file subset, so it typechecks the whole project (~2s).
+      run: bun run typecheck
+
+    - name: vitest (related)
+      glob: "*.{ts,tsx}"
+      run: bun --bun vitest related --run --passWithNoTests {staged_files}
+
+# Mirror of CI. Nothing reaches GitHub unless the full suite passes locally.
+pre-push:
+  jobs:
+    - name: protect main
+      run: scripts/hooks/protect-main.sh
+      use_stdin: true
+
+    - name: oxfmt
+      run: bun run format:check
+    - name: oxlint
+      run: bunx oxlint --deny-warnings
+    - name: tsc
+      run: bun run typecheck && bun run check:workspaces
+    - name: vitest
+      run: bun run test

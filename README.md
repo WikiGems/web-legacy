@@ -22,7 +22,8 @@ The existing frontend and worker remain at the root. New private workspaces hold
 and `programs/wikigems` (Rust Solana program). The new server runs separately with
 `bun run dev:server`; it is a foundation, not a replacement for the existing API.
 See [architecture and local checks](docs/architecture.md) for boundaries,
-implementation status, and Solana build instructions.
+implementation status, and Solana build instructions. Contributions go through
+pull requests; see the [development workflow](docs/workflow.md).
 
 ## Current web app
 

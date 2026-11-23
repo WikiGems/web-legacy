@@ -6,7 +6,14 @@ export const MAX_PACKS = 10;
 
 export const RARITY_META: Record<
   Rarity,
-  { label: string; code: string; color: string; deep: string; glow: string; weight: number }
+  {
+    label: string;
+    code: string;
+    color: string;
+    deep: string;
+    glow: string;
+    weight: number;
+  }
 > = {
   common: {
     label: "Common",
@@ -58,7 +65,14 @@ export const RARITY_META: Record<
   },
 };
 
-const RARITY_ORDER: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
+const RARITY_ORDER: Rarity[] = [
+  "common",
+  "uncommon",
+  "rare",
+  "epic",
+  "legendary",
+  "mythic",
+];
 
 export function rarityFor(pageviews: number): Rarity {
   if (pageviews >= 5_000_000) return "mythic";
@@ -86,11 +100,15 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-export function statsFor(article: Pick<FeaturedArticle, "extract" | "pageviews" | "articleId">): {
+export function statsFor(
+  article: Pick<FeaturedArticle, "extract" | "pageviews" | "articleId">,
+): {
   attack: number;
   defense: number;
 } {
-  const salt = hashString(`${article.articleId}:${article.extract.slice(0, 80)}`);
+  const salt = hashString(
+    `${article.articleId}:${article.extract.slice(0, 80)}`,
+  );
   const attack = clamp(
     Math.round(1350 + Math.log10(article.pageviews + 10) * 880 + (salt % 560)),
     800,
@@ -108,7 +126,11 @@ export function statsFor(article: Pick<FeaturedArticle, "extract" | "pageviews" 
   return { attack, defense };
 }
 
-export function categoryFor(title: string, description: string, extract: string): string {
+export function categoryFor(
+  title: string,
+  description: string,
+  extract: string,
+): string {
   const text = `${title} ${description} ${extract}`.toLowerCase();
   if (
     /(physicist|chemist|scientist|mathematic|astronom|biology|photosynthesis|black hole|planet|saturn|moon|spacecraft)/.test(
@@ -138,7 +160,11 @@ export function categoryFor(title: string, description: string, extract: string)
   ) {
     return "Places";
   }
-  if (/(company|software|computer|internet|bitcoin|crypto|technology|console|programming)/.test(text)) {
+  if (
+    /(company|software|computer|internet|bitcoin|crypto|technology|console|programming)/.test(
+      text,
+    )
+  ) {
     return "Technology";
   }
   return "Knowledge";
@@ -154,7 +180,9 @@ export function draftFromArticle(article: FeaturedArticle): CardDraft {
     extract: article.extract,
     imageUrl: article.imageUrl,
     articleUrl: article.articleUrl,
-    category: article.category || categoryFor(article.title, article.description, article.extract),
+    category:
+      article.category ||
+      categoryFor(article.title, article.description, article.extract),
     rarity,
     attack,
     defense,
@@ -163,7 +191,10 @@ export function draftFromArticle(article: FeaturedArticle): CardDraft {
 }
 
 export function shortNumber(value: number): string {
-  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  return new Intl.NumberFormat("en", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
 }
 
 export function timeUntil(timestamp: number): string {
@@ -173,7 +204,10 @@ export function timeUntil(timestamp: number): string {
   return `${minutes}:${String(rest).padStart(2, "0")}`;
 }
 
-export function explorerAddressUrl(address: string, cluster = "devnet"): string {
+export function explorerAddressUrl(
+  address: string,
+  cluster = "devnet",
+): string {
   return `https://explorer.solana.com/address/${address}?cluster=${cluster}`;
 }
 

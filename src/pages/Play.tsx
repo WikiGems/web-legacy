@@ -165,7 +165,11 @@ export default function Play() {
                 fallback={
                   <Card>
                     <CardContent class="space-y-3 py-12 text-center">
-                      <Icon name="search" size={32} class="mx-auto text-muted" />
+                      <Icon
+                        name="search"
+                        size={32}
+                        class="mx-auto text-muted"
+                      />
                       <h2 class="font-semibold">No matches yet</h2>
                       <p class="text-sm text-muted">
                         No articles found for “{term()}”. Try a different

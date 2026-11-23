@@ -4,7 +4,12 @@ import { AuctionAmountField, AuctionReview } from "../components/AuctionUi";
 import { CardArtwork } from "../components/GameCard";
 import { Icon } from "../components/Icon";
 import { LiquidAction } from "../components/LiquidAction";
-import { Page, PageHeader, PreviewChip, PreviewNotice } from "../components/Page";
+import {
+  Page,
+  PageHeader,
+  PreviewChip,
+  PreviewNotice,
+} from "../components/Page";
 import { RarityBadge } from "../components/RarityBadge";
 import { Button, buttonClass } from "../components/ui/button";
 import {

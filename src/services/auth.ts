@@ -79,9 +79,10 @@ export class Auth extends Context.Service<
       all: boolean,
       sessionToken: string,
     ) => Effect.Effect<void, AuthError>;
-    readonly sendVerificationCode: (
-      user: { id: string; email: string },
-    ) => Effect.Effect<void, AuthError>;
+    readonly sendVerificationCode: (user: {
+      id: string;
+      email: string;
+    }) => Effect.Effect<void, AuthError>;
     readonly verifyEmail: (
       user: { id: string; email: string },
       code: string,

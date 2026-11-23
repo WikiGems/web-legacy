@@ -72,7 +72,10 @@ try {
   } else {
     console.log("→ starting local Turso on :8080");
     mkdirSync(".data", { recursive: true });
-    start(["turso", "dev", "--db-file", ".data/wikigems.db", "--port", "8080"], "turso");
+    start(
+      ["turso", "dev", "--db-file", ".data/wikigems.db", "--port", "8080"],
+      "turso",
+    );
     await waitFor("http://127.0.0.1:8080/health", "local Turso");
   }
 
@@ -96,14 +99,19 @@ try {
   }
 
   console.log("→ starting Worker on :8787");
-  start(["wrangler", "dev", "--port", "8787", "--env-file", "/dev/null"], "wrangler");
+  start(
+    ["wrangler", "dev", "--port", "8787", "--env-file", "/dev/null"],
+    "wrangler",
+  );
   await waitFor("http://127.0.0.1:8787/api/health", "Worker");
 
   console.log("→ starting Vite on :5173");
   start(["vite", "--port", "5173"], "vite");
 
   console.log("\n  WikiGems is live at http://localhost:5173");
-  console.log("  Use localhost (not 127.0.0.1) so WebAuthn can bind to the rpID.\n");
+  console.log(
+    "  Use localhost (not 127.0.0.1) so WebAuthn can bind to the rpID.\n",
+  );
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   shutdown(1);

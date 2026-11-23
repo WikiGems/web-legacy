@@ -18,7 +18,12 @@
   ],
   "triggers": { "crons": ["*/15 * * * *"] },
   "secrets": {
-    "required": ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "BETTER_AUTH_SECRET", "RESEND_API_KEY"],
+    "required": [
+      "TURSO_DATABASE_URL",
+      "TURSO_AUTH_TOKEN",
+      "BETTER_AUTH_SECRET",
+      "RESEND_API_KEY",
+    ],
   },
   "vars": {
     // Empty values let production infer these from the request. During local

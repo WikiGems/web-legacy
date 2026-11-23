@@ -2,9 +2,20 @@ import { For } from "solid-js";
 import { Avatar } from "../components/Avatar";
 import { Icon } from "../components/Icon";
 import { ListingCard } from "../components/ListingCard";
-import { Page, PageHeader, PreviewChip, PreviewNotice } from "../components/Page";
+import {
+  Page,
+  PageHeader,
+  PreviewChip,
+  PreviewNotice,
+} from "../components/Page";
 import { Button } from "../components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
 import { Chip, Separator } from "../components/ui/feedback";
 import { showcaseCards } from "../lib/preview";
 
@@ -74,10 +85,14 @@ export default function Trade() {
                 <CardHeader class="flex-row items-center gap-3 pb-0">
                   <Avatar name={offer.person} />
                   <div class="min-w-0 flex-1">
-                    <CardTitle class="truncate text-sm">{offer.person}</CardTitle>
+                    <CardTitle class="truncate text-sm">
+                      {offer.person}
+                    </CardTitle>
                     <p class="text-xs text-muted">{offer.time}</p>
                   </div>
-                  <Chip tone={offer.direction === "Incoming" ? "accent" : "default"}>
+                  <Chip
+                    tone={offer.direction === "Incoming" ? "accent" : "default"}
+                  >
                     {offer.direction}
                   </Chip>
                 </CardHeader>

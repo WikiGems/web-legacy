@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "oxc", "import", "vitest"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "eqeqeq": "error",
+    "no-debugger": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-asserted-optional-chain": "error",
+    "typescript/consistent-type-imports": "error",
+    "import/no-duplicates": "error",
+    "vitest/no-focused-tests": "error",
+    "vitest/no-disabled-tests": "warn",
+
+    // Solid assigns `ref={el}` variables from JSX and reads signals as bare
+    // expression statements to track them, so these rules misfire in this codebase.
+    "no-unassigned-vars": "off",
+    "no-unused-expressions": "off",
+
+    // Existing tests assert on error classes and branch on generated codes.
+    "vitest/require-to-throw-message": "off",
+    "vitest/no-conditional-expect": "off"
+  },
+  "overrides": [
+    {
+      // E2E drivers script untyped browser and wallet APIs.
+      "files": ["scripts/**"],
+      "rules": { "typescript/no-explicit-any": "off" }
+    }
+  ],
+  "env": { "builtin": true, "es2022": true, "browser": true, "node": true },
+  "ignorePatterns": [
+    "dist/**",
+    "target/**",
+    ".wrangler/**",
+    ".flox/**",
+    ".artifacts/**",
+    "programs/**",
+    "public/**",
+    "node_modules/**"
+  ]
+}

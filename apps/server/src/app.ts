@@ -6,7 +6,11 @@ export const handleRequest = (request: Request): Promise<Response> => {
   const program = Effect.gen(function* () {
     const path = new URL(request.url).pathname;
     if (request.method === "GET" && path === "/health") {
-      return Response.json({ service: "wikigems-server", status: "foundation", ready: false });
+      return Response.json({
+        service: "wikigems-server",
+        status: "foundation",
+        ready: false,
+      });
     }
     if (request.method === "GET" && path === "/v1/listings") {
       const service = yield* Listings;
@@ -15,9 +19,11 @@ export const handleRequest = (request: Request): Promise<Response> => {
     }
     return Response.json({ error: "Not found" }, { status: 404 });
   }).pipe(
-    Effect.catchTag("NotImplemented", () => Effect.succeed(
-      Response.json({ error: "Service not implemented" }, { status: 501 }),
-    )),
+    Effect.catchTag("NotImplemented", () =>
+      Effect.succeed(
+        Response.json({ error: "Service not implemented" }, { status: 501 }),
+      ),
+    ),
     Effect.provide(FoundationServices),
   );
   return Effect.runPromise(program);

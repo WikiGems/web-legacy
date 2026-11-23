@@ -9,10 +9,10 @@
     "./card-engine": "./card-engine.ts",
     "./featured": "./featured.ts"
   },
-  "dependencies": {
-    "effect": "4.0.5"
-  },
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "effect": "4.0.5"
   }
 }

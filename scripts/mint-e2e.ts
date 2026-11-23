@@ -33,14 +33,18 @@ const cors = {
 const bridge = Bun.serve({
   port: BRIDGE_PORT,
   async fetch(request) {
-    if (request.method === "OPTIONS") return new Response(null, { headers: cors });
+    if (request.method === "OPTIONS")
+      return new Response(null, { headers: cors });
     const body = (await request.json()) as { type: string; data: string };
     if (body.type === "message") {
       const signature = nacl.sign.detached(
         Uint8Array.from(Buffer.from(body.data, "base64")),
         wallet.secretKey,
       );
-      return Response.json({ signature: Buffer.from(signature).toString("base64") }, { headers: cors });
+      return Response.json(
+        { signature: Buffer.from(signature).toString("base64") },
+        { headers: cors },
+      );
     }
     if (body.type === "transaction") {
       const bytes = Buffer.from(body.data, "base64");
@@ -48,13 +52,19 @@ const bridge = Bun.serve({
       try {
         const tx = Transaction.from(bytes);
         tx.partialSign(wallet);
-        signed = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
+        signed = tx.serialize({
+          requireAllSignatures: false,
+          verifySignatures: false,
+        });
       } catch {
         const tx = VersionedTransaction.deserialize(bytes);
         tx.sign([wallet]);
         signed = Buffer.from(tx.serialize());
       }
-      return Response.json({ signature: signed.toString("base64") }, { headers: cors });
+      return Response.json(
+        { signature: signed.toString("base64") },
+        { headers: cors },
+      );
     }
     return new Response("bad request", { status: 400, headers: cors });
   },
@@ -63,69 +73,81 @@ console.log("Signing bridge on", BRIDGE_PORT);
 
 await mkdir(".artifacts", { recursive: true });
 const browser = await chromium.launch({
-  executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  executablePath:
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   headless: true,
 });
-const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+const context = await browser.newContext({
+  viewport: { width: 1440, height: 1000 },
+});
 const page = await context.newPage();
 const errors: string[] = [];
 page.on("console", (message) => {
-  if (message.type() === "error") errors.push(`console: ${message.text().slice(0, 300)}`);
+  if (message.type() === "error")
+    errors.push(`console: ${message.text().slice(0, 300)}`);
 });
 page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
 
-await page.addInitScript(({ address, bridgePort }) => {
-  const encoded = new TextEncoder();
-  const provider = {
-    publicKey: { toString: () => address },
-    async connect() {
-      return { publicKey: { toString: () => address } };
-    },
-    async disconnect() {},
-    async signMessage(message: Uint8Array) {
-      const response = await fetch(`http://localhost:${bridgePort}/`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          type: "message",
-          data: btoa(String.fromCharCode(...message)),
-        }),
-      });
-      const payload = (await response.json()) as { signature: string };
-      return {
-        signature: Uint8Array.from(atob(payload.signature), (char) => char.charCodeAt(0)),
-      };
-    },
-    async signTransaction(transaction: any) {
-      const serialized = transaction.serialize({
-        requireAllSignatures: false,
-        verifySignatures: false,
-      });
-      const response = await fetch(`http://localhost:${bridgePort}/`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          type: "transaction",
-          data: btoa(String.fromCharCode(...serialized)),
-        }),
-      });
-      const payload = (await response.json()) as { signature: string };
-      const bytes = Uint8Array.from(atob(payload.signature), (char) => char.charCodeAt(0));
-      const ctor: any = transaction.constructor;
-      if (typeof ctor.from === "function") return ctor.from(bytes);
-      return ctor.deserialize(bytes);
-    },
-    async signAllTransactions(transactions: any[]) {
-      const result = [];
-      for (const transaction of transactions) result.push(await provider.signTransaction(transaction));
-      return result;
-    },
-  };
-  (window as any).phantom = { solana: provider };
-  (window as any).__WALLET_ADDRESS__ = address;
-  // Keep the injected script's TextEncoder reference alive for older engines.
-  void encoded;
-}, { address, bridgePort: BRIDGE_PORT });
+await page.addInitScript(
+  ({ address, bridgePort }) => {
+    const encoded = new TextEncoder();
+    const provider = {
+      publicKey: { toString: () => address },
+      async connect() {
+        return { publicKey: { toString: () => address } };
+      },
+      async disconnect() {},
+      async signMessage(message: Uint8Array) {
+        const response = await fetch(`http://localhost:${bridgePort}/`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            type: "message",
+            data: btoa(String.fromCharCode(...message)),
+          }),
+        });
+        const payload = (await response.json()) as { signature: string };
+        return {
+          signature: Uint8Array.from(atob(payload.signature), (char) =>
+            char.charCodeAt(0),
+          ),
+        };
+      },
+      async signTransaction(transaction: any) {
+        const serialized = transaction.serialize({
+          requireAllSignatures: false,
+          verifySignatures: false,
+        });
+        const response = await fetch(`http://localhost:${bridgePort}/`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            type: "transaction",
+            data: btoa(String.fromCharCode(...serialized)),
+          }),
+        });
+        const payload = (await response.json()) as { signature: string };
+        const bytes = Uint8Array.from(atob(payload.signature), (char) =>
+          char.charCodeAt(0),
+        );
+        const ctor: any = transaction.constructor;
+        if (typeof ctor.from === "function") return ctor.from(bytes);
+        return ctor.deserialize(bytes);
+      },
+      async signAllTransactions(transactions: any[]) {
+        const result = [];
+        for (const transaction of transactions)
+          result.push(await provider.signTransaction(transaction));
+        return result;
+      },
+    };
+    (window as any).phantom = { solana: provider };
+    (window as any).__WALLET_ADDRESS__ = address;
+    // Keep the injected script's TextEncoder reference alive for older engines.
+    void encoded;
+  },
+  { address, bridgePort: BRIDGE_PORT },
+);
 
 await page.goto(baseURL, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Play free/i }).click();
@@ -156,25 +178,44 @@ await page.waitForTimeout(500);
 await page.getByRole("button", { name: /Keep all 5/i }).click();
 await page.waitForTimeout(700);
 
-await page.getByRole("button", { name: /^Album/i }).first().click();
+await page
+  .getByRole("button", { name: /^Album/i })
+  .first()
+  .click();
 await page.waitForTimeout(500);
 await page.locator(".album-grid .game-card").first().click();
 await page.waitForTimeout(400);
 
 await page.getByRole("button", { name: /Connect wallet to mint/i }).click();
 await page.waitForTimeout(300);
-await page.getByRole("button", { name: /Phantom/i }).first().click();
+await page
+  .getByRole("button", { name: /Phantom/i })
+  .first()
+  .click();
 await page.waitForTimeout(2500);
-console.log("Wallet linked, modal visible:", await page.locator(".card-modal").isVisible());
+console.log(
+  "Wallet linked, modal visible:",
+  await page.locator(".card-modal").isVisible(),
+);
 
 await page.getByRole("button", { name: /Mint NFT on Solana/i }).click();
 await page.waitForTimeout(12000);
 await page.screenshot({ path: ".artifacts/wg-minted.png", fullPage: true });
 const mintText = await page.locator(".minted-panel").count();
 console.log("Minted panel:", mintText);
-console.log("Card status:", await page.locator(".card-modal").innerText().then((text) => text.slice(0, 500)));
+console.log(
+  "Card status:",
+  await page
+    .locator(".card-modal")
+    .innerText()
+    .then((text) => text.slice(0, 500)),
+);
 console.log("Errors:", errors.length ? errors : "none");
 
-await writeFile(".artifacts/mint-e2e.txt", `wallet=${address}\nminted=${mintText}\n`, "utf8");
+await writeFile(
+  ".artifacts/mint-e2e.txt",
+  `wallet=${address}\nminted=${mintText}\n`,
+  "utf8",
+);
 await browser.close();
 bridge.stop();

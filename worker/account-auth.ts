@@ -6,16 +6,18 @@ import type { WikiGemsAuth } from "./auth";
 export async function handleAccountAuth(request: Request, auth: WikiGemsAuth) {
   const url = new URL(request.url);
   const path = url.pathname.replace("/api/account-auth", "/api/auth");
-  if (!(
-    (path === "/api/auth/passkey/generate-register-options" &&
-      request.method === "GET") ||
-    (path === "/api/auth/passkey/verify-registration" &&
-      request.method === "POST") ||
-    (path === "/api/auth/passkey/generate-authenticate-options" &&
-      request.method === "GET") ||
-    (path === "/api/auth/passkey/verify-authentication" &&
-      request.method === "POST")
-  ))
+  if (
+    !(
+      (path === "/api/auth/passkey/generate-register-options" &&
+        request.method === "GET") ||
+      (path === "/api/auth/passkey/verify-registration" &&
+        request.method === "POST") ||
+      (path === "/api/auth/passkey/generate-authenticate-options" &&
+        request.method === "GET") ||
+      (path === "/api/auth/passkey/verify-authentication" &&
+        request.method === "POST")
+    )
+  )
     return new Response(null, { status: 404 });
 
   const { authCookies } = await auth.$context;

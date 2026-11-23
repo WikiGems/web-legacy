@@ -18,7 +18,9 @@ await client.execute(`
 
 const applied = new Set(
   (
-    await client.execute('select "name" from "_wikigems_migrations" order by "name"')
+    await client.execute(
+      'select "name" from "_wikigems_migrations" order by "name"',
+    )
   ).rows.map((row) => String(row.name)),
 );
 
@@ -39,6 +41,8 @@ for (const file of migrationFiles) {
   count += 1;
 }
 
-console.log(count === 0 ? "Database is up to date." : `Applied ${count} migration(s).`);
+console.log(
+  count === 0 ? "Database is up to date." : `Applied ${count} migration(s).`,
+);
 console.log(`Database: ${url}`);
 client.close();
