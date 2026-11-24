@@ -63,18 +63,4 @@ export function installedWallets(): WalletDefinition[] {
   return wallets;
 }
 
-export class WalletError extends Error {
-  readonly code: string;
-
-  constructor(message: string, code = "WALLET_ERROR") {
-    super(message);
-    this.name = "WalletError";
-    this.code = code;
-  }
-}
-
-export function base64FromBytes(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
+export { WalletError } from "./wallet/error";

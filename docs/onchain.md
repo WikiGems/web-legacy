@@ -187,28 +187,89 @@ Open policy questions:
 
 ## Wallet
 
-An embedded web wallet built in-house; Crossmint was evaluated and rejected, see below.
+The browser creates the embedded wallet on the first wallet setup action.
+Sign-up leaves the vault empty. The Wallet page supports setup, unlock, lock,
+passkey management, and private-key export. An existing browser wallet can still
+link by signing the wallet challenge.
 
-1. At sign-up the browser generates an Ed25519 keypair and wraps it with a key
-   derived (HKDF) from the passkey's WebAuthn PRF output (AES-GCM). The server
-   stores only the ciphertext and so is not a custodian.
-2. Passkeys sync through Apple Passwords and Google Password Manager. On a new
-   device, the passkey unlocks the blob.
-3. Export: Settings → passkey prompt → base58 secret key, importable into Phantom
-   or Solflare as the same wallet.
-4. Wallet code runs on a separate origin in an iframe. The key is held as a
-   non-extractable WebCrypto key for the session, so the main app never sees it.
+### Key protection
 
-Risks:
+The browser generates an Ed25519 keypair. It uses WebCrypto when available and
+`@noble/curves` 2.4.0 otherwise. Wallet passkeys use a separate WebAuthn ceremony
+from Better Auth sign-in. Both use the same RP ID. The Worker resolves it from
+`PASSKEY_RP_ID`, then the hostname in `BETTER_AUTH_URL` or the request URL.
 
-- Deleting every passkey without exporting loses the wallet. Mitigations: allow
-  multiple passkeys, and prompt backup once a player holds value.
-- PRF works with Apple Passwords (iOS 18.4+, macOS 15.4+) and Google Password
-  Manager, but fails with some third-party managers and Microsoft's. Fallback:
-  connect an external wallet.
-- iOS 18.0–18.3 had PRF data-loss bugs: verify an unwrap round-trip before first use.
-- Check whether better-auth's passkey plugin exposes PRF results; otherwise the
-  wallet runs its own WebAuthn ceremony.
+WebAuthn PRF supplies 32 bytes of key material for each passkey. HKDF-SHA256
+derives an AES-256-GCM key using a random salt fixed per wallet and an info
+string that binds the format version, account, and credential. AES-GCM encrypts
+the 32-byte seed with a fresh 12-byte IV and authenticates the public key. The
+browser asks for a fresh PRF assertion and verifies that the recovered seed can
+sign for the expected public key before it uploads a wrapper.
+
+The Worker stores ciphertext and public metadata. The browser keeps the PRF
+output and plaintext seed local. When unlocked, the browser holds a
+non-extractable signing key in memory. The Ed25519 fallback holds a seed in a
+closure and clears that buffer on lock. The wallet locks on logout, account
+change, page exit, or after one minute in a hidden tab.
+
+A compatible synced wallet passkey can open the same wallet on another device.
+A player can save up to ten passkeys for the same seed. Removing the last
+wrapper requires a prior export confirmation. The Wallet page asks for a fresh
+passkey assertion before it reveals the 64-byte base58 secret key. Phantom or
+Solflare can import the secret key as the same address. The app records the first
+time the player confirms they saved a copy. Losing every wallet passkey and the
+exported key means losing wallet access.
+
+### Worker and frontend interface
+
+Every vault request uses the active Better Auth session. Vault writes also
+check the browser origin and the `x-wikigems-account` header.
+
+| Method and path | Request | Success |
+| --- | --- | --- |
+| `GET /api/wallet/vault` | Session | `{ userId, rpId, walletAddress, vault }` with the caller's wrappers and export timestamp |
+| `GET /api/wallet/challenge` | `wallet` address and optional `purpose=create\|add-wrapper\|export` | `{ message, nonce, expiresAt, previousWallet }` |
+| `POST /api/wallet/vault` | Wrapper, `signature`, optional `replaceExternalAddress` | `201 { walletAddress }` |
+| `POST /api/wallet/vault/wrappers` | Wrapper and `signature` | `201 { credentialId }` |
+| `DELETE /api/wallet/vault/wrappers/:id` | Passkey credential ID | `{ credentialId }` |
+| `POST /api/wallet/vault/exported` | `{ publicKey, signature }` | `{ exportedAt }` |
+| `POST /api/wallet/link` | `{ walletAddress, signature }` from the external wallet | `{ walletAddress }` |
+
+A v1 wrapper is `{ version: 1, credentialId, prfSalt, iv, ciphertext, publicKey }`.
+The credential ID, salt, IV, and ciphertext use unpadded base64url. The public
+key uses base58. Proof signatures use padded base64. Each purpose-specific
+challenge expires after five minutes and can be consumed once. The Worker
+commits the first wrapper and `profiles.walletAddress` in one transaction.
+Replacing an existing external link requires its current address in
+`replaceExternalAddress`. A saved embedded wallet keeps its address, including
+after the player exports the key and deletes the last wrapper.
+
+UI integrations use the `Wallet` Effect service. Read `embeddedStatus` to
+determine whether to prompt for `createEmbedded()`, `unlockEmbedded`, or an
+external connection. Once the wallet is ready, call `transactionSigner(text)`
+with a description of the payment or claim. The returned signer exposes
+`{ address, signMessageBytes(bytes) }`. Decode the server's base64 transaction
+message before signing and send back the 64-byte signature. The embedded
+wallet shows the description before signing. External wallets sign the
+transaction through their provider.
+
+### Browser support and trust
+
+PRF support depends on the browser and the selected passkey provider. A browser
+or provider that cannot return a usable PRF result prompts the player to try
+another passkey or connect an existing wallet. Chromium's virtual authenticator
+covers the full browser flow. Sync through Apple Passwords and Google Password
+Manager depends on the environment and needs physical-device verification.
+Apple confirmed incorrect PRF output in some cross-device flows on iOS
+18.0–18.3. The creation check catches a mismatch between its assertions.
+Two matching assertions on one setup cannot establish cross-device or
+post-upgrade compatibility.
+[Apple PRF issue](https://developer.apple.com/forums/thread/764730)
+
+V1 runs the wallet core on the app origin. An XSS vulnerability on that
+origin could request signatures or interfere with the confirmation. The
+message interface in `src/lib/wallet/core.ts` provides a boundary for moving
+the core into a separate-origin iframe later.
 
 Crossmint wallets don't fit these requirements. Passkey signers cannot export keys,
 and Solana wallets are smart-account PDAs, so an exported key wouldn't be the
@@ -247,7 +308,7 @@ removed before the new mint path goes live, so only one mint authority exists.
 - **Backend (next):** gem registry, Worker mint service with USDC mint price
   and attested sponsorship, transaction builder and signing allowlist, event
   indexer (listings, bids, notices, transfers outside the app), inactivity
-  tracker and notifications, admin view, Codama client, embedded wallet.
+  tracker and notifications, admin view, Codama client.
 - **2:** trades and auctions.
 - **Before mainnet:**
   - Admin and upgrade authority moved to multisigs; upgrades time-locked.

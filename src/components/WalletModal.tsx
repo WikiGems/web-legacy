@@ -74,9 +74,8 @@ export function WalletModal() {
       >
         <div class="flex items-start justify-between gap-3">
           <div class="space-y-2">
-            <p class="text-xs font-medium text-primary">Solana wallet</p>
             <h2 id="wallet-title" class="text-2xl font-semibold">
-              Your cards. Your wallet.
+              Connect an existing wallet
             </h2>
           </div>
           <Button
@@ -91,15 +90,14 @@ export function WalletModal() {
           </Button>
         </div>
         <p class="text-sm leading-relaxed text-muted">
-          Link a devnet wallet to mint unique article cards. Your wallet signs
-          each transaction; WikiGems never holds your keys.
+          Approve the link in your wallet to connect it to WikiGems.
         </p>
         <Show
           when={options().length}
           fallback={
             <div class="space-y-4 rounded-2xl bg-base-200 px-5 py-8 text-center">
               <Icon name="wallet" size={32} class="mx-auto text-muted" />
-              <h3 class="font-semibold">No Solana wallet found.</h3>
+              <h3 class="font-semibold">No wallet found.</h3>
               <p class="text-sm text-muted">
                 Install Phantom, Solflare, or Backpack, then refresh this page.
               </p>
@@ -139,17 +137,6 @@ export function WalletModal() {
             </For>
           </div>
         </Show>
-        <p class="text-xs leading-relaxed text-muted">
-          Use Devnet in your wallet. Need test SOL?{" "}
-          <a
-            href="https://faucet.solana.com/"
-            target="_blank"
-            rel="noreferrer"
-            class="text-primary hover:underline"
-          >
-            Open the Solana faucet ↗
-          </a>
-        </p>
         <Show when={step() !== "idle"}>
           <p role="status" class="flex items-center gap-2 text-sm">
             <Spinner size="sm" />

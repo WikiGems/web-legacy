@@ -75,6 +75,20 @@ export interface Database {
     objectKey: string;
     notBefore: number;
   };
+  wallet_vaults: {
+    userId: string;
+    publicKey: string;
+    prfSalt: string;
+    exportedAt: number | null;
+  };
+  wallet_vault_wrappers: {
+    userId: string;
+    credentialId: string;
+    version: 1;
+    iv: string;
+    ciphertext: string;
+    createdAt: number;
+  };
   profiles: ProfileTable;
   packs: PackTable;
   cards: CardTable;

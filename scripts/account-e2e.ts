@@ -1,6 +1,7 @@
 import { checkHaptics } from "./haptics-checks";
 import { checkNavigationGlass } from "./navigation-glass-checks";
 import { checkSettings } from "./settings-checks";
+import { checkWallet, testSignerPath } from "./wallet-checks";
 import { checkListingGlass } from "./listing-glass-checks";
 import { checkAuctions } from "./auction-checks";
 import { checkRouteLoading } from "./route-loading-checks";
@@ -19,6 +20,16 @@ import { handleAccountAuth } from "../worker/account-auth";
 
 // User data lives in disposable SQLite; pictures use an isolated Miniflare R2 bucket.
 const baseURL = "http://localhost:5199";
+const walletTest = process.argv.includes("--wallet");
+const signerBundle = walletTest
+  ? (
+      await Bun.build({
+        target: "browser",
+        entrypoints: ["scripts/wallet-test-signer.ts"],
+      })
+    ).outputs[0]
+  : undefined;
+if (walletTest) assert(signerBundle);
 const verificationEmails: VerificationEmail[] = [];
 const fixture = await accountFixture(baseURL, async (message) => {
   verificationEmails.push(message);
@@ -26,6 +37,7 @@ const fixture = await accountFixture(baseURL, async (message) => {
 const root = resolve("dist/client");
 const assetHeaders = new Headers();
 if (
+  walletTest ||
   process.argv.includes("--navigation-glass") ||
   process.argv.includes("--settings") ||
   process.argv.includes("--listing-glass") ||
@@ -44,6 +56,10 @@ const server = Bun.serve({
     headers.set("cf-connecting-ip", "127.0.0.1");
     request = new Request(request, { headers });
     const path = new URL(request.url).pathname;
+    if (signerBundle && path === testSignerPath)
+      return new Response(signerBundle, {
+        headers: { "content-type": "text/javascript" },
+      });
     if (path.startsWith("/api/account-auth/"))
       return handleAccountAuth(request, fixture.auth);
     if (path.startsWith("/api/auth/")) return fixture.auth.handler(request);
@@ -71,6 +87,7 @@ try {
     headless: true,
   });
   const context = await browser.newContext({
+    baseURL,
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: "block",
     ...(process.argv.includes("--email-verification")
@@ -90,6 +107,7 @@ try {
         ctap2Version: "ctap2_1",
         transport: "internal",
         hasResidentKey: true,
+        hasPrf: walletTest,
         hasUserVerification: true,
         isUserVerified: true,
         automaticPresenceSimulation: true,
@@ -135,7 +153,13 @@ try {
   await signupToast
     .getByRole("button", { name: "Dismiss", exact: true })
     .click();
-  if (process.argv.includes("--route-loading")) {
+  if (walletTest) {
+    await checkWallet(page);
+    assert.deepEqual(errors, []);
+    console.log(
+      "Wallet browser checks passed: lazy creation, reload, unlock, approved signing, export, and lock.",
+    );
+  } else if (process.argv.includes("--route-loading")) {
     await checkRouteLoading(page);
     assert.deepEqual(errors, []);
   } else if (process.argv.includes("--auctions")) {
@@ -345,7 +369,7 @@ try {
   }
 } catch (error) {
   const page = browser?.contexts()[0]?.pages()[0];
-  if (page) {
+  if (page && !walletTest) {
     await page.screenshot({
       path: ".artifacts/account-failure.png",
       fullPage: true,
