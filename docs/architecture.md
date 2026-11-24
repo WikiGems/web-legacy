@@ -68,21 +68,26 @@ for locks, free-claim reservations and reconciliation.
 ## Worker marketplace and claim API
 
 JSON money fields are canonical decimal strings in USDC minor units. One USDC
-is `"1000000"`. Requests that mutate state need a session and trusted
-`Origin` header. Operation reads require the initiating account's session.
+is `"1000000"`. Marketplace, claim, wallet, and trade writes require a
+session, a trusted `Origin` header, and an `x-wikigems-account` header
+matching the session user. Operation reads require the initiating account's
+session.
 
 | Method and route | Request | Response |
 | --- | --- | --- |
 | `POST /api/cards/:id/listing` | `{ priceUsdcMinor: string \| null }` | `{ listing: Listing \| null }`. Pass `null` to clear the price. |
-| `GET /api/market/config` | Session | `{ marketFeeBps, claimPriceUsdcMinor, freeClaimsRemaining, cluster }`. |
+| `GET /api/market/config` | Session | `{ marketFeeBps, minPriceUsdcMinor, claimPriceUsdcMinor, freeClaimsRemaining, cluster }`. |
 | `GET /api/wallet/balance` | Session | `{ walletAddress, balanceUsdcMinor, dollarTokenAddress, cluster }`. An absent associated token account has balance `"0"`. |
+| `POST /api/wallet/payouts` | Empty body | Payout setup status. Returns 202 while submitted. |
 | `GET /api/market` | None | `{ cards, listings }` with the existing card-for-card feed and the available USDC listings. |
 | `POST /api/purchases` | `{ listingId, expectedPriceUsdcMinor }` | `Purchase` with a prepared message or the same account's existing operation. |
 | `POST /api/purchases/:id/sign` | `{ signature }` as base64 | Current `Purchase`. |
-| `GET /api/purchases/:id` | None | Current `Purchase`, reconciled when pending. |
-| `POST /api/cards/:id/claim` | `{ destination? }` as a Solana address or `{}` to use the linked wallet | `Claim` with a prepared message if paid. A free claim submits during this request. |
+| `GET /api/purchases/:id` | None | Stored `Purchase`. |
+| `POST /api/purchases/:id` | Empty body | Reconciles and returns the current `Purchase`. |
+| `POST /api/cards/:id/claim` | `{ destination?, paid? }`. Omitting the destination uses the linked wallet. `paid: true` skips the free allowance. | `Claim` with a prepared message if paid. A free claim submits during this request. |
 | `POST /api/claims/:id/sign` | `{ signature }` as base64 | Current `Claim`. |
-| `GET /api/claims/:id` | None | Current `Claim`, reconciled when pending. |
+| `GET /api/claims/:id` | None | Stored `Claim`. |
+| `POST /api/claims/:id` | Empty body | Reconciles and returns the current `Claim`. |
 | `GET /g/:gemId` | None | Public Metaplex-style metadata for the registered gem. |
 
 `Listing` includes `id`, `card`, `priceUsdcMinor`, `createdAt` and
@@ -97,13 +102,16 @@ Decode `message` from base64, sign the raw bytes directly using
 `signerAddress`, and send only the base64 signature. The remaining signers
 are server-side. For other states or a server-signed claim, `transaction` is
 null. Free claims and sign requests return 202 while submitted. Poll the
-status route until `settled`, `failed`, or `expired`. On expiry request a
-new preparation. A transaction signature can appear before delivery.
+reconciliation route until `settled`, `failed`, `expired`, or
+`refund_required`. On expiry request a new preparation. A transaction
+signature can appear before delivery.
 
 Errors use `{ error, code }`. Wallet setup is signaled by `WALLET_REQUIRED`
 or `SELLER_WALLET_REQUIRED`. The prepare route can reject stale prices
 (`PRICE_CHANGED`), cards in proposed trades (`TRADE_PENDING`), and locked
 cards (`CARD_LOCKED`). Handle `TRANSACTION_EXPIRED` by preparing again.
+When a free claim returns `FREE_CLAIM_BUDGET_EXHAUSTED`, offer the paid
+price and send `paid: true` only after the player chooses it.
 
 Buy, Sell, Collection, Trade, and Wallet read the Worker through the shared
 `Api` Effect service. The game state includes an optional `priceUsdcMinor`

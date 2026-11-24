@@ -125,6 +125,7 @@ export function CardModal(props: {
             <ListingEditor
               card={props.card}
               feeBps={props.config.marketFeeBps}
+              minPriceUsdcMinor={props.config.minPriceUsdcMinor}
               onChanged={changed}
               onBusy={setBusy}
               onCancel={() => setAction(null)}
@@ -135,6 +136,7 @@ export function CardModal(props: {
               card={props.card}
               linkedWallet={props.linkedWallet}
               quotedPrice={quote()}
+              paidPrice={props.config.claimPriceUsdcMinor}
               onChanged={changed}
               onBusy={setBusy}
               onCancel={() => setAction(null)}

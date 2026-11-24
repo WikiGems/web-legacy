@@ -87,4 +87,35 @@ export async function checkWallet(page: Page) {
   assert.equal(typeof (await getVault()).vault?.exportedAt, "number");
   await button("Lock wallet").click();
   await button("Unlock wallet").waitFor();
+
+  const [wrapper] = (await getVault()).vault?.wrappers ?? [];
+  assert(wrapper);
+  const approveRemoval = page.waitForEvent("dialog");
+  const proof = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname === "/api/wallet/challenge" &&
+      url.searchParams.get("purpose") === "delete-wrapper"
+    );
+  });
+  const removal = page.waitForResponse(
+    (response) =>
+      response.request().method() === "DELETE" &&
+      response
+        .url()
+        .endsWith(`/api/wallet/vault/wrappers/${wrapper.credentialId}`),
+  );
+  const click = button("Remove passkey 1").click();
+  await (await approveRemoval).accept();
+  await click;
+  const challenge = await proof;
+  assert.equal(challenge.status(), 200);
+  assert.equal(challenge.request().method(), "POST");
+  assert.equal(
+    new URL(challenge.url()).searchParams.get("credentialId"),
+    wrapper.credentialId,
+  );
+  assert.equal((await removal).status(), 200);
+  await button("Remove passkey 1").waitFor({ state: "hidden" });
+  assert.deepEqual((await getVault()).vault?.wrappers, []);
 }

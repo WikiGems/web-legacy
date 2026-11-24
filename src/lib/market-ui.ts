@@ -16,6 +16,30 @@ import { WalletError } from "./wallet/error";
 
 export function marketError(error: ApiError | WalletError) {
   switch (error.code) {
+    case "PRICE_BELOW_MINIMUM":
+      return "Your price is below the minimum.";
+    case "PREPARE_LIMIT":
+      return "Too many requests. Try again in a minute.";
+    case "PRICE_CHANGED":
+      return "The price changed. Review the new total and try again.";
+    case "LISTING_UNAVAILABLE":
+      return "This card is no longer for sale.";
+    case "PAYMENT_DETAILS_CHANGED":
+      return "The payment details changed. Try again.";
+    case "WALLET_CHANGED":
+      return "The linked wallet changed. Try again.";
+    case "ACTIVE_ACCOUNT_CHANGED":
+      return "Your active account changed. Reload this page and try again.";
+    case "UNTRUSTED_ORIGIN":
+      return "Open WikiGems directly and try again.";
+    case "FREE_CLAIM_BUDGET_EXHAUSTED":
+      return "Free moves are paused for today.";
+    case "PAYOUT_ACCOUNT_CLOSED":
+      return "Your payout account was closed. Reopen it to list cards again.";
+    case "PAYOUT_SETUP_FAILED":
+      return "We couldn't set up your payouts. Contact support for help.";
+    case "SELLER_PAYOUT_REQUIRED":
+      return "The seller's payouts are unavailable. Try again later.";
     case "CARD_LOCKED":
       return "This card is reserved for another action. Try again in a moment.";
     case "TRADE_PENDING":
@@ -34,6 +58,8 @@ export function marketError(error: ApiError | WalletError) {
     case "CHAIN_UNAVAILABLE":
     case "CHAIN_NOT_CONFIGURED":
     case "CHAIN_MISMATCH":
+    case "SPONSOR_UNAVAILABLE":
+    case "TREASURY_PAYOUT_REQUIRED":
       return "Wallet payments are temporarily unavailable. Try again later.";
     case "INVALID_PRICE":
       return "Enter a positive price with up to 6 decimal places.";
@@ -46,7 +72,10 @@ export function marketError(error: ApiError | WalletError) {
   }
 }
 
-export function useWalletAction(onFailure: (error: WalletError) => void) {
+export function useWalletAction(
+  onFailure: (error: WalletError) => void,
+  userId: string | undefined,
+) {
   const state = useWalletState();
   const request = useOperationRequest();
   const [pending, setPending] = createSignal<{
@@ -65,6 +94,15 @@ export function useWalletAction(onFailure: (error: WalletError) => void) {
     );
     setChecking(false);
     if (!result.ok || request.signal.aborted) return;
+    if (result.value.userId !== userId) {
+      onFailure(
+        new WalletError(
+          "Your active account changed.",
+          "ACTIVE_ACCOUNT_CHANGED",
+        ),
+      );
+      return;
+    }
     const { walletAddress } = result.value;
     if (
       walletAddress &&
@@ -94,7 +132,7 @@ export const requireBalance = (price: string, address: string) =>
     const balance = yield* Api.use((api) => api.fetchWalletBalance());
     if (balance.walletAddress !== address)
       return yield* Effect.fail(
-        new ApiError("Your wallet changed. Try again.", 409, "WALLET_REQUIRED"),
+        new ApiError("Your wallet changed. Try again.", 409, "WALLET_CHANGED"),
       );
     if (BigInt(balance.balanceUsdcMinor) < BigInt(price))
       return yield* Effect.fail(
@@ -139,16 +177,17 @@ export function useOperationRequest() {
   return { signal: controller.signal };
 }
 
-export function pollOperation<
-  A extends { state: ChainOperationState; id: string },
->(initial: A, read: (id: string) => Effect.Effect<A, ApiError>) {
+export function pollSubmitted<A extends { state: string }>(
+  initial: A,
+  reconcile: () => Effect.Effect<A, ApiError>,
+) {
   return Effect.gen(function* () {
     let current = initial;
     let delay = 500;
     while (current.state === "submitted") {
       yield* Effect.sleep(delay);
       delay = Math.min(delay * 2, 8_000);
-      current = yield* read(current.id).pipe(
+      current = yield* reconcile().pipe(
         Effect.catch((error) =>
           error.status === 0 || error.status >= 500
             ? Effect.succeed(current)

@@ -249,8 +249,8 @@ function WalletSettings() {
                                   onClick={() => {
                                     const warning =
                                       vault().wrappers.length === 1
-                                        ? "Remove your last wallet passkey? You will need your saved private key to access your cards and dollars."
-                                        : "Remove this wallet passkey?";
+                                        ? "Remove your last wallet passkey? Approve with your passkey. After removal, you will need your saved private key to access your cards and dollars."
+                                        : "Remove this wallet passkey? Approve with a wallet passkey.";
                                     if (window.confirm(warning))
                                       void perform(
                                         wallets.removeEmbeddedPasskey(

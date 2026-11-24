@@ -70,9 +70,10 @@ export async function prepareClaim(
     actorUserId: string;
     cardId: string;
     destination?: string;
+    paid?: boolean;
   },
 ) {
-  const { actorUserId, cardId, destination } = input;
+  const { actorUserId, cardId, destination, paid } = input;
   if (destination !== undefined && !isAddress(destination)) {
     throw new HttpError(
       400,
@@ -151,6 +152,7 @@ export async function prepareClaim(
       const owner = destination ?? linkedWallet(player.walletAddress);
 
       const usesFreeClaim =
+        !paid &&
         (await freeClaimsRemaining(trx, actorUserId, {
           emailVerified: Boolean(player.emailVerified),
           allowance: config.freeClaimsPerUser,

@@ -104,6 +104,7 @@ export const ListingResponseSchema = Schema.Struct({
 
 export const MarketConfigSchema = Schema.Struct({
   marketFeeBps: Schema.Number,
+  minPriceUsdcMinor: PriceSchema,
   claimPriceUsdcMinor: PriceSchema,
   freeClaimsRemaining: Schema.Number,
   cluster: Schema.String,
@@ -114,6 +115,14 @@ export const WalletBalanceSchema = Schema.Struct({
   dollarTokenAddress: Schema.String,
   cluster: Schema.String,
   balanceUsdcMinor: Schema.Union([Schema.Literal("0"), PriceSchema]),
+});
+
+export const PayoutSetupSchema = Schema.Struct({
+  state: Schema.Literals(["submitted", "ready", "failed"]),
+  walletAddress: Schema.String,
+  ataAddress: Schema.String,
+  txSignature: Schema.NullOr(Schema.String),
+  failureCode: Schema.NullOr(Schema.String),
 });
 
 export const SetListingSchema = Schema.Struct({
@@ -127,6 +136,7 @@ export const PreparePurchaseSchema = Schema.Struct({
 
 export const PrepareClaimSchema = Schema.Struct({
   destination: Schema.optionalKey(Schema.String),
+  paid: Schema.optionalKey(Schema.Boolean),
 });
 
 export const SubmitSignatureSchema = Schema.Struct({

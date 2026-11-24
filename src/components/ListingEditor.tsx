@@ -1,5 +1,6 @@
 import { createSignal, onSettled, Show } from "solid-js";
-import { Api } from "@wikigems/client";
+import { Api, ApiError } from "@wikigems/client";
+import { Effect } from "effect";
 import type { Card } from "@wikigems/domain/domain";
 import {
   dollarDecimal,
@@ -7,7 +8,13 @@ import {
   parseDollars,
   splitPrice,
 } from "../../shared/amounts";
-import { marketError, useWalletAction } from "../lib/market-ui";
+import {
+  marketError,
+  pollSubmitted,
+  useOperationRequest,
+  useWalletAction,
+} from "../lib/market-ui";
+import { getSessionUserId } from "../lib/session";
 import { showToast } from "../lib/ui";
 import { runUi } from "../runtime";
 import { Button } from "./ui/button";
@@ -18,6 +25,7 @@ import { WalletAccess } from "./WalletAccess";
 export function ListingEditor(props: {
   card: Card;
   feeBps: number;
+  minPriceUsdcMinor: string;
   onChanged: () => void;
   onBusy: (busy: boolean) => void;
   onCancel: () => void;
@@ -29,21 +37,65 @@ export function ListingEditor(props: {
   );
   const [error, setError] = createSignal("");
   const [saving, setSaving] = createSignal(false);
-  const wallet = useWalletAction((failure) => setError(marketError(failure)));
+  const [settingUpPayouts, setSettingUpPayouts] = createSignal(false);
+  const request = useOperationRequest();
+  const userId = getSessionUserId();
+  const wallet = useWalletAction(
+    (failure) => setError(marketError(failure)),
+    userId,
+  );
+  const minimum = () => formatDollars(props.minPriceUsdcMinor);
+  const belowMinimum = (amount: string) =>
+    BigInt(amount) < BigInt(props.minPriceUsdcMinor);
   const minor = () => parseDollars(price());
   const quote = () => {
     const amount = minor();
-    return amount ? splitPrice(BigInt(amount), props.feeBps) : null;
+    return amount && !belowMinimum(amount)
+      ? splitPrice(BigInt(amount), props.feeBps)
+      : null;
   };
 
   async function save(amount: string | null) {
+    if (saving()) return;
     props.onBusy(true);
     setSaving(true);
     setError("");
     const result = await runUi(
-      Api.use((api) =>
-        api.setListing(props.card.id, { priceUsdcMinor: amount }),
-      ),
+      Api.use((api) => {
+        const listing = api.setListing(
+          props.card.id,
+          { priceUsdcMinor: amount },
+          userId,
+        );
+        return listing.pipe(
+          Effect.catch((failure) => {
+            if (
+              amount === null ||
+              (failure.code !== "PAYOUT_SETUP_PENDING" &&
+                failure.code !== "SELLER_PAYOUT_REQUIRED")
+            )
+              return Effect.fail(failure);
+            return Effect.gen(function* () {
+              setSettingUpPayouts(true);
+              const checkPayouts = () => api.setupPayouts(userId);
+              const payout = yield* pollSubmitted(
+                yield* checkPayouts(),
+                checkPayouts,
+              );
+              if (payout.state === "failed")
+                return yield* Effect.fail(
+                  new ApiError(
+                    "Payout setup failed.",
+                    409,
+                    "PAYOUT_SETUP_FAILED",
+                  ),
+                );
+              setSettingUpPayouts(false);
+              return yield* listing;
+            });
+          }),
+        );
+      }),
       (failure) => {
         setError(marketError(failure));
         showToast("Could not update the listing", {
@@ -51,7 +103,9 @@ export function ListingEditor(props: {
           tone: "error",
         });
       },
+      request,
     );
+    setSettingUpPayouts(false);
     setSaving(false);
     props.onBusy(false);
     if (result.ok) {
@@ -67,6 +121,10 @@ export function ListingEditor(props: {
       setError(
         "Enter a price greater than zero with up to 6 decimal places, within the supported range.",
       );
+      return;
+    }
+    if (belowMinimum(amount)) {
+      setError(`Enter a price of at least ${minimum()}.`);
       return;
     }
     setError("");
@@ -93,6 +151,7 @@ export function ListingEditor(props: {
           setError("");
         }}
       />
+      <p class="text-sm text-muted">Minimum {minimum()}</p>
       <dl class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm tabular-nums">
         <dt class="text-muted">Marketplace fee ({props.feeBps / 100}%)</dt>
         <dd class="text-right">
@@ -103,6 +162,11 @@ export function ListingEditor(props: {
           {quote() ? formatDollars(quote()?.seller ?? 0n) : "—"}
         </dd>
       </dl>
+      <Show when={settingUpPayouts()}>
+        <p role="status" class="text-sm text-muted">
+          Setting up your payouts…
+        </p>
+      </Show>
       <Show when={error()}>
         <Alert status="danger" role="alert">
           {error()}

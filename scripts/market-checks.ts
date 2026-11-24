@@ -6,7 +6,9 @@ import type { Page } from "playwright-core";
 import {
   ClaimSchema,
   GameStateSchema,
+  MarketConfigSchema,
   MarketResponseSchema,
+  PayoutSetupSchema,
   PurchaseSchema,
 } from "../shared/domain";
 import { WalletVaultStatusSchema } from "../shared/wallet-vault";
@@ -166,6 +168,16 @@ export async function checkMarket(
     const sellerInstall = button(seller, "Not now");
     if (await sellerInstall.isVisible()) await sellerInstall.click();
     await button(seller, "Set a price for Moon").click();
+    const config = await get(seller, "/api/market/config", MarketConfigSchema);
+    assert.equal(config.minPriceUsdcMinor, "100000");
+    await seller.getByText("Minimum $0.10", { exact: true }).waitFor();
+    await seller.getByLabel("Price in dollars").fill("0.09");
+    await button(seller, "Save price").click();
+    await seller
+      .getByRole("alert")
+      .getByText("Enter a price of at least $0.10.")
+      .waitFor();
+    assert.equal((await vault(seller)).vault, null);
     await seller.getByLabel("Price in dollars").fill("1.5000001");
     await button(seller, "Save price").click();
     await seller
@@ -179,9 +191,42 @@ export async function checkMarket(
     await button(seller, "Save price").click();
     await button(seller, "Create wallet with a passkey").waitFor();
     await screenshot(seller, "seller-wallet");
+    const payoutResponse = () =>
+      seller.waitForResponse(
+        (response) =>
+          response.url().endsWith("/api/wallet/payouts") &&
+          response.request().method() === "POST",
+      );
+    const firstPayout = payoutResponse();
     await button(seller, "Create wallet with a passkey").click();
+    const submitted = await firstPayout;
+    assert.equal(submitted.status(), 202);
+    assert.equal(submitted.request().postData(), null);
+    assert.equal(
+      await submitted.request().headerValue("x-wikigems-account"),
+      sellerVault.userId,
+    );
+    const repeatedPayout = payoutResponse();
+    const payout = Schema.decodeUnknownSync(PayoutSetupSchema)(
+      await submitted.json(),
+    );
+    assert.equal(payout.state, "submitted");
+    assert(payout.txSignature);
+    await seller
+      .getByText("Setting up your payouts…", { exact: true })
+      .waitFor();
+    assert.equal((await repeatedPayout).status(), 202);
+    const readyPayout = payoutResponse();
+    await chain.setPayoutAccount(address(payout.walletAddress));
+    chain.finalize(payout.txSignature);
+    const ready = await readyPayout;
+    assert.equal(ready.status(), 200);
+    assert.equal(
+      Schema.decodeUnknownSync(PayoutSetupSchema)(await ready.json()).state,
+      "ready",
+    );
     await seller.getByText("Price saved", { exact: true }).waitFor();
-    assert((await vault(seller)).walletAddress);
+    assert.equal((await vault(seller)).walletAddress, payout.walletAddress);
     await button(seller, "Close card").click();
     await button(seller, "Edit price").click();
     await button(seller, "Clear price").click();
@@ -293,7 +338,20 @@ export async function checkMarket(
     assert.equal(signedPurchase.state, "submitted");
     assert(signedPurchase.txSignature);
     await buyer.getByText("Waiting for payment confirmation…").waitFor();
+    const purchaseReconcile = buyer.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/purchases/${signedPurchase.id}`) &&
+        response.request().method() === "POST",
+    );
     chain.finalize(signedPurchase.txSignature);
+    assert.equal(
+      await (
+        await purchaseReconcile
+      )
+        .request()
+        .headerValue("x-wikigems-account"),
+      buyerVault.userId,
+    );
     await buyer
       .getByText("Card added to your collection", { exact: true })
       .waitFor();
@@ -329,7 +387,16 @@ export async function checkMarket(
     assert.equal(claim.transaction, null);
     assert(claim.txSignature);
     await buyer.getByText("Waiting for confirmation…").waitFor();
+    const claimReconcile = buyer.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/claims/${claim.id}`) &&
+        response.request().method() === "POST",
+    );
     chain.finalize(claim.txSignature);
+    assert.equal(
+      await (await claimReconcile).request().headerValue("x-wikigems-account"),
+      buyerVault.userId,
+    );
     await buyer.getByText("Card moved to a wallet", { exact: true }).waitFor();
     const [owned] = (await state(buyer)).cards;
     assert.equal(owned?.status, "minted");
@@ -355,15 +422,20 @@ export async function checkMarket(
     await buyer.goto("/collection");
     await button(buyer, "View details for Mars").click();
     await button(buyer, "Own this card").click();
-    await buyer.getByText("$0.25", { exact: true }).waitFor();
-    await screenshot(buyer, "paid-claim");
+    await buyer.getByText("Free", { exact: true }).waitFor();
     await button(buyer, "Move to wallet").click();
+    await buyer
+      .getByText("Free moves are paused for today.", { exact: true })
+      .first()
+      .waitFor();
+    await screenshot(buyer, "paid-claim");
     const paidApproval = buyer.waitForEvent("dialog");
     const paidSign = buyer.waitForResponse(
       (res) =>
         /\/api\/claims\/[^/]+\/sign$/.test(res.url()) &&
         res.request().method() === "POST",
     );
+    await button(buyer, "Move for $0.25").click();
     await button(buyer, "Unlock wallet").click();
     const paidDialog = await paidApproval;
     assert.equal(
@@ -382,9 +454,69 @@ export async function checkMarket(
       .getByRole("dialog")
       .getByText("In a wallet", { exact: true })
       .waitFor();
+    await insertCard(db, sellerVault.userId, {
+      id: "venus",
+      title: "Venus",
+      category: "Science",
+      rarity: "rare",
+    });
+    await seller.goto("/sell");
+    await button(seller, "Set a price for Venus").click();
+    await seller.getByLabel("Price in dollars").fill("0.10");
+    await button(seller, "Save price").click();
+    await seller.getByText("Price saved", { exact: true }).waitFor();
+    await buyer.goto("/buy");
+    await button(buyer, "Buy now").click();
+    const refundReady = Promise.withResolvers<void>();
+    await buyer.route(
+      /\/api\/purchases\/[^/]+$/,
+      async (route) => {
+        await refundReady.promise;
+        await route.continue();
+      },
+      { times: 1 },
+    );
+    const refundApproval = buyer.waitForEvent("dialog");
+    const refundSign = buyer.waitForResponse(
+      (response) =>
+        /\/api\/purchases\/[^/]+\/sign$/.test(response.url()) &&
+        response.status() === 202,
+    );
+    await button(buyer, "Buy for $0.10").click();
+    await button(buyer, "Unlock wallet").click();
+    await (await refundApproval).accept();
+    const refund = Schema.decodeUnknownSync(PurchaseSchema)(
+      await (await refundSign).json(),
+    );
+    assert(refund.txSignature);
+    // Simulate late delivery after a different operation changed the card's owner.
+    await db.batch(
+      [
+        {
+          sql: "update purchases set state = 'expired', expiredAt = ? where id = ?",
+          args: [Date.now(), refund.id],
+        },
+        {
+          sql: "update cards set ownerUserId = ? where id = 'venus'",
+          args: [buyerVault.userId],
+        },
+      ],
+      "write",
+    );
+    chain.finalize(refund.txSignature);
+    refundReady.resolve();
+    const refundDialog = buyer.getByRole("dialog", { name: "Buy Venus" });
+    await refundDialog
+      .getByText(
+        "Your payment arrived after the card was gone. We'll refund you.",
+      )
+      .waitFor();
+    await refundDialog.getByText(refund.id, { exact: false }).waitFor();
+    assert.equal(await button(buyer, "Buy for $0.10").count(), 0);
+
     assert.deepEqual(errors, []);
     console.log(
-      "Market browser checks passed: lazy seller and buyer wallets, exact price and fee, listing removal, deposits, price changes, expiry retry, signed purchase, finalized delivery, and free and paid claims.",
+      "Market browser checks passed: minimum price, payout setup and retry, listing removal, deposits, price changes, expiry retry, purchase delivery and refund, and free and paid claims.",
     );
   } finally {
     await buyer.context().close();

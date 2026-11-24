@@ -14,6 +14,7 @@ import {
   ListingResponseSchema,
   MarketConfigSchema,
   PurchaseSchema,
+  PayoutSetupSchema,
   WalletBalanceSchema,
   type PrepareClaimSchema,
   type PreparePurchaseSchema,
@@ -169,51 +170,81 @@ export function createApiClient(options: ApiClientOptions) {
       return yield* decode(CardSchema, payload);
     });
 
-  const read = <S extends Schema.Constraint>(
+  const read = <S extends Schema.Constraint>(url: string, schema: S) =>
+    requestJson(url).pipe(Effect.flatMap((payload) => decode(schema, payload)));
+
+  const write = <S extends Schema.Constraint>(
     url: string,
     schema: S,
+    userId: string | undefined,
     body?: object,
   ) =>
-    requestJson(
-      url,
-      body && { method: "POST", body: JSON.stringify(body) },
-    ).pipe(Effect.flatMap((payload) => decode(schema, payload)));
+    userId
+      ? requestJson(url, {
+          method: "POST",
+          body: body && JSON.stringify(body),
+          headers: { "x-wikigems-account": userId },
+        }).pipe(Effect.flatMap((payload) => decode(schema, payload)))
+      : Effect.fail(new ApiError("Sign in to continue.", 401, "UNAUTHORIZED"));
 
   const fetchMarketConfig = () =>
     read("/api/market/config", MarketConfigSchema);
   const fetchWalletBalance = () =>
     read("/api/wallet/balance", WalletBalanceSchema);
 
-  const setListing = (cardId: string, input: typeof SetListingSchema.Type) =>
-    read(
+  const setupPayouts = (userId: string | undefined) =>
+    write("/api/wallet/payouts", PayoutSetupSchema, userId);
+
+  const setListing = (
+    cardId: string,
+    input: typeof SetListingSchema.Type,
+    userId: string | undefined,
+  ) =>
+    write(
       `/api/cards/${encodeURIComponent(cardId)}/listing`,
       ListingResponseSchema,
+      userId,
       input,
     );
 
-  const preparePurchase = (input: typeof PreparePurchaseSchema.Type) =>
-    read("/api/purchases", PurchaseSchema, input);
+  const preparePurchase = (
+    input: typeof PreparePurchaseSchema.Type,
+    userId: string | undefined,
+  ) => write("/api/purchases", PurchaseSchema, userId, input);
 
   const purchaseStatus = (
     id: string,
+    userId: string | undefined,
     input?: typeof SubmitSignatureSchema.Type,
   ) =>
-    read(
+    write(
       `/api/purchases/${encodeURIComponent(id)}${input ? "/sign" : ""}`,
       PurchaseSchema,
+      userId,
       input,
     );
 
   const prepareClaim = (
     cardId: string,
     input: typeof PrepareClaimSchema.Type,
+    userId: string | undefined,
   ) =>
-    read(`/api/cards/${encodeURIComponent(cardId)}/claim`, ClaimSchema, input);
+    write(
+      `/api/cards/${encodeURIComponent(cardId)}/claim`,
+      ClaimSchema,
+      userId,
+      input,
+    );
 
-  const claimStatus = (id: string, input?: typeof SubmitSignatureSchema.Type) =>
-    read(
+  const claimStatus = (
+    id: string,
+    userId: string | undefined,
+    input?: typeof SubmitSignatureSchema.Type,
+  ) =>
+    write(
       `/api/claims/${encodeURIComponent(id)}${input ? "/sign" : ""}`,
       ClaimSchema,
+      userId,
       input,
     );
 
@@ -312,6 +343,7 @@ export function createApiClient(options: ApiClientOptions) {
     toggleCardTrade,
     fetchMarketConfig,
     fetchWalletBalance,
+    setupPayouts,
     setListing,
     preparePurchase,
     purchaseStatus,

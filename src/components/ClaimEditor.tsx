@@ -7,7 +7,7 @@ import bs58 from "bs58";
 import { formatDollars } from "../../shared/amounts";
 import {
   marketError,
-  pollOperation,
+  pollSubmitted,
   requireBalance,
   signPrepared,
   submitOperation,
@@ -15,8 +15,10 @@ import {
   useWalletAction,
 } from "../lib/market-ui";
 import type { WalletError } from "../lib/wallet/error";
+import { getSessionUserId } from "../lib/session";
 import { showToast } from "../lib/ui";
 import { runUi } from "../runtime";
+import { PaymentRefund } from "./PaymentRefund";
 import { WalletAccess } from "./WalletAccess";
 import { Button, buttonClass } from "./ui/button";
 import { Alert } from "./ui/feedback";
@@ -25,6 +27,7 @@ import { TextField } from "./ui/form";
 export function ClaimEditor(props: {
   card: Card;
   quotedPrice: string;
+  paidPrice: string;
   linkedWallet: string | null;
   onChanged: () => void;
   onBusy: (busy: boolean) => void;
@@ -38,7 +41,11 @@ export function ClaimEditor(props: {
   const [error, setError] = createSignal<ApiError | WalletError | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [waiting, setWaiting] = createSignal(false);
-  const wallet = useWalletAction(fail);
+  const [refundReference, setRefundReference] = createSignal<string | null>(
+    null,
+  );
+  const userId = getSessionUserId();
+  const wallet = useWalletAction(fail, userId);
   const request = useOperationRequest();
   const target = () => destination().trim();
   const price = () =>
@@ -52,8 +59,11 @@ export function ClaimEditor(props: {
     });
   }
 
-  async function claim(address: string, selectedDestination: string) {
-    const quoted = approvedPrice();
+  async function claim(
+    address: string,
+    selectedDestination: string,
+    quoted: string,
+  ) {
     const card = props.card;
     setBusy(true);
     props.onBusy(true);
@@ -61,12 +71,16 @@ export function ClaimEditor(props: {
     const result = await runUi(
       Api.use((api) =>
         Effect.gen(function* () {
-          if (quoted !== "0") yield* requireBalance(quoted, address);
           const order = yield* api.prepareClaim(
             card.id,
-            selectedDestination ? { destination: selectedDestination } : {},
+            {
+              destination: selectedDestination || undefined,
+              paid: quoted !== "0",
+            },
+            userId,
           );
           const prepared = order.transaction;
+          const reconcile = () => api.claimStatus(order.id, userId);
           let current = order;
           if (order.state === "prepared" && prepared) {
             if (order.priceUsdcMinor !== quoted) {
@@ -74,17 +88,18 @@ export function ClaimEditor(props: {
               setPriceChanged(true);
               return null;
             }
+            yield* requireBalance(order.priceUsdcMinor, address);
             const signed = yield* signPrepared(
               prepared,
               `Move the ${card.title} card to a wallet for ${formatDollars(order.priceUsdcMinor)}`,
             );
             current = yield* submitOperation(
-              api.claimStatus(order.id, signed),
-              api.claimStatus(order.id),
+              api.claimStatus(order.id, userId, signed),
+              reconcile(),
             );
           }
           setWaiting(current.state === "submitted");
-          return yield* pollOperation(current, api.claimStatus);
+          return yield* pollSubmitted(current, reconcile);
         }),
       ),
       fail,
@@ -101,6 +116,8 @@ export function ClaimEditor(props: {
         tone: "success",
       });
       props.onChanged();
+    } else if (completed.state === "refund_required") {
+      setRefundReference(completed.id);
     } else {
       fail(
         new ApiError(
@@ -113,6 +130,10 @@ export function ClaimEditor(props: {
   }
 
   function begin() {
+    const quoted =
+      error()?.code === "FREE_CLAIM_BUDGET_EXHAUSTED"
+        ? props.paidPrice
+        : approvedPrice();
     const value = target();
     setError(null);
     if (
@@ -128,10 +149,11 @@ export function ClaimEditor(props: {
       );
       return;
     }
+    setApprovedPrice(quoted);
     setPriceChanged(false);
     props.onBusy(true);
     void wallet
-      .start((address) => void claim(address, value), approvedPrice() !== "0")
+      .start((address) => void claim(address, value, quoted), quoted !== "0")
       .finally(() => {
         if (!busy()) props.onBusy(false);
       });
@@ -151,6 +173,9 @@ export function ClaimEditor(props: {
         <span class="text-sm">Total</span>
         <strong class="tabular-nums">{price()}</strong>
       </div>
+      <Show when={refundReference()}>
+        {(id) => <PaymentRefund reference={id()} />}
+      </Show>
       <Show when={priceChanged()}>
         <p role="status" class="text-sm">
           The price changed. Review the new total before moving your card.
@@ -207,21 +232,25 @@ export function ClaimEditor(props: {
         when={wallet.pending()}
         fallback={
           <div class="flex flex-wrap gap-2">
-            <Button
-              feedback="confirm"
-              pending={busy() || wallet.busy()}
-              onClick={begin}
-            >
-              {error()?.code === "TRANSACTION_EXPIRED"
-                ? "Try again"
-                : "Move to wallet"}
-            </Button>
+            <Show when={!refundReference()}>
+              <Button
+                feedback="confirm"
+                pending={busy() || wallet.busy()}
+                onClick={begin}
+              >
+                {error()?.code === "FREE_CLAIM_BUDGET_EXHAUSTED"
+                  ? `Move for ${formatDollars(props.paidPrice)}`
+                  : error()?.code === "TRANSACTION_EXPIRED"
+                    ? "Try again"
+                    : "Move to wallet"}
+              </Button>
+            </Show>
             <Button
               variant="ghost"
               disabled={busy() || wallet.busy()}
               onClick={props.onCancel}
             >
-              Cancel
+              {refundReference() ? "Close" : "Cancel"}
             </Button>
           </div>
         }

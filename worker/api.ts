@@ -37,6 +37,7 @@ import {
   claimTerms,
   linkedWallet,
   marketFeeBps,
+  minimumPrice,
   publicOrigin,
   usdcMintAddress,
 } from "./chain/config";
@@ -426,6 +427,7 @@ export async function handleApi(
         const terms = claimTerms(env);
         return {
           marketFeeBps: marketFeeBps(env),
+          minPriceUsdcMinor: minimumPrice(env).toString(),
           claimPriceUsdcMinor: terms.price.toString(),
           freeClaimsRemaining: await freeClaimsRemaining(db, user.id, {
             emailVerified: user.emailVerified,

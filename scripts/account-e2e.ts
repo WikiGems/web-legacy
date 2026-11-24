@@ -46,7 +46,13 @@ const fixture = await accountFixture(baseURL, async (message) => {
   verificationEmails.push(message);
 });
 const env = chain
-  ? { ...chain.env, ...fixture.env, PUBLIC_ORIGIN: baseURL }
+  ? {
+      ...chain.env,
+      ...fixture.env,
+      PUBLIC_ORIGIN: baseURL,
+      FREE_CLAIMS_PER_USER: "2",
+      FREE_CLAIMS_DAILY_BUDGET: "1",
+    }
   : fixture.env;
 const root = resolve("dist/client");
 const assetHeaders = new Headers();
@@ -181,7 +187,7 @@ try {
     await checkWallet(page);
     assert.deepEqual(errors, []);
     console.log(
-      "Wallet browser checks passed: lazy creation, reload, unlock, approved signing, export, and lock.",
+      "Wallet browser checks passed: lazy creation, reload, unlock, approved signing, export, lock, and removal with a fresh passkey.",
     );
   } else if (process.argv.includes("--route-loading")) {
     await checkRouteLoading(page);

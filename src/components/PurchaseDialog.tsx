@@ -6,7 +6,7 @@ import { Effect } from "effect";
 import { formatDollars } from "../../shared/amounts";
 import {
   marketError,
-  pollOperation,
+  pollSubmitted,
   requireBalance,
   signPrepared,
   submitOperation,
@@ -14,8 +14,10 @@ import {
   useWalletAction,
 } from "../lib/market-ui";
 import type { WalletError } from "../lib/wallet/error";
+import { getSessionUserId } from "../lib/session";
 import { showToast } from "../lib/ui";
 import { runUi } from "../runtime";
+import { PaymentRefund } from "./PaymentRefund";
 import { CardArtwork } from "./GameCard";
 import { WalletAccess } from "./WalletAccess";
 import { WebDialog } from "./WebDialog";
@@ -32,8 +34,12 @@ export function PurchaseDialog(props: {
   const [priceNotice, setPriceNotice] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
   const [checkingPayment, setCheckingPayment] = createSignal(false);
+  const [refundReference, setRefundReference] = createSignal<string | null>(
+    null,
+  );
   const request = useOperationRequest();
-  const wallet = useWalletAction(fail);
+  const userId = getSessionUserId();
+  const wallet = useWalletAction(fail, userId);
   const price = () => formatDollars(listing().priceUsdcMinor);
   function fail(failure: ApiError | WalletError) {
     setError(failure);
@@ -49,12 +55,14 @@ export function PurchaseDialog(props: {
     const outcome = await runUi(
       Api.use((api) =>
         Effect.gen(function* () {
-          yield* requireBalance(priceUsdcMinor, address);
           const order = yield* api
-            .preparePurchase({
-              listingId: id,
-              expectedPriceUsdcMinor: priceUsdcMinor,
-            })
+            .preparePurchase(
+              {
+                listingId: id,
+                expectedPriceUsdcMinor: priceUsdcMinor,
+              },
+              userId,
+            )
             .pipe(
               Effect.catch((failure) =>
                 failure.code === "PRICE_CHANGED"
@@ -80,19 +88,21 @@ export function PurchaseDialog(props: {
             );
           if (!order) return null;
           const prepared = order.transaction;
+          const reconcile = () => api.purchaseStatus(order.id, userId);
           let current = order;
           if (order.state === "prepared" && prepared) {
+            yield* requireBalance(order.priceUsdcMinor, address);
             const signed = yield* signPrepared(
               prepared,
               `Buy the ${card.title} card for ${formatDollars(order.priceUsdcMinor)}`,
             );
             current = yield* submitOperation(
-              api.purchaseStatus(order.id, signed),
-              api.purchaseStatus(order.id),
+              api.purchaseStatus(order.id, userId, signed),
+              reconcile(),
             );
           }
           setCheckingPayment(current.state === "submitted");
-          return yield* pollOperation(current, api.purchaseStatus);
+          return yield* pollSubmitted(current, reconcile);
         }),
       ),
       fail,
@@ -109,6 +119,9 @@ export function PurchaseDialog(props: {
         tone: "success",
       });
       props.onClose();
+    } else if (order.state === "refund_required") {
+      setRefundReference(order.id);
+      props.onChanged();
     } else {
       fail(
         new ApiError(
@@ -139,6 +152,9 @@ export function PurchaseDialog(props: {
         <span>Total</span>
         <strong class="tabular-nums">{price()}</strong>
       </div>
+      <Show when={refundReference()}>
+        {(id) => <PaymentRefund reference={id()} />}
+      </Show>
       <Show when={priceNotice()}>
         <p role="status" class="text-sm">
           The price changed. Review the new total before buying.
@@ -177,26 +193,28 @@ export function PurchaseDialog(props: {
         when={wallet.pending()}
         fallback={
           <div class="flex flex-wrap gap-2">
-            <Button
-              pending={busy() || wallet.busy()}
-              disabled={error()?.code === "LISTING_UNAVAILABLE"}
-              feedback="buy"
-              onClick={() => {
-                setError(null);
-                setPriceNotice(false);
-                void wallet.start((address) => void buy(address), true);
-              }}
-            >
-              {error()?.code === "TRANSACTION_EXPIRED"
-                ? "Try again"
-                : `Buy for ${price()}`}
-            </Button>
+            <Show when={!refundReference()}>
+              <Button
+                pending={busy() || wallet.busy()}
+                disabled={error()?.code === "LISTING_UNAVAILABLE"}
+                feedback="buy"
+                onClick={() => {
+                  setError(null);
+                  setPriceNotice(false);
+                  void wallet.start((address) => void buy(address), true);
+                }}
+              >
+                {error()?.code === "TRANSACTION_EXPIRED"
+                  ? "Try again"
+                  : `Buy for ${price()}`}
+              </Button>
+            </Show>
             <Button
               variant="ghost"
               disabled={busy() || wallet.busy()}
               onClick={props.onClose}
             >
-              Cancel
+              {refundReference() ? "Close" : "Cancel"}
             </Button>
           </div>
         }

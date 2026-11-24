@@ -117,6 +117,7 @@ function Harness() {
           card={fixtureCard}
           config={{
             marketFeeBps: 250,
+            minPriceUsdcMinor: "100000",
             claimPriceUsdcMinor: "250000",
             freeClaimsRemaining: 0,
             cluster: "devnet",
