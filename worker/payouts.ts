@@ -35,10 +35,9 @@ export async function setupPayouts(db: GameDb, env: Env, userId: string) {
     connectChain(env),
     marketConfig(env),
   ]);
-  await Promise.all([
-    verifyMarketAccounts(chain, config),
-    verifyUsdcMint(chain, config.usdcMint),
-  ]);
+  // Sequential so a fast mint rejection never leaves a config read in flight.
+  await verifyMarketAccounts(chain, config);
+  await verifyUsdcMint(chain, config.usdcMint);
   const { ata, exists } = await payoutAta(chain, owner, config.usdcMint);
   const base = {
     userId,
