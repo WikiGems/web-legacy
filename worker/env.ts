@@ -12,4 +12,13 @@ export interface Env {
   EMAIL_FROM?: string;
   SOLANA_RPC_URL?: string;
   SOLANA_CLUSTER?: string;
+  SPONSOR_SECRET_KEY?: string;
+  MINT_AUTHORITY_SECRET_KEY?: string;
+  WIKIGEMS_PROGRAM_ID?: string;
+  USDC_MINT?: string;
+  TREASURY_WALLET?: string;
+  MARKET_FEE_BPS?: string;
+  CLAIM_PRICE_USDC_MINOR?: string;
+  FREE_CLAIMS_PER_USER?: string;
+  PUBLIC_ORIGIN?: string;
 }

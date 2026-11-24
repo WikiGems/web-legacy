@@ -4,10 +4,17 @@ import type { Env } from "./env";
 import { handleAccount } from "./account";
 import { handleAccountAuth } from "./account-auth";
 import { cleanupAvatars } from "./avatars";
+import { handleGemMetadata } from "./card-metadata";
+import { reconcileChain } from "./chain/cron";
 
 export default {
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    await cleanupAvatars(env);
+    const results = await Promise.allSettled([
+      cleanupAvatars(env),
+      reconcileChain(env),
+    ]);
+    if (results[0]?.status === "rejected") throw results[0].reason;
+    if (results[1]?.status === "rejected") throw results[1].reason;
   },
   async fetch(
     request: Request,
@@ -15,6 +22,10 @@ export default {
     _ctx: ExecutionContext,
   ): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname.startsWith("/g/")) {
+      return handleGemMetadata(request, url, env);
+    }
 
     if (url.pathname.startsWith("/api/account-auth/")) {
       return handleAccountAuth(request, createAuth(env, request));

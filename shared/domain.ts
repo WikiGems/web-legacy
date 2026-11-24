@@ -17,6 +17,8 @@ export type CardStatus = typeof CardStatusSchema.Type;
 export const CardSchema = Schema.Struct({
   id: Schema.String,
   articleId: Schema.String,
+  gemId: Schema.optionalKey(Schema.Number),
+  ownerWallet: Schema.optionalKey(Schema.NullOr(Schema.String)),
   title: Schema.String,
   description: Schema.String,
   extract: Schema.String,
@@ -73,11 +75,84 @@ export const OpenPackResponseSchema = Schema.Struct({
 
 export type OpenPackResponse = typeof OpenPackResponseSchema.Type;
 
+export const ListingSchema = Schema.Struct({
+  id: Schema.String,
+  card: CardSchema,
+  priceUsdcMinor: Schema.String,
+  createdAt: Schema.Number,
+  updatedAt: Schema.Number,
+});
+
+export type Listing = typeof ListingSchema.Type;
+
 export const MarketResponseSchema = Schema.Struct({
   cards: Schema.Array(CardSchema),
+  listings: Schema.Array(ListingSchema),
 });
 
 export type MarketResponse = typeof MarketResponseSchema.Type;
+
+export const SetListingSchema = Schema.Struct({
+  priceUsdcMinor: Schema.NullOr(Schema.String),
+});
+
+export const PreparePurchaseSchema = Schema.Struct({
+  listingId: Schema.String,
+  expectedPriceUsdcMinor: Schema.String,
+});
+
+export const PrepareClaimSchema = Schema.Struct({
+  destination: Schema.optionalKey(Schema.String),
+});
+
+export const SubmitSignatureSchema = Schema.Struct({
+  signature: Schema.String,
+});
+
+export const ChainOperationStateSchema = Schema.Literals([
+  "prepared",
+  "submitted",
+  "settled",
+  "failed",
+  "expired",
+]);
+
+export type ChainOperationState = typeof ChainOperationStateSchema.Type;
+
+const PreparedMessageSchema = Schema.Struct({
+  message: Schema.String,
+  requiredSigners: Schema.Array(Schema.String),
+  signerAddress: Schema.String,
+  lastValidBlockHeight: Schema.String,
+});
+
+const chainOperationFields = {
+  id: Schema.String,
+  cardId: Schema.String,
+  state: ChainOperationStateSchema,
+  priceUsdcMinor: Schema.String,
+  txSignature: Schema.NullOr(Schema.String),
+  failureCode: Schema.NullOr(Schema.String),
+  expiresAt: Schema.Number,
+  transaction: Schema.NullOr(PreparedMessageSchema),
+};
+
+export const PurchaseSchema = Schema.Struct({
+  ...chainOperationFields,
+  listingId: Schema.String,
+  feeUsdcMinor: Schema.String,
+});
+
+export type Purchase = typeof PurchaseSchema.Type;
+
+export const ClaimSchema = Schema.Struct({
+  ...chainOperationFields,
+  destination: Schema.String,
+  assetAddress: Schema.String,
+  usesFreeClaim: Schema.Boolean,
+});
+
+export type Claim = typeof ClaimSchema.Type;
 
 export const TradeSchema = Schema.Struct({
   id: Schema.String,

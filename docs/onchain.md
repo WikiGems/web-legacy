@@ -1,12 +1,14 @@
 # On-chain design
 
 How WikiGems cards live on Solana, what the program enforces, and what the
-backend is responsible for. Status as of November 2026: **phase 1 (minting, listings, bids,
-dormancy) is implemented and tested in LiteSVM; nothing is deployed.**
+backend is responsible for. The Anchor program implements minting, listings,
+bids and dormancy. The Worker uses the mint instruction for lazy claiming and
+settles off-chain sales via SPL Token transfers. These paths have local tests.
 
 ## Product constraints
 
-- Every Wikipedia article maps to at most one card: a 1-of-1 NFT.
+- Each Wikipedia article has at most one card. It starts as an off-chain
+  collectible and becomes a 1-of-1 Core asset when its owner claims it.
 - Players see cards and dollars only. They never hold SOL or see network fees.
 - The wallet is embedded and non-custodial. Its private key can be exported.
 - Players must never feel their cards can be taken. WikiGems can reclaim an
@@ -14,19 +16,88 @@ dormancy) is implemented and tested in LiteSVM; nothing is deployed.**
   30-day on-chain notice the owner can cancel, with the whole price paid to the
   owner. The program enforces this; the admin cannot skip it.
 
-## Identity: `gem_id`, not Wikipedia IDs
+## Gem identity
 
-Wikipedia page IDs survive renames, but they change when a page is deleted and
-recreated, merged articles become redirects, and every language edition has its
-own IDs. The canonical identity is therefore WikiGems' own `gem_id`: a sequential
-`u64` in a server-side registry that maps to `wiki` (e.g. `enwiki`), `page_id`,
-Wikidata QID, title and status (`active`/`merged`/`deleted`).
+The `cards` table assigns an immutable, sequential `gemId` when a card is
+created. The unique `articleId` remains the Wikipedia key. Migration 005
+backfills gem IDs in creation order, with card ID as a tiebreaker. SQLite
+`AUTOINCREMENT` retains the sequence across deletions. The database range
+ends at JavaScript's maximum safe integer. The on-chain seed encodes the ID
+as an unsigned, eight-byte little-endian integer.
 
-On-chain, only `gem_id` matters. The asset address is the PDA
-`["gem", gem_id.to_le_bytes()]`, so minting the same gem twice fails on-chain,
-independently of the database. A burned gem leaves a Core tombstone at that
-address, so its ID is retired permanently. To re-issue an article, assign it a
-new `gem_id`.
+The asset address is the PDA `["gem", gem_id.to_le_bytes()]`. The program
+prevents a second mint at that address. A burned Core asset leaves a tombstone
+at the same address and retires the ID. Existing browser-minted cards keep
+their original asset addresses and metadata URLs.
+
+## Lazy claiming
+
+Pack draws put cards into the off-chain ledger with `status = 'claimed'` and
+an `ownerUserId`. They can change hands through card-for-card trades or USDC
+sales. The owner can mint a card once through the claim API.
+
+### Off-chain sales
+
+The seller lists a card at a USDC price in integer minor units. Preparing a
+purchase reserves the listing for one buyer for up to two minutes, subject to
+the transaction's blockhash lifetime. Both parties need a linked wallet. The
+buyer supplies the expected listing price and signs a message that transfers
+the seller's proceeds and the treasury's fee from the buyer's USDC ATA. The
+fee is `floor(price * MARKET_FEE_BPS / 10_000)` and the seller receives the
+remainder. The transaction includes idempotent instructions to create the
+ATAs for nonzero payouts and an SPL Memo carrying the purchase ID. The sponsor
+pays transaction fees and ATA rent.
+
+The database moves ownership and closes the listing only after payment
+finalizes. A proposed trade pauses the USDC listing. While a claim or purchase
+is pending, the same card cannot be traded, bought again, or repriced.
+
+### Claims
+
+The Worker calls `mint_gem` with the registered gem ID, a name bounded to 32
+UTF-8 bytes, and a URI bounded to 96 bytes. The public URI is
+`${PUBLIC_ORIGIN}/g/<gemId>`, which serves Metaplex-style JSON. The existing
+`/api/cards/:id/metadata` route also serves metadata for older assets.
+
+The sponsor and mint authority sign server-side. By default a paid claim adds
+a 0.25 USDC transfer from the player's linked wallet to the treasury in the
+same transaction. The player signs that payment. The destination may be any
+valid Solana address and does not sign the mint instruction. A verified-email
+account gets one free claim by default. A pending free claim reserves the
+allowance, settlement consumes it, and failure or expiry releases it. The
+Worker signs and submits free claims in the prepare request.
+
+After finality, the ledger records the gem PDA, signature, mint time and owner
+wallet, and closes any off-chain listings and proposed trades on the card. The
+15-minute cron also reads ownership from finalized Core accounts in batches of
+up to 50. It associates a wallet with an in-game owner when one linked profile
+matches. External or ambiguous wallets leave the in-game owner empty.
+
+### Signing and reconciliation
+
+The Worker builds the entire message, stores its exact bytes, and returns
+base64 message bytes with the required addresses. The client returns a base64
+Ed25519 signature from the specified player address. The Worker verifies it
+against the stored bytes and checks the blockhash before co-signing. The
+signed wire and its transaction ID are saved before the first send. The
+Worker can rebroadcast the same wire safely after a timeout.
+
+Purchases and claims start as `prepared` and become `submitted` once the
+signed wire is durable. Status reads and the cron reconcile submitted work.
+The Worker verifies that the finalized wire matches the stored signed
+transaction and prepared message, then either delivers the card in the same
+database transaction that marks the operation `settled`, or records a
+finalized error as `failed`. It marks an unseen signed transaction `expired`
+only after finalized block height passes its last valid height and both
+signature history and transaction lookup are empty. RPC failures keep the
+operation locked for retry. A prepared message can expire before submission.
+
+### Costs
+
+A Core claim costs the sponsor roughly 0.0027 SOL, about $0.20 at $75/SOL.
+The default paid claim charges the player $0.25 USDC. Each recipient's first
+USDC ATA adds roughly 0.0015 SOL in rent. Players sign with their own wallet
+and keep custody of their USDC.
 
 ## Accounts
 
@@ -133,25 +204,6 @@ From the LiteSVM tests against mainnet Core, with mainnet rent (5,080 lamports/b
 The test `mint_puts_the_gem_at_its_derived_address_without_the_owner_paying`
 asserts the 0.0015 SOL Core fee, so a Metaplex fee change shows up as a failure.
 
-## Fees without SOL
-
-The sponsor is the fee payer of every transaction and pays all rent. The server
-signs only transactions it built, and re-validates the message (an instruction
-allowlist plus expected accounts) before signing. Otherwise anyone could make
-the sponsor pay for arbitrary transactions.
-
-- **Mints are paid by the player by default, in USDC.** The server adds a USDC
-  transfer to the treasury to the mint transaction; the sponsor still pays the
-  SOL. The price is a server setting, not program state.
-- **Sponsored mints** omit that transfer. Who qualifies is server policy, e.g.
-  sign-ups from the mobile app. The server must not trust a client's claim to
-  be the mobile app: verify it with App Attest (iOS) or Play Integrity
-  (Android), and cap sponsored mints per verified account.
-- Marketplace fees (USDC) cover trading transaction costs. Reclaims carry no
-  fee, so the sponsor absorbs their cost.
-- Core assets need no token accounts, so receiving a card costs nothing. A
-  player's first USDC token account (~0.002 SOL) is sponsored.
-
 ## Inactive players
 
 The goal is economic activity without anyone feeling robbed. A reclaim is a
@@ -220,22 +272,16 @@ and it is not available in the US.
 
 ## Backend
 
-The backend runs in the existing Cloudflare Worker (`worker/`), which already
-serves the frontend and `/api/*`. The Effect service boundaries from
-`apps/server` move into the Worker. Clients come from `@solana/kit` plus a
-Codama client generated from `programs/wikigems/idl/wikigems_program.json`.
+The Cloudflare Worker serves the API and public metadata. `worker/chain/`
+contains the Solana Kit builders and RPC adapter. `bun run client:program`
+generates the typed Codama client from the Anchor IDL.
+`bun run test:chain:integration` builds the Anchor program, loads it and the
+pinned Core fixture into LiteSVM, and executes actual USDC purchase and claim
+messages from the Worker builders.
 
-Responsibilities:
-
-- The gem registry.
-- Mint jobs: prepare, validate, co-sign, submit, confirm, record.
-- Indexing of transfers made outside the app.
-- Listing reconciliation via the existing cron.
-- The inactive-player admin view.
-- The sponsor balance monitor.
-
-The legacy browser-side mint (`src/lib/solana.ts` → `mintCardNft`) must be
-removed before the new mint path goes live, so only one mint authority exists.
+Operation setup and HTTP contracts are in [architecture.md](architecture.md).
+The UI migration replaces the old `mintCardNft` client with the prepare,
+sign and status flow. The legacy mint confirmation endpoint has been removed.
 
 ## Roadmap
 
@@ -244,10 +290,10 @@ removed before the new mint path goes live, so only one mint authority exists.
   `cancel_listing` / `buy`; single best-bid `place_bid` / `cancel_bid` /
   `accept_bid`; `post_notice` / `cancel_notice` / `reclaim` / notice-gated
   `admin_burn`. 48 LiteSVM tests.
-- **Backend (next):** gem registry, Worker mint service with USDC mint price
-  and attested sponsorship, transaction builder and signing allowlist, event
-  indexer (listings, bids, notices, transfers outside the app), inactivity
-  tracker and notifications, admin view, Codama client, embedded wallet.
+- **Backend:** gem registry, off-chain USDC listings, lazy claims, durable
+  signing and reconciliation, and Core owner refresh.
+- **Next:** embedded wallet and UI integration. Transaction building for the
+  program's marketplace, bids and dormancy tools remains future work.
 - **2:** trades and auctions.
 - **Before mainnet:**
   - Admin and upgrade authority moved to multisigs; upgrades time-locked.

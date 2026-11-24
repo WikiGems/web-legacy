@@ -1,4 +1,5 @@
-import { Kysely } from "kysely";
+import { Kysely, type Generated, type GeneratedAlways } from "kysely";
+import type { ChainOperationState } from "../shared/domain";
 import { LibsqlDialect } from "@libsql/kysely-libsql";
 import type { Env } from "./env";
 
@@ -23,6 +24,7 @@ export interface PackTable {
 }
 
 export interface CardTable {
+  gemId: GeneratedAlways<number>;
   id: string;
   articleId: string;
   title: string;
@@ -39,11 +41,12 @@ export interface CardTable {
   mintAddress: string | null;
   txSignature: string | null;
   ownerWallet: string | null;
-  ownerUserId: string;
+  ownerUserId: string | null;
   packId: string | null;
   forTrade: number;
   createdAt: number;
   mintedAt: number | null;
+  ownerCheckedAt: Generated<number>;
 }
 
 export interface TradeTable {
@@ -57,10 +60,54 @@ export interface TradeTable {
   updatedAt: number;
 }
 
+export interface ListingTable {
+  id: string;
+  cardId: string;
+  sellerUserId: string;
+  priceUsdcMinor: string;
+  createdAt: number;
+  updatedAt: number;
+  closedAt: number | null;
+}
+
+export interface ChainOperationTable {
+  id: string;
+  cardId: string;
+  actorUserId: string;
+  priceUsdcMinor: string;
+  state: ChainOperationState;
+  message: string;
+  lastValidBlockHeight: string;
+  genesisHash: string;
+  sponsorAddress: string;
+  signerAddress: string | null;
+  txSignature: string | null;
+  signedTransaction: string | null;
+  failureCode: string | null;
+  createdAt: number;
+  updatedAt: number;
+  expiresAt: number;
+}
+
+export interface PurchaseTable extends ChainOperationTable {
+  signerAddress: string;
+  listingId: string;
+  sellerUserId: string;
+  feeUsdcMinor: string;
+}
+
+export interface ClaimTable extends ChainOperationTable {
+  destination: string;
+  assetAddress: string;
+  mintAuthorityAddress: string;
+  usesFreeClaim: 0 | 1;
+}
+
 export interface UserTable {
   id: string;
   name: string;
   email: string;
+  emailVerified: number;
   image: string | null;
 }
 
@@ -79,6 +126,9 @@ export interface Database {
   packs: PackTable;
   cards: CardTable;
   trades: TradeTable;
+  listings: ListingTable;
+  purchases: PurchaseTable;
+  claims: ClaimTable;
   user: UserTable;
 }
 
@@ -92,3 +142,5 @@ export function createDb(
     }),
   });
 }
+
+export type GameDb = ReturnType<typeof createDb>;
