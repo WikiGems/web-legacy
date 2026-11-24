@@ -37,6 +37,7 @@ import { HttpError } from "./http-error";
 import { preparePurchase, purchaseStatus, setListing } from "./market";
 import { proposeTrade, decideTrade } from "./trades";
 import { drawArticle } from "./wiki";
+import { authorizeWrite } from "./write-auth";
 import { handleWallet } from "./wallet-vault";
 
 type Session = { user: { id: string; name: string; email: string } };
@@ -108,6 +109,13 @@ const dbOperation = <A>(operation: () => Promise<A>) =>
       );
     },
   });
+
+const requireWriteSession = (auth: WikiGemsAuth, request: Request) =>
+  requireSession(auth, request).pipe(
+    Effect.tap(({ user }) =>
+      dbOperation(() => authorizeWrite(request, auth, user.id)),
+    ),
+  );
 
 function packState(profile: ProfileTable, now: number) {
   let stock = profile.packStock;
@@ -578,23 +586,12 @@ export async function handleApi(
       (request.method === "POST" &&
         (chainCardAction ||
           url.pathname === "/api/purchases" ||
-          chainOperation?.[3])) ||
+          chainOperation)) ||
       (request.method === "GET" && chainOperation && !chainOperation[3])
     ) {
-      const { user } = yield* requireSession(auth, request);
-      if (request.method === "POST") {
-        const context = yield* Effect.tryPromise({
-          try: () => auth.$context,
-          catch: () =>
-            new HttpError(500, "Could not reach the session service."),
-        });
-        const origin = request.headers.get("origin");
-        if (!origin || !context.trustedOrigins.includes(origin)) {
-          return yield* Effect.fail(
-            new HttpError(403, "Untrusted request origin.", "UNTRUSTED_ORIGIN"),
-          );
-        }
-      }
+      const { user } = yield* request.method === "POST"
+        ? requireWriteSession(auth, request)
+        : requireSession(auth, request);
 
       const actorUserId = user.id;
       if (chainCardAction) {
@@ -606,7 +603,7 @@ export async function handleApi(
           );
           return privateJson(
             yield* dbOperation(() =>
-              setListing(db, { actorUserId, cardId: cardId!, ...body }),
+              setListing(db, env, { actorUserId, cardId: cardId!, ...body }),
             ),
           );
         }
@@ -641,7 +638,12 @@ export async function handleApi(
         : {};
       const status = operation === "purchases" ? purchaseStatus : claimStatus;
       const row = yield* dbOperation(async () =>
-        status(db, env, { actorUserId, id: id!, ...body }),
+        status(db, env, {
+          actorUserId,
+          id: id!,
+          ...body,
+          readOnly: request.method === "GET",
+        }),
       );
       return privateJson(row, sign && row.state === "submitted" ? 202 : 200);
     }
@@ -799,7 +801,7 @@ export async function handleApi(
     }
 
     if (url.pathname === "/api/trades" && request.method === "POST") {
-      const session = yield* requireSession(auth, request);
+      const session = yield* requireWriteSession(auth, request);
       const body = yield* decodeBody(
         request,
         Schema.decodeUnknownSync(CreateTradeSchema),
@@ -814,7 +816,7 @@ export async function handleApi(
       /^\/api\/trades\/([^/]+)\/(accept|decline|cancel)$/,
     );
     if (tradeAction && request.method === "POST") {
-      const session = yield* requireSession(auth, request);
+      const session = yield* requireWriteSession(auth, request);
       const [, tradeId, action] = tradeAction;
       return privateJson(
         yield* dbOperation(() =>
@@ -832,6 +834,10 @@ export async function handleApi(
     );
     if (cardAction) {
       const [, cardId, action] = cardAction;
+      const tradeSession =
+        action === "trade" && request.method === "POST"
+          ? yield* requireWriteSession(auth, request)
+          : null;
       const card = yield* dbOperation(() =>
         db
           .selectFrom("cards")
@@ -857,8 +863,8 @@ export async function handleApi(
         });
       }
 
-      if (action === "trade" && request.method === "POST") {
-        const session = yield* requireSession(auth, request);
+      if (tradeSession) {
+        const session = tradeSession;
         if (card.ownerUserId !== session.user.id) {
           return yield* Effect.fail(
             new HttpError(403, "You do not own this card."),

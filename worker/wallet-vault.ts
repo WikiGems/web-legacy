@@ -18,26 +18,21 @@ import {
 import type { WikiGemsAuth } from "./auth";
 import type { Database, ProfileTable } from "./db";
 import type { Env } from "./env";
+import { HttpError as WalletHttpError } from "./http-error";
+import { setupPayouts } from "./payouts";
+import { authorizeWrite } from "./write-auth";
 
 type Db = Kysely<Database>;
 type User = { id: string; email: string };
 type Purpose = VaultProofPurpose | "link";
+type ChallengePurpose = Exclude<Purpose, "delete-wrapper">;
+const challengePath = "/api/wallet/challenge";
 type EnsureProfile = (db: Db, userId: string) => Promise<ProfileTable>;
 
 const vaultPath = "/api/wallet/vault";
 const wrapperPath = `${vaultPath}/wrappers`;
 const maxBodyBytes = 4096;
 const exactBody = { onExcessProperty: "error" } as const;
-
-class WalletHttpError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-    readonly code?: string,
-  ) {
-    super(message);
-  }
-}
 
 const privateJson = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "cache-control": "no-store" } });
@@ -93,8 +88,13 @@ function isWalletAddress(value: unknown): value is string {
 
 function challengePurpose(url: URL): Purpose {
   const value = url.searchParams.get("purpose");
-  if (value === null) return "link";
-  if (value === "create" || value === "add-wrapper" || value === "export")
+  if (value === null || value === "link") return "link";
+  if (
+    value === "create" ||
+    value === "add-wrapper" ||
+    value === "export" ||
+    value === "delete-wrapper"
+  )
     return value;
   throw new WalletHttpError(400, "The wallet challenge purpose is invalid.");
 }
@@ -104,9 +104,11 @@ function challengeMessage(
   address: string,
   nonce: string,
   purpose: Purpose,
+  credentialId?: string,
 ) {
   const action = purpose === "link" ? "link" : `vault ${purpose}`;
-  return `WikiGems wallet ${action}\nAccount: ${user.email}\nWallet: ${address}\nNonce: ${nonce}`;
+  const target = credentialId ? `\nCredential: ${credentialId}` : "";
+  return `WikiGems wallet ${action}\nAccount: ${user.email}\nWallet: ${address}${target}\nNonce: ${nonce}`;
 }
 
 async function issueChallenge(
@@ -115,17 +117,23 @@ async function issueChallenge(
   user: User,
   url: URL,
   purpose: Purpose,
+  credentialId?: string,
 ) {
   const address = url.searchParams.get("wallet");
   if (!isWalletAddress(address))
     throw new WalletHttpError(400, "That wallet address is invalid.");
 
+  if (
+    purpose === "delete-wrapper" &&
+    !Schema.is(CredentialIdSchema)(credentialId)
+  )
+    throw new WalletHttpError(400, "Provide the wallet passkey credential ID.");
   const profile = await ensureProfile(db, user.id);
   const now = Date.now();
   const nonce =
     purpose === "link"
       ? crypto.randomUUID()
-      : `${purpose}:${crypto.randomUUID()}`;
+      : `${purpose}:${credentialId ? `${credentialId}:` : ""}${crypto.randomUUID()}`;
   const expiresAt = now + 5 * 60_000;
   await db
     .updateTable("profiles")
@@ -137,7 +145,7 @@ async function issueChallenge(
     .where("userId", "=", user.id)
     .execute();
   return privateJson({
-    message: challengeMessage(user, address, nonce, purpose),
+    message: challengeMessage(user, address, nonce, purpose, credentialId),
     nonce,
     expiresAt,
     previousWallet: profile.walletAddress,
@@ -150,6 +158,7 @@ function verifyProof(
   address: string,
   signature: string,
   purpose: Purpose,
+  credentialId?: string,
 ) {
   const { walletNonce, walletNonceExpiresAt } = profile;
   if (
@@ -165,7 +174,9 @@ function verifyProof(
   const matchesPurpose =
     purpose === "link"
       ? !walletNonce.includes(":")
-      : walletNonce.startsWith(`${purpose}:`);
+      : walletNonce.startsWith(
+          `${purpose}:${credentialId ? `${credentialId}:` : ""}`,
+        );
   if (!matchesPurpose)
     throw new WalletHttpError(
       400,
@@ -179,7 +190,7 @@ function verifyProof(
     valid = ed25519.verify(
       bytes,
       new TextEncoder().encode(
-        challengeMessage(user, address, walletNonce, purpose),
+        challengeMessage(user, address, walletNonce, purpose, credentialId),
       ),
       bs58.decode(address),
       { zip215: false },
@@ -346,7 +357,7 @@ async function updateWithProof(
   db: Db,
   user: User,
   ensureProfile: EnsureProfile,
-  purpose: Purpose,
+  purpose: ChallengePurpose,
 ) {
   if (purpose === "link") {
     const body = await readBody(
@@ -493,14 +504,16 @@ export async function handleWallet(
   try {
     const url = new URL(request.url);
     const path = url.pathname;
-    const origin = request.headers.get("origin");
-    if (
-      (origin && origin !== url.origin) ||
-      request.headers.get("sec-fetch-site") === "cross-site"
-    )
-      throw new WalletHttpError(
-        403,
-        "This wallet request came from another site.",
+    if (path === challengePath && request.method !== "POST")
+      return Response.json(
+        {
+          error: "Use POST for wallet challenges.",
+          code: "METHOD_NOT_ALLOWED",
+        },
+        {
+          status: 405,
+          headers: { allow: "POST", "cache-control": "no-store" },
+        },
       );
 
     const session = await auth.api.getSession({ headers: request.headers });
@@ -512,27 +525,28 @@ export async function handleWallet(
       );
     const user = session.user;
 
-    const purpose =
-      path === "/api/wallet/challenge" ? challengePurpose(url) : "link";
-    if (
-      (path.startsWith(vaultPath) && request.method !== "GET") ||
-      purpose !== "link"
-    ) {
-      // Browsers omit Origin on same-origin GETs. The account header still guards challenges.
-      if (request.method !== "GET" && origin !== url.origin)
-        throw new WalletHttpError(
-          403,
-          "This wallet request needs a trusted origin.",
-        );
-      if (request.headers.get("x-wikigems-account") !== user.id)
-        throw new WalletHttpError(
-          409,
-          "Your active account changed. Open Wallet again.",
-        );
+    if (request.method !== "GET") await authorizeWrite(request, auth, user.id);
+
+    if (path === challengePath) {
+      const purpose = challengePurpose(url);
+      const credentialId =
+        purpose === "delete-wrapper"
+          ? (url.searchParams.get("credentialId") ?? undefined)
+          : undefined;
+      return await issueChallenge(
+        db,
+        ensureProfile,
+        user,
+        url,
+        purpose,
+        credentialId,
+      );
     }
 
-    if (path === "/api/wallet/challenge" && request.method === "GET")
-      return await issueChallenge(db, ensureProfile, user, url, purpose);
+    if (path === "/api/wallet/payouts" && request.method === "POST") {
+      const result = await setupPayouts(db, env, user.id);
+      return privateJson(result, result.state === "submitted" ? 202 : 200);
+    }
     if (path === "/api/wallet/link" && request.method === "POST")
       return await updateWithProof(request, db, user, ensureProfile, "link");
 
@@ -572,7 +586,36 @@ export async function handleWallet(
       const id = path.slice(wrapperPath.length + 1);
       if (!Schema.is(CredentialIdSchema)(id))
         throw new WalletHttpError(404, "That wallet passkey was not found.");
-      return await removeWrapper(db, user.id, id);
+      const proof = await readBody(
+        request,
+        Schema.decodeUnknownSync(VaultProofSchema, exactBody),
+      );
+      const profile = await ensureProfile(db, user.id);
+      verifyProof(
+        profile,
+        user,
+        proof.publicKey,
+        proof.signature,
+        "delete-wrapper",
+        id,
+      );
+      return await db.transaction().execute(async (trx) => {
+        const saved = await trx
+          .selectFrom("wallet_vaults")
+          .select("publicKey")
+          .where("userId", "=", user.id)
+          .executeTakeFirst();
+        if (
+          saved?.publicKey !== proof.publicKey ||
+          profile.walletAddress !== proof.publicKey
+        )
+          throw new WalletHttpError(
+            409,
+            "That address does not match your saved wallet.",
+          );
+        await consumeProof(trx, profile, profile.walletAddress);
+        return removeWrapper(trx, user.id, id);
+      });
     }
     throw new WalletHttpError(404, "Wallet request not found.");
   } catch (error) {

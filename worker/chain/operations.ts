@@ -9,8 +9,11 @@ import {
   LOCK_MS,
   cancelProposedTrades,
   closeListings,
+  ensureCardsUnlocked,
+  hasProposedTrade,
   type OperationTable,
 } from "../card-locks";
+import type { Env } from "../env";
 import { HttpError } from "../http-error";
 import { chainNotConfigured, type ServerSigner } from "./config";
 import {
@@ -19,6 +22,7 @@ import {
   chainRequest,
   ensureSameChain,
   rpcOptions,
+  requireSponsorBalance,
   storedWire,
   type Chain,
 } from "./rpc";
@@ -53,14 +57,69 @@ export function preparedOperation(input: {
     createdAt: now,
     updatedAt: now,
     expiresAt: now + LOCK_MS,
+    notFoundChecks: 0,
+    firstNotFoundAt: null,
+    lastNotFoundAt: null,
+    expiredAt: null,
   };
 }
 
-type Outcome = "settled" | "failed" | "expired";
+type Outcome = "settled" | "failed" | "expired" | "refund_required";
+const NOT_FOUND_INTERVAL_MS = 15 * 60_000;
+export const LATE_RECONCILIATION_MS = 7 * 24 * 60 * 60_000;
+const MAX_PREPARED = 3;
+const MAX_PREPARES_PER_MINUTE = 12;
+
+function prepareLimit() {
+  return new HttpError(
+    429,
+    "Too many transaction prepares. Try again shortly.",
+    "PREPARE_LIMIT",
+  );
+}
+
+export async function recordPrepareAttempt(db: GameDb, actorUserId: string) {
+  await db.transaction().execute(async (trx) => {
+    const now = Date.now();
+    const { count } = await trx
+      .selectFrom("chain_prepare_attempts")
+      .select((eb) => eb.fn.countAll().as("count"))
+      .where("actorUserId", "=", actorUserId)
+      .where("createdAt", ">", now - 60_000)
+      .executeTakeFirstOrThrow();
+    if (Number(count) >= MAX_PREPARES_PER_MINUTE) throw prepareLimit();
+    await trx
+      .insertInto("chain_prepare_attempts")
+      .values({ actorUserId, createdAt: now })
+      .execute();
+  });
+}
+
+export async function enforcePreparedCap(
+  db: GameDb,
+  actorUserId: string,
+  now: number,
+) {
+  let prepared = 0;
+  for (const table of ["purchases", "claims"] as const) {
+    const rows = await db
+      .selectFrom(table)
+      .select("id")
+      .where("actorUserId", "=", actorUserId)
+      .where("state", "=", "prepared")
+      .where("expiresAt", ">", now)
+      .limit(MAX_PREPARED)
+      .execute();
+    prepared += rows.length;
+  }
+  if (prepared >= MAX_PREPARED) throw prepareLimit();
+}
+
 const failureCodes = {
   settled: null,
   failed: "TRANSACTION_FAILED",
   expired: "TRANSACTION_EXPIRED",
+  refund_required: "REFUND_REQUIRED",
 };
 
 function expirePrepared(
@@ -110,7 +169,9 @@ export async function submitPrepared(
   table: OperationTable,
   row: ChainOperationTable,
   signers: ServerSigner[],
+  env: Env,
   clientSignature?: string,
+  beforeSign?: (trx: GameDb, now: number) => Promise<void>,
 ) {
   if (row.state !== "prepared") return;
   ensureSameChain(chain, row);
@@ -137,28 +198,45 @@ export async function submitPrepared(
       "TRANSACTION_EXPIRED",
     );
   }
-  const signed = await signPreparedMessage(row, signers, clientSignature, {
-    now,
-    blockHeight,
-    blockhashValid,
+  const sponsor = signers[0];
+  if (!sponsor) throw chainNotConfigured();
+  await requireSponsorBalance(chain, env, sponsor.address);
+
+  const signed = await db.transaction().execute(async (trx) => {
+    const signingAt = Date.now();
+    const current = await trx
+      .selectFrom(table)
+      .select("state")
+      .where("id", "=", row.id)
+      .executeTakeFirst();
+    if (current?.state !== "prepared") return;
+    if (signingAt >= row.expiresAt) {
+      await expirePrepared(trx, table, row.id, signingAt);
+      return;
+    }
+    await beforeSign?.(trx, signingAt);
+    const wire = await signPreparedMessage(row, signers, clientSignature, {
+      now: signingAt,
+      blockHeight,
+      blockhashValid,
+    });
+    await trx
+      .updateTable(table)
+      .set({
+        ...wire,
+        state: "submitted",
+        updatedAt: signingAt,
+      })
+      .where("id", "=", row.id)
+      .execute();
+    return wire;
   });
 
-  const changed = await db
-    .updateTable(table)
-    .set({ ...signed, state: "submitted", updatedAt: Date.now() })
-    .where("id", "=", row.id)
-    .where("state", "=", "prepared")
-    .where("expiresAt", ">", Date.now())
-    .returning("id")
-    .executeTakeFirst();
-
   // Persist the exact signed wire and its transaction ID before any broadcast.
-  if (changed) await tryBroadcast(chain, signed.signedTransaction);
-  else if (Date.now() >= row.expiresAt)
-    await expirePrepared(db, table, row.id, Date.now());
+  if (signed) await tryBroadcast(chain, signed.signedTransaction);
 }
 
-async function tryBroadcast(
+export async function tryBroadcast(
   chain: Chain,
   wire: Parameters<typeof broadcast>[1],
 ) {
@@ -185,75 +263,166 @@ type ChainJob =
   | { table: "purchases"; row: PurchaseTable }
   | { table: "claims"; row: ClaimTable };
 
-async function settle(db: GameDb, job: ChainJob, outcome: Outcome) {
+async function settle(
+  db: GameDb,
+  job: ChainJob,
+  finalized: "settled" | "failed",
+) {
   const { table, row } = job;
-  await db.transaction().execute(async (trx) => {
+  const outcome = await db.transaction().execute(async (trx) => {
     const now = Date.now();
-    const updated = await trx
+    const current = await trx
+      .selectFrom(table)
+      .select(["state", "expiredAt"])
+      .where("id", "=", row.id)
+      .where("txSignature", "=", row.txSignature)
+      .executeTakeFirst();
+    const late =
+      current?.state === "expired" &&
+      current.expiredAt !== null &&
+      current.expiredAt > now - LATE_RECONCILIATION_MS;
+    if (current?.state !== "submitted" && !late) return;
+
+    let result: Outcome = finalized;
+    if (finalized === "settled") {
+      if (late) {
+        try {
+          await ensureCardsUnlocked(trx, [row.cardId], now);
+          if (await hasProposedTrade(trx, row.cardId))
+            result = "refund_required";
+        } catch (error) {
+          if (!(error instanceof HttpError) || error.code !== "CARD_LOCKED")
+            throw error;
+          result = "refund_required";
+        }
+      }
+
+      if (result === "settled") {
+        const card = await deliverCard(trx, job, now, late);
+        if (card) {
+          await closeListings(trx, [row.cardId], now);
+          await cancelProposedTrades(trx, [row.cardId], now);
+        } else {
+          result = "refund_required";
+        }
+      }
+    }
+
+    await trx
       .updateTable(table)
       .set({
-        state: outcome,
-        failureCode: failureCodes[outcome],
+        state: result,
+        failureCode: failureCodes[result],
         updatedAt: now,
       })
       .where("id", "=", row.id)
-      .where("state", "=", "submitted")
-      .where("txSignature", "=", row.txSignature)
-      .returning("id")
-      .executeTakeFirst();
-    if (!updated || outcome !== "settled") return;
-
-    let card: { id: string } | undefined;
-    if (job.table === "purchases") {
-      const purchase = job.row;
-      const buyer = await trx
-        .selectFrom("user")
-        .select("id")
-        .where("id", "=", purchase.actorUserId)
-        .executeTakeFirst();
-      card = await trx
-        .updateTable("cards")
-        .set({ ownerUserId: buyer?.id ?? null, forTrade: 0 })
-        .where("id", "=", purchase.cardId)
-        .where("status", "=", "claimed")
-        .where((eb) =>
-          eb.or([
-            eb("ownerUserId", "=", purchase.sellerUserId),
-            eb("ownerUserId", "is", null),
-          ]),
-        )
-        .returning("id")
-        .executeTakeFirst();
-    } else {
-      const claim = job.row;
-      card = await trx
-        .updateTable("cards")
-        .set({
-          status: "minted",
-          mintAddress: claim.assetAddress,
-          ownerWallet: claim.destination,
-          ownerUserId: await ownerOfWallet(trx, claim.destination),
-          txSignature: claim.txSignature,
-          mintedAt: now,
-          forTrade: 0,
-        })
-        .where("id", "=", claim.cardId)
-        .where("status", "=", "claimed")
-        .where((eb) =>
-          eb.or([
-            eb("ownerUserId", "=", claim.actorUserId),
-            eb("ownerUserId", "is", null),
-          ]),
-        )
-        .returning("id")
-        .executeTakeFirst();
-    }
-    if (!card)
-      throw new Error("Card ownership changed during a submitted operation.");
-
-    await closeListings(trx, [card.id], now);
-    await cancelProposedTrades(trx, [card.id], now);
+      .execute();
+    return result;
   });
+  if (outcome === "refund_required") {
+    console.error(
+      "Finalized chain operation requires operator reconciliation",
+      {
+        table,
+        id: row.id,
+        cardId: row.cardId,
+        txSignature: row.txSignature,
+      },
+    );
+  }
+}
+
+async function deliverCard(
+  db: GameDb,
+  job: ChainJob,
+  now: number,
+  late: boolean,
+) {
+  const { row } = job;
+  const originalOwner =
+    job.table === "purchases" ? job.row.sellerUserId : job.row.actorUserId;
+  const card = db
+    .updateTable("cards")
+    .where("id", "=", row.cardId)
+    .where("status", "=", "claimed")
+    .where((eb) =>
+      late
+        ? eb("ownerUserId", "=", originalOwner)
+        : eb.or([
+            eb("ownerUserId", "=", originalOwner),
+            eb("ownerUserId", "is", null),
+          ]),
+    )
+    .returning("id");
+
+  if (job.table === "purchases") {
+    const buyer = await db
+      .selectFrom("user")
+      .select("id")
+      .where("id", "=", row.actorUserId)
+      .executeTakeFirst();
+    if (late && !buyer) return;
+    return card
+      .set({ ownerUserId: buyer?.id ?? null, forTrade: 0 })
+      .executeTakeFirst();
+  }
+  const claim = job.row;
+  return card
+    .set({
+      status: "minted",
+      mintAddress: claim.assetAddress,
+      ownerWallet: claim.destination,
+      ownerUserId: await ownerOfWallet(db, claim.destination),
+      txSignature: claim.txSignature,
+      mintedAt: now,
+      forTrade: 0,
+    })
+    .executeTakeFirst();
+}
+
+async function recordNotFound(db: GameDb, { table, row }: ChainJob) {
+  const now = Date.now();
+  const checks = row.notFoundChecks + 1;
+  const first = row.firstNotFoundAt ?? now;
+  const expired = checks >= 3 && now - first >= 2 * NOT_FOUND_INTERVAL_MS;
+  await db
+    .updateTable(table)
+    .set({
+      notFoundChecks: checks,
+      firstNotFoundAt: first,
+      lastNotFoundAt: now,
+      ...(expired
+        ? {
+            state: "expired",
+            expiredAt: now,
+            failureCode: failureCodes.expired,
+            updatedAt: now,
+          }
+        : {}),
+    })
+    .where("id", "=", row.id)
+    .where("state", "=", "submitted")
+    .where("notFoundChecks", "=", row.notFoundChecks)
+    .where("firstNotFoundAt", "is", row.firstNotFoundAt)
+    .where((eb) =>
+      eb.or([
+        eb("lastNotFoundAt", "is", null),
+        eb("lastNotFoundAt", "<=", now - NOT_FOUND_INTERVAL_MS),
+      ]),
+    )
+    .execute();
+}
+
+export function needsReconciliation(
+  row: ChainOperationTable,
+  now = Date.now(),
+) {
+  return (
+    row.state === "submitted" ||
+    (row.state === "expired" &&
+      row.expiredAt !== null &&
+      row.expiredAt > now - LATE_RECONCILIATION_MS)
+  );
 }
 
 export async function refreshSubmitted(
@@ -262,14 +431,32 @@ export async function refreshSubmitted(
   job: ChainJob,
   options?: { finalizedHeight?: bigint; retryBroadcast: boolean },
 ) {
-  if (job.row.state !== "submitted") return;
-  const outcome = await chainOutcome(chain, job.row, options?.finalizedHeight);
+  const { table, row } = job;
+  if (!needsReconciliation(row)) return;
+  const outcome = await chainOutcome(chain, row, options?.finalizedHeight);
   switch (outcome) {
     case "unseen":
-      if (options?.retryBroadcast !== false)
-        await tryBroadcast(chain, storedWire(job.row));
+      if (row.state === "submitted" && options?.retryBroadcast !== false)
+        await tryBroadcast(chain, storedWire(row));
+      break;
+    case "not_found":
+      if (row.state === "submitted") await recordNotFound(db, job);
       break;
     case "pending":
+      if (row.state === "submitted") {
+        await db
+          .updateTable(table)
+          .set({
+            notFoundChecks: 0,
+            firstNotFoundAt: null,
+            lastNotFoundAt: null,
+          })
+          .where("id", "=", row.id)
+          .where("state", "=", "submitted")
+          .execute();
+      }
+      break;
+    case "unseen_past_lifetime":
       break;
     default:
       await settle(db, job, outcome);

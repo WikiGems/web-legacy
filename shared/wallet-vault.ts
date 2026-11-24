@@ -93,4 +93,8 @@ export const WalletVaultStatusSchema = Schema.Struct({
 });
 export type WalletVaultStatus = typeof WalletVaultStatusSchema.Type;
 
-export type VaultProofPurpose = "create" | "add-wrapper" | "export";
+export type VaultProofPurpose =
+  | "create"
+  | "add-wrapper"
+  | "export"
+  | "delete-wrapper";

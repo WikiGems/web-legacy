@@ -13,7 +13,12 @@ import {
   type Address,
   type ReadonlyUint8Array,
 } from "@solana/kit";
-import { getMintEncoder, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
+import {
+  AccountState,
+  getMintEncoder,
+  getTokenEncoder,
+  TOKEN_PROGRAM_ADDRESS,
+} from "@solana-program/token";
 import { createDb } from "../worker/db";
 import type { Env } from "../worker/env";
 import {
@@ -105,6 +110,7 @@ function wireAccount(owner: string, data: ReadonlyUint8Array) {
 export async function chainFixture() {
   const fixture = await migratedDatabase();
   await fixture.migrate("005_lazy_claims");
+  await fixture.migrate("007_sponsor_safety");
 
   const [sponsor, mintAuthority, mint, treasury, buyer, seller, other] =
     await Promise.all([
@@ -143,6 +149,35 @@ export async function chainFixture() {
     freezeAuthority: null,
   });
 
+  const tokenAccounts = new Map<string, ReturnType<typeof wireAccount>>();
+  async function setPayoutAccount(owner: Address, exists = true) {
+    const ata = await usdcAta(owner, mint.address);
+    if (!exists) tokenAccounts.delete(ata);
+    else
+      tokenAccounts.set(
+        ata,
+        wireAccount(
+          TOKEN_PROGRAM_ADDRESS,
+          getTokenEncoder().encode({
+            mint: mint.address,
+            owner,
+            amount: 0n,
+            delegate: null,
+            state: AccountState.Initialized,
+            isNative: null,
+            delegatedAmount: 0n,
+            closeAuthority: null,
+          }),
+        ),
+      );
+  }
+  await Promise.all([
+    setPayoutAccount(seller.address),
+    setPayoutAccount(treasury.address),
+  ]);
+  let sponsorBalance = 500_000_000;
+  let configReads = 0;
+  let historyChecks = 0;
   let height = 100;
   let failBroadcast = false;
   let blockhashValid = true;
@@ -161,7 +196,7 @@ export async function chainFixture() {
         method: string;
         params?: [unknown, unknown];
       };
-      const [first] = body.params ?? [];
+      const [first, second] = body.params ?? [];
       const context = { slot: 100 };
       let result: unknown;
       switch (body.method) {
@@ -169,6 +204,7 @@ export async function chainFixture() {
           result = lifetime.blockhash;
           break;
         case "getAccountInfo":
+          if (first === configPda) configReads++;
           result = {
             context,
             value:
@@ -176,8 +212,11 @@ export async function chainFixture() {
                 ? wireAccount(WIKIGEMS_PROGRAM_PROGRAM_ADDRESS, configBytes)
                 : first === mint.address
                   ? wireAccount(TOKEN_PROGRAM_ADDRESS, mintBytes)
-                  : null,
+                  : (tokenAccounts.get(String(first)) ?? null),
           };
+          break;
+        case "getBalance":
+          result = { context, value: sponsorBalance };
           break;
         case "getLatestBlockhash":
           result = {
@@ -192,6 +231,9 @@ export async function chainFixture() {
           result = { context, value: blockhashValid };
           break;
         case "getSignatureStatuses":
+          if (JSON.stringify(second) !== '{"searchTransactionHistory":true}')
+            return new Response(null, { status: 400 });
+          historyChecks++;
           result = {
             context,
             value: Array.isArray(first)
@@ -305,6 +347,16 @@ export async function chainFixture() {
     owners,
     reads,
     observed,
+    setPayoutAccount,
+    get configReads() {
+      return configReads;
+    },
+    get historyChecks() {
+      return historyChecks;
+    },
+    setSponsorBalance(lamports: number) {
+      sponsorBalance = lamports;
+    },
     setHeight(value: number) {
       height = value;
     },

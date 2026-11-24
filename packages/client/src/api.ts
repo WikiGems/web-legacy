@@ -83,6 +83,23 @@ export function createApiClient(options: ApiClientOptions) {
       ),
     );
 
+  const sessionUser = Schema.Struct({
+    user: Schema.Struct({ id: Schema.String }),
+  });
+  const writeAsActiveAccount = (url: string, init: RequestInit) =>
+    Effect.gen(function* () {
+      const session = yield* requestJson("/api/auth/get-session");
+      if (!session)
+        return yield* Effect.fail(
+          new ApiError("Sign in to continue.", 401, "UNAUTHORIZED"),
+        );
+      const { user } = yield* decode(sessionUser, session);
+      return yield* requestJson(url, {
+        ...init,
+        headers: { ...init.headers, "x-wikigems-account": user.id },
+      });
+    });
+
   const fetchGameState = () =>
     Effect.gen(function* () {
       const payload = yield* requestJson("/api/game/state");
@@ -116,7 +133,7 @@ export function createApiClient(options: ApiClientOptions) {
         offeredCardId,
         requestedCardId,
       });
-      return yield* requestJson("/api/trades", {
+      return yield* writeAsActiveAccount("/api/trades", {
         method: "POST",
         body: JSON.stringify(body),
       });
@@ -126,7 +143,7 @@ export function createApiClient(options: ApiClientOptions) {
     tradeId: string,
     action: "accept" | "decline" | "cancel",
   ) =>
-    requestJson(`/api/trades/${tradeId}/${action}`, {
+    writeAsActiveAccount(`/api/trades/${tradeId}/${action}`, {
       method: "POST",
       body: "{}",
     });
@@ -134,10 +151,13 @@ export function createApiClient(options: ApiClientOptions) {
   const toggleCardTrade = (cardId: string, forTrade: boolean) =>
     Effect.gen(function* () {
       const body = yield* decode(ToggleTradeSchema, { forTrade });
-      const payload = yield* requestJson(`/api/cards/${cardId}/trade`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const payload = yield* writeAsActiveAccount(
+        `/api/cards/${cardId}/trade`,
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+      );
       return yield* decode(CardSchema, payload);
     });
 
@@ -162,8 +182,9 @@ export function createApiClient(options: ApiClientOptions) {
 
   const requestWalletChallenge = (wallet: string) =>
     Effect.gen(function* () {
-      const payload = yield* requestJson(
+      const payload = yield* writeAsActiveAccount(
         `/api/wallet/challenge?wallet=${encodeURIComponent(wallet)}`,
+        { method: "POST" },
       );
       return yield* decode(WalletChallengeSchema, payload);
     });
@@ -174,7 +195,7 @@ export function createApiClient(options: ApiClientOptions) {
         walletAddress,
         signature,
       });
-      return yield* requestJson("/api/wallet/link", {
+      return yield* writeAsActiveAccount("/api/wallet/link", {
         method: "POST",
         body: JSON.stringify(body),
       });

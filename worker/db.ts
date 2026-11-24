@@ -87,6 +87,10 @@ export interface ChainOperationTable {
   createdAt: number;
   updatedAt: number;
   expiresAt: number;
+  notFoundChecks: number;
+  firstNotFoundAt: number | null;
+  lastNotFoundAt: number | null;
+  expiredAt: number | null;
 }
 
 export interface PurchaseTable extends ChainOperationTable {
@@ -111,7 +115,25 @@ export interface UserTable {
   image: string | null;
 }
 
+export interface PayoutSetupTable {
+  userId: string;
+  walletAddress: string;
+  ataAddress: string;
+  message: string | null;
+  readyAt: number | null;
+  genesisHash: string;
+  txSignature: string | null;
+  signedTransaction: string | null;
+  lastValidBlockHeight: string | null;
+}
+
 export interface Database {
+  payout_setups: PayoutSetupTable;
+  chain_prepare_attempts: {
+    id: GeneratedAlways<number>;
+    actorUserId: string;
+    createdAt: number;
+  };
   account_profiles: {
     userId: string;
     username: string | null;

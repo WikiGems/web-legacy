@@ -80,22 +80,18 @@ function compile(
   );
 }
 
-async function payouts({
-  payer,
+async function transfers({
   buyer,
   mint,
   recipients,
 }: {
-  payer: Address;
   buyer: Address;
   mint: Address;
   recipients: { wallet: Address; amount: bigint }[];
 }): Promise<Instruction[]> {
   const source = await usdcAta(buyer, mint);
   const authority = createNoopSigner(buyer);
-  const payerSigner = createNoopSigner(payer);
   const instructions: Instruction[] = [];
-  const created = new Set<Address>();
 
   for (const { wallet, amount } of recipients) {
     if (amount === 0n) continue;
@@ -108,17 +104,6 @@ async function payouts({
       );
     }
 
-    if (!created.has(destination)) {
-      created.add(destination);
-      instructions.push(
-        getCreateAssociatedTokenIdempotentInstruction({
-          payer: payerSigner,
-          ata: destination,
-          owner: wallet,
-          mint,
-        }),
-      );
-    }
     instructions.push(
       getTransferCheckedInstruction({
         source,
@@ -154,8 +139,7 @@ export async function buildPurchaseTransaction(
 
   return compile(
     input,
-    await payouts({
-      payer: input.sponsor,
+    await transfers({
       buyer: input.buyer,
       mint: input.mint,
       recipients: [
@@ -164,6 +148,19 @@ export async function buildPurchaseTransaction(
       ],
     }),
   );
+}
+
+export function buildPayoutSetupTransaction(
+  input: SponsoredMessage & { owner: Address; ata: Address; mint: Address },
+) {
+  return compile(input, [
+    getCreateAssociatedTokenIdempotentInstruction({
+      payer: createNoopSigner(input.sponsor),
+      ata: input.ata,
+      owner: input.owner,
+      mint: input.mint,
+    }),
+  ]);
 }
 
 type ClaimPayment = {
@@ -212,8 +209,7 @@ export async function buildClaimTransaction(
     { programAddress },
   );
   const instructions = payment
-    ? await payouts({
-        payer: input.sponsor,
+    ? await transfers({
         buyer: payment.buyer,
         mint: payment.mint,
         recipients: [{ wallet: payment.treasury, amount: payment.amount }],

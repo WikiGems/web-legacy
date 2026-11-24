@@ -39,10 +39,12 @@ import {
   CORE_PROGRAM_ADDRESS,
   buildClaimTransaction,
   buildPurchaseTransaction,
+  buildPayoutSetupTransaction,
   usdcAta,
 } from "../worker/chain/transactions";
 import { prepareClaim, claimStatus } from "../worker/claims";
 import { preparePurchase, purchaseStatus, setListing } from "../worker/market";
+import { setupPayouts } from "../worker/payouts";
 import { proposeTrade, decideTrade } from "../worker/trades";
 import {
   chainFixture,
@@ -84,7 +86,7 @@ async function quote(
   fixture: Awaited<ReturnType<typeof chainFixture>>,
   cardId: string,
 ) {
-  const listed = await setListing(fixture.db, {
+  const listed = await setListing(fixture.db, fixture.env, {
     actorUserId: "seller",
     cardId,
     priceUsdcMinor: "1000001",
@@ -150,7 +152,82 @@ test("migration preserves older cards and trades and allocates increasing IDs", 
   }
 });
 
-test("USDC prices are canonical u64 strings and fees round down without overflow", () => {
+test("security migration retires legacy unsigned purchases and preserves submitted and expired signed wire", async () => {
+  const fixture = await migratedDatabase();
+  const { client, db } = fixture;
+  try {
+    await fixture.migrate("005_lazy_claims");
+    await fixture.addUser("seller");
+    for (const cardId of ["unsigned", "in-flight", "old-expiry"]) {
+      await fixture.addCard(cardId, "seller");
+      await db
+        .insertInto("listings")
+        .values({
+          id: cardId,
+          cardId,
+          sellerUserId: "seller",
+          priceUsdcMinor: "100000",
+          createdAt: 1,
+          updatedAt: 1,
+          closedAt: null,
+        })
+        .execute();
+    }
+    for (const [id, state, txSignature] of [
+      ["unsigned", "prepared", null],
+      ["in-flight", "submitted", "signed-now"],
+      ["old-expiry", "expired", "signed-before"],
+    ] as const) {
+      await client.execute({
+        sql: `insert into purchases (id, cardId, listingId, actorUserId, sellerUserId, priceUsdcMinor, feeUsdcMinor,
+          state, message, lastValidBlockHeight, genesisHash, sponsorAddress, signerAddress, txSignature, signedTransaction,
+          createdAt, updatedAt, expiresAt) values (?, ?, ?, 'buyer', 'seller', '100000', '1', ?, 'msg', '150',
+          'genesis', 'sponsor', 'buyer', ?, ?, 1, 2, 3)`,
+        args: [id, id, id, state, txSignature, txSignature ? "wire" : null],
+      });
+    }
+    await fixture.migrate("007_sponsor_safety");
+    expect(
+      await db
+        .selectFrom("purchases")
+        .select([
+          "id",
+          "state",
+          "txSignature",
+          "signedTransaction",
+          "expiredAt",
+        ])
+        .orderBy("id")
+        .execute(),
+    ).toEqual([
+      {
+        id: "in-flight",
+        state: "submitted",
+        txSignature: "signed-now",
+        signedTransaction: "wire",
+        expiredAt: null,
+      },
+      {
+        id: "old-expiry",
+        state: "expired",
+        txSignature: "signed-before",
+        signedTransaction: "wire",
+        expiredAt: 2,
+      },
+      {
+        id: "unsigned",
+        state: "expired",
+        txSignature: null,
+        signedTransaction: null,
+        expiredAt: null,
+      },
+    ]);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("USDC prices are canonical u64 strings and fees round down with a nonzero minimum", () => {
   expect(parseUsdcMinor("1")).toBe(1n);
   expect(parseUsdcMinor("18446744073709551615")).toBe((1n << 64n) - 1n);
   for (const value of [
@@ -164,7 +241,8 @@ test("USDC prices are canonical u64 strings and fees round down without overflow
   ]) {
     expect(parseUsdcMinor(value)).toBeNull();
   }
-  expect(splitPrice(39n, 250)).toEqual({ fee: 0n, seller: 39n });
+  expect(splitPrice(39n, 250)).toEqual({ fee: 1n, seller: 38n });
+  expect(splitPrice(39n, 0)).toEqual({ fee: 0n, seller: 39n });
   expect(splitPrice(1000001n, 250)).toEqual({ fee: 25000n, seller: 975001n });
   expect(splitPrice((1n << 64n) - 1n, 250)).toEqual({
     fee: 461168601842738790n,
@@ -172,7 +250,7 @@ test("USDC prices are canonical u64 strings and fees round down without overflow
   });
 });
 
-test("purchase message has canonical ATAs, checked USDC amounts and a memo", async () => {
+test("purchase has exactly checked USDC transfers and a memo while payout setup is sponsor-only", async () => {
   const [sponsor, buyer, seller, treasury, mint] = await Promise.all([
     testKey(),
     testKey(),
@@ -195,23 +273,16 @@ test("purchase message has canonical ATAs, checked USDC amounts and a memo", asy
   const ixs = instructions(message);
   expect(requiredSigners(message)).toEqual([sponsor.address, buyer.address]);
   expect(ixs.map((ix) => ix.programAddress)).toEqual([
-    ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
     TOKEN_PROGRAM_ADDRESS,
-    ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
     TOKEN_PROGRAM_ADDRESS,
     LEGACY_MEMO_PROGRAM_ADDRESS_V3,
   ]);
   for (const [index, recipient, amount] of [
     [0, seller, 975001n],
-    [2, treasury, 25000n],
+    [1, treasury, 25000n],
   ] as const) {
-    const create = parseCreateAssociatedTokenIdempotentInstruction(ixs[index]!);
-    const transfer = parseTransferCheckedInstruction(ixs[index + 1]!);
+    const transfer = parseTransferCheckedInstruction(ixs[index]!);
     const ata = await usdcAta(recipient.address, mint.address);
-    expect(create.data.discriminator).toBe(1);
-    expect(create.accounts.payer.address).toBe(sponsor.address);
-    expect(create.accounts.owner.address).toBe(recipient.address);
-    expect(create.accounts.ata.address).toBe(ata);
     expect(transfer.accounts.source.address).toBe(
       await usdcAta(buyer.address, mint.address),
     );
@@ -220,7 +291,7 @@ test("purchase message has canonical ATAs, checked USDC amounts and a memo", asy
     expect(transfer.accounts.authority.address).toBe(buyer.address);
     expect(transfer.data).toMatchObject({ amount, decimals: 6 });
   }
-  expect(parseAddMemoInstruction(ixs[4]!).data.memo).toBe("purchase-id");
+  expect(parseAddMemoInstruction(ixs[2]!).data.memo).toBe("purchase-id");
 
   const tiny = await buildPurchaseTransaction({
     id: "tiny",
@@ -233,7 +304,24 @@ test("purchase message has canonical ATAs, checked USDC amounts and a memo", asy
     sellerAmount: 1n,
     fee: 0n,
   });
-  expect(instructions(toBase64(tiny.messageBytes))).toHaveLength(3);
+  expect(instructions(toBase64(tiny.messageBytes))).toHaveLength(2);
+  const ata = await usdcAta(seller.address, mint.address);
+  const setup = buildPayoutSetupTransaction({
+    id: "payout-setup",
+    sponsor: sponsor.address,
+    lifetime,
+    owner: seller.address,
+    mint: mint.address,
+    ata,
+  });
+  const setupMessage = toBase64(setup.messageBytes);
+  expect(requiredSigners(setupMessage)).toEqual([sponsor.address]);
+  const [create] = instructions(setupMessage);
+  expect(create?.programAddress).toBe(ASSOCIATED_TOKEN_PROGRAM_ADDRESS);
+  const parsed = parseCreateAssociatedTokenIdempotentInstruction(create!);
+  expect(parsed.data.discriminator).toBe(1);
+  expect(parsed.accounts.owner.address).toBe(seller.address);
+  expect(parsed.accounts.ata.address).toBe(ata);
 });
 
 test("free and paid claim messages pin the gem PDA, destination and UTF-8 limits", async () => {
@@ -296,10 +384,10 @@ test("free and paid claim messages pin the gem PDA, destination and UTF-8 limits
   const paidIxs = instructions(paidMessage);
   expect(requiredSigners(paidMessage)).toHaveLength(3);
   expect(requiredSigners(paidMessage)).toContain(buyer.address);
-  expect(parseTransferCheckedInstruction(paidIxs[1]!).data.amount).toBe(
+  expect(parseTransferCheckedInstruction(paidIxs[0]!).data.amount).toBe(
     250000n,
   );
-  expect(parseMintGemInstruction(paidIxs[2]!).accounts.owner.address).toBe(
+  expect(parseMintGemInstruction(paidIxs[1]!).accounts.owner.address).toBe(
     recipient.address,
   );
   await expect(
@@ -393,27 +481,61 @@ test("purchase owns the lock, persists before sending and reconciles the exact f
         expectedPriceUsdcMinor: "1000000",
       }),
     ).rejects.toMatchObject({ code: "PRICE_CHANGED" });
-    const [first, second] = await Promise.allSettled([
+    const [purchase, rival] = await Promise.all([
       preparePurchase(db, env, { ...listing, actorUserId: "buyer" }),
       preparePurchase(db, env, { ...listing, actorUserId: "other" }),
     ]);
-    const succeeded = [first, second].filter(
-      (result) => result.status === "fulfilled",
-    );
-    expect(succeeded).toHaveLength(1);
-    const purchase = succeeded[0]!.value;
-    const winner = first.status === "fulfilled" ? "buyer" : "other";
-    const loser = winner === "buyer" ? "other" : "buyer";
-    const wallet = winner === "buyer" ? fixture.buyer : fixture.other;
     expect(purchase.state).toBe("prepared");
+    expect(rival.state).toBe("prepared");
     expect(
-      (await preparePurchase(db, env, { ...listing, actorUserId: winner })).id,
+      (await preparePurchase(db, env, { ...listing, actorUserId: "buyer" })).id,
     ).toBe(purchase.id);
     await expect(
-      purchaseStatus(db, env, { actorUserId: loser, id: purchase.id }),
+      purchaseStatus(db, env, { actorUserId: "other", id: purchase.id }),
     ).rejects.toMatchObject({ code: "OPERATION_NOT_FOUND" });
+
+    let persisted = false;
+    fixture.failBroadcast(async () => {
+      const row = await db
+        .selectFrom("purchases")
+        .selectAll()
+        .where("cardId", "=", "sold")
+        .where("state", "=", "submitted")
+        .executeTakeFirstOrThrow();
+      persisted =
+        row.state === "submitted" &&
+        Boolean(row.txSignature && row.signedTransaction);
+    });
+    const [buyerSignature, rivalSignature] = await Promise.all([
+      sign(purchase, fixture.buyer),
+      sign(rival, fixture.other),
+    ]);
+    const outcomes = await Promise.allSettled([
+      purchaseStatus(db, env, {
+        actorUserId: "buyer",
+        id: purchase.id,
+        signature: buyerSignature,
+      }),
+      purchaseStatus(db, env, {
+        actorUserId: "other",
+        id: rival.id,
+        signature: rivalSignature,
+      }),
+    ]);
+    const [successful] = outcomes.filter(
+      (result) => result.status === "fulfilled",
+    );
+    const [rejected] = outcomes.filter(
+      (result) => result.status === "rejected",
+    );
+    expect(rejected?.reason).toMatchObject({
+      status: 409,
+      code: "CARD_LOCKED",
+    });
+    const submitted = successful!.value;
+    const winner = submitted.id === purchase.id ? "buyer" : "other";
     await expect(
-      setListing(db, {
+      setListing(db, env, {
         actorUserId: "seller",
         cardId: "sold",
         priceUsdcMinor: null,
@@ -427,22 +549,21 @@ test("purchase owns the lock, persists before sending and reconciles the exact f
       }),
     ).rejects.toMatchObject({ code: "CARD_LOCKED" });
 
-    let persisted = false;
-    fixture.failBroadcast(async () => {
-      const row = await db
-        .selectFrom("purchases")
-        .selectAll()
-        .where("id", "=", purchase.id)
-        .executeTakeFirstOrThrow();
-      persisted =
-        row.state === "submitted" &&
-        Boolean(row.txSignature && row.signedTransaction);
-    });
-    const submitted = await purchaseStatus(db, env, {
-      actorUserId: winner,
-      id: purchase.id,
-      signature: await sign(purchase, wallet),
-    });
+    // Historical proposals may already be stale; ownership settlement must close them too.
+    await db
+      .insertInto("trades")
+      .values({
+        id: "old-purchase-proposal",
+        proposerId: "other",
+        counterpartyId: "seller",
+        offeredCardId: "offered",
+        requestedCardId: "sold",
+        status: "proposed",
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .execute();
+
     expect(persisted).toBe(true);
     expect(submitted.state).toBe("submitted");
     expect(
@@ -459,13 +580,13 @@ test("purchase owns the lock, persists before sending and reconciles the exact f
       wire: toBase64(new Uint8Array([0])),
     });
     await expect(
-      purchaseStatus(db, env, { actorUserId: winner, id: purchase.id }),
+      purchaseStatus(db, env, { actorUserId: winner, id: submitted.id }),
     ).rejects.toMatchObject({ code: "CHAIN_UNAVAILABLE" });
     fixture.finalize(submitted.txSignature!);
     await reconcileChain(env);
     await reconcileChain(env);
     expect(
-      (await purchaseStatus(db, env, { actorUserId: winner, id: purchase.id }))
+      (await purchaseStatus(db, env, { actorUserId: winner, id: submitted.id }))
         .state,
     ).toBe("settled");
     expect(
@@ -486,6 +607,13 @@ test("purchase owns the lock, persists before sending and reconciles the exact f
           .executeTakeFirst()
       )?.closedAt,
     ).toBeGreaterThan(0);
+    expect(
+      await db
+        .selectFrom("trades")
+        .select("status")
+        .where("id", "=", "old-purchase-proposal")
+        .executeTakeFirst(),
+    ).toEqual({ status: "cancelled" });
     expect(fixture.signedWires.size).toBe(1);
   } finally {
     await fixture.close();
@@ -499,16 +627,22 @@ test("off-chain trades still settle and close any USDC listing on cards that cha
     await fixture.addCard("listed", "seller");
     await fixture.addCard("offered", "buyer");
     await fixture.addCard("competing", "other");
+    await fixture.addCard("competing-other-side", "other");
     const listing = await quote(fixture, "listed");
     const offered = await proposeTrade(db, {
       actorUserId: "buyer",
       offeredCardId: "offered",
       requestedCardId: "listed",
     });
-    await proposeTrade(db, {
+    const competing = await proposeTrade(db, {
       actorUserId: "other",
       offeredCardId: "competing",
       requestedCardId: "listed",
+    });
+    const otherSide = await proposeTrade(db, {
+      actorUserId: "other",
+      offeredCardId: "competing-other-side",
+      requestedCardId: "offered",
     });
     expect(
       await decideTrade(db, {
@@ -538,14 +672,22 @@ test("off-chain trades still settle and close any USDC listing on cards that cha
       )?.closedAt,
     ).toBeGreaterThan(0);
     expect(
+      await db
+        .selectFrom("trades")
+        .select("status")
+        .where("id", "in", [competing.id, otherSide.id])
+        .execute(),
+    ).toEqual([{ status: "cancelled" }, { status: "cancelled" }]);
+    await fixture.setPayoutAccount(fixture.buyer.address);
+    expect(
       (
-        await setListing(db, {
+        await setListing(db, fixture.env, {
           actorUserId: "buyer",
           cardId: "listed",
-          priceUsdcMinor: "5",
+          priceUsdcMinor: "100000",
         })
       ).listing?.priceUsdcMinor,
-    ).toBe("5");
+    ).toBe("100000");
   } finally {
     await fixture.close();
   }
@@ -591,13 +733,28 @@ test("failed or expired payments release the card only after the chain outcome i
       signature: await sign(first, fixture.buyer),
     });
 
-    fixture.setHeight(151);
+    fixture.setHeight(182);
+    await reconcileChain(env);
+    expect((await purchaseStatus(db, env, action)).state).toBe("submitted");
+    fixture.setHeight(183);
     fixture.observed.add(sent.txSignature!);
     await reconcileChain(env);
     expect((await purchaseStatus(db, env, action)).state).toBe("submitted");
     fixture.observed.delete(sent.txSignature!);
-    await reconcileChain(env);
-    expect((await purchaseStatus(db, env, action)).state).toBe("expired");
+    const clock = Date.now;
+    const start = clock();
+    try {
+      for (const minutes of [0, 1, 15, 29]) {
+        Date.now = () => start + minutes * 60_000;
+        await reconcileChain(env);
+        expect((await purchaseStatus(db, env, action)).state).toBe("submitted");
+      }
+      Date.now = () => start + 30 * 60_000;
+      await reconcileChain(env);
+      expect((await purchaseStatus(db, env, action)).state).toBe("expired");
+    } finally {
+      Date.now = clock;
+    }
     fixture.setHeight(100);
 
     const second = await preparePurchase(db, env, order);
@@ -640,10 +797,10 @@ test("verified free claims reserve a slot, block trades, and sync owner transfer
       requestedCardId: "free",
     });
     await expect(
-      setListing(db, {
+      setListing(db, fixture.env, {
         actorUserId: "seller",
         cardId: "free",
-        priceUsdcMinor: "8",
+        priceUsdcMinor: "100000",
       }),
     ).rejects.toMatchObject({ code: "TRADE_PENDING" });
     await expect(
@@ -777,12 +934,21 @@ test("expired free claims restore the allowance and a stale prepared blockhash c
       actorUserId: "buyer",
     });
     expect(first.usesFreeClaim).toBe(true);
-    fixture.setHeight(151);
-    await reconcileChain(env);
-    expect(
-      (await claimStatus(db, env, { actorUserId: "buyer", id: first.id }))
-        .state,
-    ).toBe("expired");
+    fixture.setHeight(183);
+    const clock = Date.now;
+    const start = clock();
+    try {
+      for (const minutes of [0, 15, 30]) {
+        Date.now = () => start + minutes * 60_000;
+        await reconcileChain(env);
+      }
+      expect(
+        (await claimStatus(db, env, { actorUserId: "buyer", id: first.id }))
+          .state,
+      ).toBe("expired");
+    } finally {
+      Date.now = clock;
+    }
     fixture.setHeight(100);
     const retry = await prepareClaim(db, env, {
       cardId: "retry",
@@ -817,7 +983,7 @@ test("expired free claims restore the allowance and a stale prepared blockhash c
 
 test("HTTP exposes signed-in listings, typed chain errors and public gem metadata", async () => {
   const fixture = await chainFixture();
-  const env = { ...fixture.env, SPONSOR_SECRET_KEY: undefined };
+  const env = fixture.env;
   const baseURL = env.PUBLIC_ORIGIN!;
   const auth = createAuth({ ...env, BETTER_AUTH_URL: baseURL });
   const context = await auth.$context;
@@ -833,6 +999,7 @@ test("HTTP exposes signed-in listings, typed chain errors and public gem metadat
       body?: unknown,
       origin = baseURL,
       authenticated = true,
+      account = "seller",
     ) =>
       handleApi(
         new Request(
@@ -845,6 +1012,7 @@ test("HTTP exposes signed-in listings, typed chain errors and public gem metadat
                   origin,
                   cookie: authenticated ? cookie : "",
                   "content-type": "application/json",
+                  "x-wikigems-account": account,
                 },
                 body: JSON.stringify(body),
               },
@@ -857,7 +1025,7 @@ test("HTTP exposes signed-in listings, typed chain errors and public gem metadat
       (
         await request(
           "/api/cards/api/listing",
-          { priceUsdcMinor: "900" },
+          { priceUsdcMinor: "100000" },
           baseURL,
           false,
         )
@@ -867,24 +1035,62 @@ test("HTTP exposes signed-in listings, typed chain errors and public gem metadat
       (
         await request(
           "/api/cards/api/listing",
-          { priceUsdcMinor: "900" },
+          { priceUsdcMinor: "100000" },
           "https://untrusted.example",
         )
       ).status,
     ).toBe(403);
+    for (const path of [
+      "/api/trades",
+      "/api/trades/example/accept",
+      "/api/trades/example/decline",
+      "/api/trades/example/cancel",
+      "/api/cards/api/trade",
+      "/api/cards/api/listing",
+      "/api/cards/api/claim",
+      "/api/purchases",
+      "/api/purchases/example/sign",
+      "/api/claims/example/sign",
+      "/api/purchases/example",
+      "/api/claims/example",
+      "/api/wallet/payouts",
+    ]) {
+      const mismatched = await request(path, {}, baseURL, true, "buyer");
+      expect(mismatched.status, path).toBe(409);
+      expect(await mismatched.json(), path).toMatchObject({
+        code: "ACTIVE_ACCOUNT_CHANGED",
+      });
+      const foreign = await request(path, {}, "https://untrusted.example");
+      expect(foreign.status, path).toBe(403);
+      expect(await foreign.json(), path).toMatchObject({
+        code: "UNTRUSTED_ORIGIN",
+      });
+    }
     const listing = await request("/api/cards/api/listing", {
-      priceUsdcMinor: "900",
+      priceUsdcMinor: "100000",
     });
     expect(listing.status).toBe(200);
     expect(await listing.json()).toMatchObject({
-      listing: { priceUsdcMinor: "900", card: { gemId: 1, id: "api" } },
+      listing: { priceUsdcMinor: "100000", card: { gemId: 1, id: "api" } },
     });
     const market = await request("/api/market");
     expect(await market.json()).toMatchObject({
-      listings: [{ priceUsdcMinor: "900" }],
+      listings: [{ priceUsdcMinor: "100000" }],
       cards: [{ id: "api" }],
     });
+    const payout = await request("/api/wallet/payouts", {});
+    expect(payout.status).toBe(200);
+    expect(await payout.json()).toEqual({
+      state: "ready",
+      walletAddress: fixture.seller.address,
+      ataAddress: await usdcAta(fixture.seller.address, fixture.mint.address),
+      txSignature: null,
+      failureCode: null,
+    });
+    const sponsorSecret = env.SPONSOR_SECRET_KEY;
+    env.SPONSOR_SECRET_KEY = undefined;
     const missingChain = await request("/api/cards/api/claim", {});
+    env.SPONSOR_SECRET_KEY = sponsorSecret;
     expect(missingChain.status).toBe(503);
     expect(await missingChain.json()).toMatchObject({
       code: "CHAIN_NOT_CONFIGURED",
@@ -909,5 +1115,427 @@ test("HTTP exposes signed-in listings, typed chain errors and public gem metadat
     ) {
       await database.db.destroy();
     }
+  }
+});
+
+test("minimum listing and purchase prices are enforced before signing and both recipient ATAs are required", async () => {
+  const { db, env, ...fixture } = await chainFixture();
+  try {
+    await fixture.addCard("quote", "seller");
+    const listing = await quote({ db, env, ...fixture }, "quote");
+    await expect(
+      setListing(db, env, {
+        actorUserId: "seller",
+        cardId: "quote",
+        priceUsdcMinor: "1",
+      }),
+    ).rejects.toMatchObject({ status: 400, code: "PRICE_BELOW_MINIMUM" });
+    await expect(
+      preparePurchase(db, env, {
+        actorUserId: "buyer",
+        ...listing,
+        expectedPriceUsdcMinor: "1",
+      }),
+    ).rejects.toMatchObject({ status: 400, code: "PRICE_BELOW_MINIMUM" });
+
+    await fixture.setPayoutAccount(fixture.seller.address, false);
+    const order = { actorUserId: "buyer", ...listing };
+    await expect(preparePurchase(db, env, order)).rejects.toMatchObject({
+      status: 409,
+      code: "SELLER_PAYOUT_REQUIRED",
+    });
+    await fixture.setPayoutAccount(fixture.seller.address);
+    const prepared = await preparePurchase(db, env, order);
+    await fixture.setPayoutAccount(fixture.treasury.address, false);
+    await expect(
+      purchaseStatus(db, env, {
+        actorUserId: "buyer",
+        id: prepared.id,
+        signature: await sign(prepared, fixture.buyer),
+      }),
+    ).rejects.toMatchObject({ status: 503, code: "TREASURY_PAYOUT_REQUIRED" });
+    expect(fixture.signedWires.size).toBe(0);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("listing starts sponsor-only payout setup once and records an already existing ATA as used", async () => {
+  const fixture = await chainFixture();
+  const { db, env } = fixture;
+  try {
+    await fixture.addCard("receivable", "buyer");
+    const input = {
+      actorUserId: "buyer",
+      cardId: "receivable",
+      priceUsdcMinor: "100000",
+    };
+    await expect(setListing(db, env, input)).rejects.toMatchObject({
+      status: 409,
+      code: "PAYOUT_SETUP_PENDING",
+    });
+    const pending = await setupPayouts(db, env, "buyer");
+    expect(pending).toMatchObject({
+      state: "submitted",
+      walletAddress: fixture.buyer.address,
+      failureCode: null,
+    });
+    expect(fixture.signedWires.size).toBe(1);
+    const row = await db
+      .selectFrom("payout_setups")
+      .selectAll()
+      .where("userId", "=", "buyer")
+      .executeTakeFirstOrThrow();
+    expect(requiredSigners(row.message!)).toEqual([fixture.sponsor.address]);
+    fixture.finalize(pending.txSignature!);
+    await fixture.setPayoutAccount(fixture.buyer.address);
+    expect((await setupPayouts(db, env, "buyer")).state).toBe("ready");
+    expect((await setListing(db, env, input)).listing?.priceUsdcMinor).toBe(
+      "100000",
+    );
+    await fixture.setPayoutAccount(fixture.buyer.address, false);
+    await expect(setupPayouts(db, env, "buyer")).rejects.toMatchObject({
+      code: "PAYOUT_ACCOUNT_CLOSED",
+    });
+    await db
+      .updateTable("profiles")
+      .set({ walletAddress: fixture.other.address })
+      .where("userId", "=", "buyer")
+      .execute();
+    await expect(setupPayouts(db, env, "buyer")).rejects.toMatchObject({
+      code: "PAYOUT_ACCOUNT_CLOSED",
+    });
+
+    expect(await setupPayouts(db, env, "seller")).toMatchObject({
+      state: "ready",
+      txSignature: null,
+    });
+    await fixture.setPayoutAccount(fixture.seller.address, false);
+    await expect(setupPayouts(db, env, "seller")).rejects.toMatchObject({
+      code: "PAYOUT_ACCOUNT_CLOSED",
+    });
+    expect(fixture.signedWires.size).toBe(1);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("unsigned purchases leave listing changes, trades and claims available and stale signing returns a typed conflict", async () => {
+  const fixture = await chainFixture();
+  const { db, env } = fixture;
+  try {
+    await fixture.addCard("mutable", "seller");
+    await fixture.addCard("offered", "buyer");
+    const listing = await quote(fixture, "mutable");
+    const original = await preparePurchase(db, env, {
+      actorUserId: "buyer",
+      ...listing,
+    });
+    const signPurchase = async (purchase: Purchase) =>
+      purchaseStatus(db, env, {
+        actorUserId: "buyer",
+        id: purchase.id,
+        signature: await sign(purchase, fixture.buyer),
+      });
+    await setListing(db, env, {
+      actorUserId: "seller",
+      cardId: "mutable",
+      priceUsdcMinor: "120000",
+    });
+    await expect(signPurchase(original)).rejects.toMatchObject({
+      status: 409,
+      code: "PRICE_CHANGED",
+    });
+    const repriced = await preparePurchase(db, env, {
+      actorUserId: "buyer",
+      ...listing,
+      expectedPriceUsdcMinor: "120000",
+    });
+    const trade = await proposeTrade(db, {
+      actorUserId: "buyer",
+      offeredCardId: "offered",
+      requestedCardId: "mutable",
+    });
+    await expect(signPurchase(repriced)).rejects.toMatchObject({
+      status: 409,
+      code: "TRADE_PENDING",
+    });
+    await decideTrade(db, {
+      actorUserId: "buyer",
+      tradeId: trade.id,
+      action: "cancel",
+    });
+    expect(
+      await setListing(db, env, {
+        actorUserId: "seller",
+        cardId: "mutable",
+        priceUsdcMinor: null,
+      }),
+    ).toEqual({ listing: null });
+    await expect(signPurchase(repriced)).rejects.toMatchObject({
+      status: 409,
+      code: "LISTING_UNAVAILABLE",
+    });
+    expect(
+      (
+        await prepareClaim(db, env, {
+          actorUserId: "seller",
+          cardId: "mutable",
+        })
+      ).state,
+    ).toBe("submitted");
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("prepare quotas bound active messages and rolling attempts across purchases and claims", async () => {
+  const fixture = await chainFixture();
+  const { db, env } = fixture;
+  try {
+    for (const id of ["a", "b", "c"]) {
+      await fixture.addCard(id, "seller");
+      expect(
+        (
+          await preparePurchase(db, env, {
+            actorUserId: "buyer",
+            ...(await quote(fixture, id)),
+          })
+        ).state,
+      ).toBe("prepared");
+    }
+    await fixture.addCard("claim", "buyer");
+    await expect(
+      prepareClaim(db, env, { actorUserId: "buyer", cardId: "claim" }),
+    ).rejects.toMatchObject({ status: 429, code: "PREPARE_LIMIT" });
+    await db.updateTable("purchases").set({ state: "expired" }).execute();
+    for (let attempt = 4; attempt < 12; attempt++) {
+      await expect(
+        preparePurchase(db, env, {
+          actorUserId: "buyer",
+          listingId: "missing",
+          expectedPriceUsdcMinor: "100000",
+        }),
+      ).rejects.toMatchObject({ code: "LISTING_UNAVAILABLE" });
+    }
+    await expect(
+      prepareClaim(db, env, { actorUserId: "buyer", cardId: "claim" }),
+    ).rejects.toMatchObject({ status: 429, code: "PREPARE_LIMIT" });
+    await db
+      .updateTable("chain_prepare_attempts")
+      .set({ createdAt: Date.now() - 61_000 })
+      .execute();
+    expect(
+      (await prepareClaim(db, env, { actorUserId: "buyer", cardId: "claim" }))
+        .state,
+    ).toBe("submitted");
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("cron delivers late finality once or records a refund when the card moved or is locked", async () => {
+  const fixture = await chainFixture();
+  const { db, env } = fixture;
+  const now = Date.now;
+  try {
+    const operations = [];
+    for (const cardId of ["still-owned", "moved", "locked"]) {
+      await fixture.addCard(cardId, "seller");
+      const order = { actorUserId: "buyer", ...(await quote(fixture, cardId)) };
+      const prepared = await preparePurchase(db, env, order);
+      operations.push(
+        await purchaseStatus(db, env, {
+          actorUserId: "buyer",
+          id: prepared.id,
+          signature: await sign(prepared, fixture.buyer),
+        }),
+      );
+    }
+    fixture.setHeight(200);
+    const start = now();
+    for (const minutes of [0, 15, 30]) {
+      Date.now = () => start + minutes * 60_000;
+      await reconcileChain(env);
+    }
+    expect(await db.selectFrom("purchases").select("state").execute()).toEqual([
+      { state: "expired" },
+      { state: "expired" },
+      { state: "expired" },
+    ]);
+    const tradeCard = "new-offer";
+    await fixture.addCard(tradeCard, "other");
+    const proposal = await proposeTrade(db, {
+      actorUserId: "other",
+      offeredCardId: tradeCard,
+      requestedCardId: "moved",
+    });
+    await decideTrade(db, {
+      actorUserId: "seller",
+      tradeId: proposal.id,
+      action: "accept",
+    });
+    fixture.setHeight(100);
+    expect(
+      (await prepareClaim(db, env, { actorUserId: "seller", cardId: "locked" }))
+        .state,
+    ).toBe("submitted");
+    fixture.setHeight(200);
+    for (const operation of operations)
+      fixture.finalize(operation.txSignature!);
+    Date.now = () => start + 6 * 24 * 60 * 60_000;
+    await reconcileChain(env);
+    expect(
+      await db
+        .selectFrom("purchases")
+        .select(["cardId", "state", "failureCode"])
+        .orderBy("cardId")
+        .execute(),
+    ).toEqual([
+      {
+        cardId: "locked",
+        state: "refund_required",
+        failureCode: "REFUND_REQUIRED",
+      },
+      {
+        cardId: "moved",
+        state: "refund_required",
+        failureCode: "REFUND_REQUIRED",
+      },
+      { cardId: "still-owned", state: "settled", failureCode: null },
+    ]);
+    const before = fixture.historyChecks;
+    await reconcileChain(env);
+    expect(fixture.historyChecks).toBe(before + 1);
+    expect(
+      await db
+        .selectFrom("cards")
+        .select(["id", "ownerUserId"])
+        .where("id", "in", ["locked", "moved", "still-owned"])
+        .orderBy("id")
+        .execute(),
+    ).toEqual([
+      { id: "locked", ownerUserId: "seller" },
+      { id: "moved", ownerUserId: "other" },
+      { id: "still-owned", ownerUserId: "buyer" },
+    ]);
+  } finally {
+    Date.now = now;
+    await fixture.close();
+  }
+});
+
+test("a rolling global free-claim budget reserves a single slot across accounts", async () => {
+  const fixture = await chainFixture();
+  const { db, env } = fixture;
+  env.FREE_CLAIMS_DAILY_BUDGET = "1";
+  try {
+    await fixture.addCard("free-one", "buyer");
+    await fixture.addCard("free-two", "seller");
+    const outcomes = await Promise.allSettled([
+      prepareClaim(db, env, { actorUserId: "buyer", cardId: "free-one" }),
+      prepareClaim(db, env, { actorUserId: "seller", cardId: "free-two" }),
+    ]);
+    expect(
+      outcomes.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      outcomes.find((result) => result.status === "rejected")?.reason,
+    ).toMatchObject({ status: 503, code: "FREE_CLAIM_BUDGET_EXHAUSTED" });
+    expect(fixture.signedWires.size).toBe(1);
+    const { actorUserId } = await db
+      .selectFrom("claims")
+      .select("actorUserId")
+      .executeTakeFirstOrThrow();
+    const retry =
+      actorUserId === "buyer"
+        ? { actorUserId: "seller", cardId: "free-two" }
+        : { actorUserId: "buyer", cardId: "free-one" };
+    await db
+      .updateTable("claims")
+      .set({ createdAt: Date.now() - 25 * 60 * 60_000 })
+      .execute();
+    expect((await prepareClaim(db, env, retry)).state).toBe("submitted");
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("a depleted sponsor cannot sign a purchase, claim or payout setup and the balance cache expires", async () => {
+  const fixture = await chainFixture();
+  const { db, env } = fixture;
+  const now = Date.now;
+  try {
+    fixture.setSponsorBalance(99_999_999);
+    await fixture.addCard("sold", "seller");
+    await fixture.addCard("free", "buyer");
+    const prepared = await preparePurchase(db, env, {
+      actorUserId: "buyer",
+      ...(await quote(fixture, "sold")),
+    });
+    for (const attempt of [
+      async () =>
+        purchaseStatus(db, env, {
+          actorUserId: "buyer",
+          id: prepared.id,
+          signature: await sign(prepared, fixture.buyer),
+        }),
+      () => prepareClaim(db, env, { actorUserId: "buyer", cardId: "free" }),
+      () => setupPayouts(db, env, "other"),
+    ]) {
+      await expect(attempt()).rejects.toMatchObject({
+        status: 503,
+        code: "SPONSOR_UNAVAILABLE",
+      });
+    }
+    expect(fixture.signedWires.size).toBe(0);
+    fixture.setSponsorBalance(100_000_000);
+    await expect(setupPayouts(db, env, "other")).rejects.toMatchObject({
+      code: "SPONSOR_UNAVAILABLE",
+    });
+    const resumed = now() + 60_001;
+    Date.now = () => resumed;
+    expect((await setupPayouts(db, env, "other")).state).toBe("submitted");
+  } finally {
+    Date.now = now;
+    await fixture.close();
+  }
+});
+
+test("purchases and payout setup require the Anchor mint and treasury and cache a validated config", async () => {
+  const fixture = await chainFixture();
+  const { db, env } = fixture;
+  try {
+    await fixture.addCard("config", "seller");
+    const order = { actorUserId: "buyer", ...(await quote(fixture, "config")) };
+    expect(fixture.configReads).toBe(1);
+    for (const wrongConfig of [
+      { ...env, TREASURY_WALLET: fixture.other.address },
+      { ...env, USDC_MINT: fixture.other.address },
+    ]) {
+      await expect(
+        preparePurchase(db, wrongConfig, order),
+      ).rejects.toMatchObject({ status: 503, code: "CHAIN_NOT_CONFIGURED" });
+      await expect(
+        setupPayouts(db, wrongConfig, "buyer"),
+      ).rejects.toMatchObject({ status: 503, code: "CHAIN_NOT_CONFIGURED" });
+    }
+    const before = fixture.configReads;
+    const prepared = await preparePurchase(db, env, order);
+    await expect(
+      purchaseStatus(
+        db,
+        { ...env, TREASURY_WALLET: fixture.other.address },
+        {
+          actorUserId: "buyer",
+          id: prepared.id,
+          signature: await sign(prepared, fixture.buyer),
+        },
+      ),
+    ).rejects.toMatchObject({ status: 503, code: "CHAIN_NOT_CONFIGURED" });
+    expect(fixture.configReads).toBe(before + 1);
+    expect(fixture.signedWires.size).toBe(0);
+  } finally {
+    await fixture.close();
   }
 });
