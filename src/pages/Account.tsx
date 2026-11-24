@@ -24,6 +24,7 @@ import { showToast } from "../lib/ui";
 import { createAsync, runUi, type AppServices } from "../runtime";
 import { Auth, type DeviceAccount } from "../services/auth";
 import { Avatars } from "../services/avatars";
+import { Wallet } from "../services/wallet";
 
 type Availability =
   | { kind: "idle" }
@@ -75,7 +76,9 @@ export default function Account() {
 
   function switchAccount(sessionToken: string) {
     perform(
-      Auth.use((auth) => auth.switchAccount(sessionToken)),
+      Wallet.use((wallet) => wallet.lockEmbedded).pipe(
+        Effect.andThen(Auth.use((auth) => auth.switchAccount(sessionToken))),
+      ),
       "",
       () => window.location.assign("/account"),
     );
@@ -84,7 +87,9 @@ export default function Account() {
     const token = session().data?.session.token;
     if (!token) return;
     perform(
-      Auth.use((auth) => auth.logOut(all, token)),
+      Wallet.use((wallet) => wallet.lockEmbedded).pipe(
+        Effect.andThen(Auth.use((auth) => auth.logOut(all, token))),
+      ),
       "",
       () => window.location.assign(all ? "/login" : "/account"),
     );

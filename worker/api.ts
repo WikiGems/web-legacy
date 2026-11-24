@@ -1,6 +1,4 @@
 import { Effect, Schema } from "effect";
-import bs58 from "bs58";
-import nacl from "tweetnacl";
 import {
   CreateTradeSchema,
   DuelResultSchema,
@@ -10,7 +8,6 @@ import {
   SubmitSignatureSchema,
   OnboardingRequestSchema,
   ToggleTradeSchema,
-  WalletLinkSchema,
   type FeaturedArticle,
   type Trade,
 } from "../shared/domain";
@@ -40,6 +37,7 @@ import { HttpError } from "./http-error";
 import { preparePurchase, purchaseStatus, setListing } from "./market";
 import { proposeTrade, decideTrade } from "./trades";
 import { drawArticle } from "./wiki";
+import { handleWallet } from "./wallet-vault";
 
 type Session = { user: { id: string; name: string; email: string } };
 
@@ -360,6 +358,13 @@ export async function handleApi(
 ): Promise<Response> {
   const url = new URL(request.url);
   const db = createDb(env);
+  if (url.pathname.startsWith("/api/wallet/") && request.method !== "OPTIONS") {
+    try {
+      return await handleWallet(request, env, auth, db, ensureProfile);
+    } finally {
+      await db.destroy();
+    }
+  }
 
   const program = Effect.gen(function* () {
     if (request.method === "OPTIONS")
@@ -888,95 +893,6 @@ export async function handleApi(
           serializeCard({ ...updated, ownerName: session.user.name }),
         );
       }
-    }
-
-    if (url.pathname === "/api/wallet/challenge" && request.method === "GET") {
-      const session = yield* requireSession(auth, request);
-      const wallet = url.searchParams.get("wallet") ?? "";
-      try {
-        const decoded = bs58.decode(wallet);
-        if (decoded.length !== 32) throw new Error("bad length");
-      } catch {
-        return yield* Effect.fail(
-          new HttpError(400, "That is not a valid Solana address."),
-        );
-      }
-      const profile = yield* dbOperation(() =>
-        ensureProfile(db, session.user.id),
-      );
-      const nonce = crypto.randomUUID();
-      const expiresAt = Date.now() + 5 * 60 * 1000;
-      const message = `WikiGems wallet link\nAccount: ${session.user.email}\nWallet: ${wallet}\nNonce: ${nonce}`;
-      yield* dbOperation(() =>
-        db
-          .updateTable("profiles")
-          .set({
-            walletNonce: nonce,
-            walletNonceExpiresAt: expiresAt,
-            updatedAt: Date.now(),
-          })
-          .where("userId", "=", session.user.id)
-          .execute(),
-      );
-      return privateJson({
-        message,
-        nonce,
-        expiresAt,
-        previousWallet: profile.walletAddress,
-      });
-    }
-
-    if (url.pathname === "/api/wallet/link" && request.method === "POST") {
-      const session = yield* requireSession(auth, request);
-      const profile = yield* dbOperation(() =>
-        ensureProfile(db, session.user.id),
-      );
-      const body = yield* decodeBody(
-        request,
-        Schema.decodeUnknownSync(WalletLinkSchema),
-      );
-      if (
-        !profile.walletNonce ||
-        !profile.walletNonceExpiresAt ||
-        profile.walletNonceExpiresAt < Date.now()
-      ) {
-        return yield* Effect.fail(
-          new HttpError(400, "The wallet challenge expired. Try again."),
-        );
-      }
-      const message = `WikiGems wallet link\nAccount: ${session.user.email}\nWallet: ${body.walletAddress}\nNonce: ${profile.walletNonce}`;
-      let valid = false;
-      try {
-        valid = nacl.sign.detached.verify(
-          new TextEncoder().encode(message),
-          Uint8Array.from(atob(body.signature), (char) => char.charCodeAt(0)),
-          bs58.decode(body.walletAddress),
-        );
-      } catch {
-        valid = false;
-      }
-      if (!valid) {
-        return yield* Effect.fail(
-          new HttpError(
-            400,
-            "That wallet signature is not valid.",
-            "BAD_SIGNATURE",
-          ),
-        );
-      }
-      yield* dbOperation(() =>
-        db
-          .updateTable("profiles")
-          .set({
-            walletAddress: body.walletAddress,
-            walletNonce: null,
-            walletNonceExpiresAt: null,
-            updatedAt: Date.now(),
-          })
-          .where("userId", "=", session.user.id)
-          .execute(),
-      );
-      return privateJson({ walletAddress: body.walletAddress });
     }
 
     if (url.pathname === "/api/duels/result" && request.method === "POST") {

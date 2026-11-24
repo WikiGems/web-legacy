@@ -62,6 +62,7 @@
     "@metaplex-foundation/umi": "1.6.0",
     "@metaplex-foundation/umi-bundle-defaults": "1.6.0",
     "@metaplex-foundation/umi-signer-wallet-adapters": "1.6.0",
+    "@noble/curves": "2.4.0",
     "@solana-program/memo": "0.16.0",
     "@solana-program/token": "0.18.0",
     "@solana/kit": "8.6.0",
