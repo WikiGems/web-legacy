@@ -7,7 +7,8 @@ export function parseUsdcMinor(value: string): bigint | null {
 }
 
 export function splitPrice(price: bigint, feeBps: number) {
-  const fee = (price * BigInt(feeBps)) / 10_000n;
+  const rounded = (price * BigInt(feeBps)) / 10_000n;
+  const fee = feeBps > 0 && rounded === 0n ? 1n : rounded;
   return { fee, seller: price - fee };
 }
 

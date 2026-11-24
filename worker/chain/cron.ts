@@ -3,7 +3,7 @@ import { sql } from "kysely";
 import type { GameDb } from "../db";
 import { createDb } from "../db";
 import type { Env } from "../env";
-import { refreshSubmitted } from "./operations";
+import { LATE_RECONCILIATION_MS, refreshSubmitted } from "./operations";
 import {
   chainRequest,
   connectChain,
@@ -70,6 +70,10 @@ export async function reconcileChain(env: Env) {
   const db = createDb(env);
   try {
     const now = Date.now();
+    await db
+      .deleteFrom("chain_prepare_attempts")
+      .where("createdAt", "<=", now - 60_000)
+      .execute();
     for (const table of ["purchases", "claims"] as const) {
       await db
         .updateTable(table)
@@ -83,44 +87,68 @@ export async function reconcileChain(env: Env) {
         .execute();
     }
 
-    const [purchases, claims, minted] = await Promise.all([
-      db
-        .selectFrom("purchases")
-        .selectAll()
-        .where("state", "=", "submitted")
-        .orderBy("updatedAt")
-        .limit(OPERATION_BATCH)
-        .execute(),
-      db
-        .selectFrom("claims")
-        .selectAll()
-        .where("state", "=", "submitted")
-        .orderBy("updatedAt")
-        .limit(OPERATION_BATCH)
-        .execute(),
-      db
-        .selectFrom("cards")
-        .select("id")
-        .where("status", "=", "minted")
-        .limit(1)
-        .executeTakeFirst(),
-    ]);
-    if (!purchases.length && !claims.length && !minted) return;
+    const [purchases, claims, latePurchases, lateClaims, minted] =
+      await Promise.all([
+        db
+          .selectFrom("purchases")
+          .selectAll()
+          .where("state", "=", "submitted")
+          .orderBy("updatedAt")
+          .limit(OPERATION_BATCH)
+          .execute(),
+        db
+          .selectFrom("claims")
+          .selectAll()
+          .where("state", "=", "submitted")
+          .orderBy("updatedAt")
+          .limit(OPERATION_BATCH)
+          .execute(),
+        db
+          .selectFrom("purchases")
+          .selectAll()
+          .where("state", "=", "expired")
+          .where("txSignature", "is not", null)
+          .where("expiredAt", ">", now - LATE_RECONCILIATION_MS)
+          .orderBy("updatedAt")
+          .limit(OPERATION_BATCH)
+          .execute(),
+        db
+          .selectFrom("claims")
+          .selectAll()
+          .where("state", "=", "expired")
+          .where("txSignature", "is not", null)
+          .where("expiredAt", ">", now - LATE_RECONCILIATION_MS)
+          .orderBy("updatedAt")
+          .limit(OPERATION_BATCH)
+          .execute(),
+        db
+          .selectFrom("cards")
+          .select("id")
+          .where("status", "=", "minted")
+          .limit(1)
+          .executeTakeFirst(),
+      ]);
+    const jobs = [
+      ...[...purchases, ...latePurchases].map((row) => ({
+        table: "purchases" as const,
+        row,
+      })),
+      ...[...claims, ...lateClaims].map((row) => ({
+        table: "claims" as const,
+        row,
+      })),
+    ];
+    if (!jobs.length && !minted) return;
 
     const chain = await connectChain(env);
-    if (purchases.length || claims.length) {
+    if (jobs.length) {
       const finalizedHeight = await chainRequest(() =>
         chain.rpc
-          .getBlockHeight({
-            commitment: "finalized",
-          })
+          .getBlockHeight({ commitment: "finalized" })
           .send(rpcOptions()),
       );
-      // Keep per-run work bounded. Revisit unresolved jobs after newer jobs get a turn.
-      for (const job of [
-        ...purchases.map((row) => ({ table: "purchases" as const, row })),
-        ...claims.map((row) => ({ table: "claims" as const, row })),
-      ]) {
+      // Visit the oldest checks first and give expired and submitted rows independent batches.
+      for (const job of jobs) {
         try {
           await refreshSubmitted(db, chain, job, {
             finalizedHeight,
@@ -136,7 +164,7 @@ export async function reconcileChain(env: Env) {
           .updateTable(job.table)
           .set({ updatedAt: Date.now() })
           .where("id", "=", job.row.id)
-          .where("state", "=", "submitted")
+          .where("state", "=", job.row.state)
           .execute();
       }
     }

@@ -139,6 +139,7 @@ export const ChainOperationStateSchema = Schema.Literals([
   "settled",
   "failed",
   "expired",
+  "refund_required",
 ]);
 
 export type ChainOperationState = typeof ChainOperationStateSchema.Type;

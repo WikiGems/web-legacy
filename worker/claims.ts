@@ -1,15 +1,13 @@
 import { isAddress } from "@solana/kit";
-import { cardBusy, ensureCardsUnlocked, pendingStates } from "./card-locks";
-import {
-  chainNotConfigured,
-  claimConfig,
-  linkedWallet,
-  loadSigner,
-} from "./chain/config";
+import { cardBusy, ensureCardsUnlocked } from "./card-locks";
+import { chainNotConfigured, claimConfig, linkedWallet } from "./chain/config";
 import {
   checkSponsor,
+  enforcePreparedCap,
   missingOperation,
+  needsReconciliation,
   preparedOperation,
+  recordPrepareAttempt,
   refreshPrepared,
   refreshSubmitted,
   submitPrepared,
@@ -18,6 +16,7 @@ import {
   connectChain,
   latestBlockhash,
   readMintCollection,
+  requirePayoutAccounts,
   verifyUsdcMint,
 } from "./chain/rpc";
 import { buildClaimTransaction } from "./chain/transactions";
@@ -82,6 +81,7 @@ export async function prepareClaim(
     );
   }
 
+  await recordPrepareAttempt(db, actorUserId);
   const findPrior = (connection: GameDb, now = Date.now()) =>
     connection
       .selectFrom("claims")
@@ -90,17 +90,18 @@ export async function prepareClaim(
       .where("cardId", "=", cardId)
       .where((eb) =>
         eb.or([
-          eb("state", "in", ["submitted", "settled"]),
+          eb("state", "in", ["submitted", "settled", "refund_required"]),
           eb.and([eb("state", "=", "prepared"), eb("expiresAt", ">", now)]),
         ]),
       )
       .executeTakeFirst();
 
   const prior = await findPrior(db);
-  if (prior?.state === "submitted" || prior?.state === "settled") {
+  if (prior && prior.state !== "prepared") {
     checkDestination(prior, destination);
     return serializeClaim(prior);
   }
+  if (!prior) await enforcePreparedCap(db, actorUserId, Date.now());
   const config = await claimConfig(env);
   const chain = await connectChain(env);
   if (prior) await refreshPrepared(db, chain, "claims", prior);
@@ -140,6 +141,7 @@ export async function prepareClaim(
           "CARD_MINTED",
         );
       await ensureCardsUnlocked(trx, [cardId], now);
+      await enforcePreparedCap(trx, actorUserId, now);
       const player = await trx
         .selectFrom("user")
         .leftJoin("profiles", "profiles.userId", "user.id")
@@ -154,6 +156,30 @@ export async function prepareClaim(
           allowance: config.freeClaimsPerUser,
           now,
         })) > 0;
+      if (usesFreeClaim) {
+        const daily = await trx
+          .selectFrom("claims")
+          .select((eb) => eb.fn.countAll().as("count"))
+          .where("usesFreeClaim", "=", 1)
+          .where("createdAt", ">", now - 24 * 60 * 60_000)
+          .where((eb) =>
+            eb.or([
+              eb("txSignature", "is not", null),
+              eb.and([eb("state", "=", "prepared"), eb("expiresAt", ">", now)]),
+            ]),
+          )
+          .executeTakeFirstOrThrow();
+        if (Number(daily.count) >= config.freeClaimsDailyBudget) {
+          console.error("Free claim budget exhausted", {
+            budget: config.freeClaimsDailyBudget,
+          });
+          throw new HttpError(
+            503,
+            "Free claims are temporarily unavailable.",
+            "FREE_CLAIM_BUDGET_EXHAUSTED",
+          );
+        }
+      }
       const price = usesFreeClaim ? 0n : config.price;
       const buyer = price === 0n ? null : linkedWallet(player.walletAddress);
       const id = crypto.randomUUID();
@@ -206,10 +232,14 @@ export async function prepareClaim(
     if (config.mintAuthority.address !== row.mintAuthorityAddress)
       throw chainNotConfigured();
     checkSponsor(row, config.sponsor);
-    await submitPrepared(db, chain, "claims", row, [
-      config.sponsor,
-      config.mintAuthority,
-    ]);
+    await submitPrepared(
+      db,
+      chain,
+      "claims",
+      row,
+      [config.sponsor, config.mintAuthority],
+      env,
+    );
     return serializeClaim(await readClaim(db, actorUserId, row.id));
   }
   return serializeClaim(row);
@@ -222,11 +252,12 @@ export async function claimStatus(
     actorUserId: string;
     id: string;
     signature?: string;
+    readOnly?: boolean;
   },
 ) {
-  const { actorUserId, id, signature } = input;
+  const { actorUserId, id, signature, readOnly } = input;
   let row = await readClaim(db, actorUserId, id);
-  if (!pendingStates.some((state) => row.state === state))
+  if (readOnly || (row.state !== "prepared" && !needsReconciliation(row)))
     return serializeClaim(row);
 
   const chain = await connectChain(env);
@@ -237,26 +268,29 @@ export async function claimStatus(
         "This claim needs no wallet signature.",
         "SIGNATURE_NOT_REQUIRED",
       );
-    const [sponsor, mintAuthority] = await Promise.all([
-      loadSigner(env.SPONSOR_SECRET_KEY),
-      loadSigner(env.MINT_AUTHORITY_SECRET_KEY),
-    ]);
+    const config = await claimConfig(env);
+    const { sponsor, mintAuthority } = config;
     checkSponsor(row, sponsor);
     if (mintAuthority.address !== row.mintAuthorityAddress)
       throw chainNotConfigured();
+    await Promise.all([
+      readMintCollection(chain, config),
+      requirePayoutAccounts(chain, config),
+    ]);
     await submitPrepared(
       db,
       chain,
       "claims",
       row,
       [sponsor, mintAuthority],
+      env,
       signature,
     );
     row = await readClaim(db, actorUserId, id);
   } else {
     await refreshPrepared(db, chain, "claims", row);
   }
-  if (row.state === "submitted")
+  if (needsReconciliation(row))
     await refreshSubmitted(
       db,
       chain,

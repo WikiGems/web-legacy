@@ -142,6 +142,35 @@ export async function chainRpcFixture() {
     freezeAuthority: null,
   });
 
+  const tokenAccounts = new Map<string, ReturnType<typeof wireAccount>>();
+  async function setPayoutAccount(owner: Address, exists = true, amount = 0n) {
+    const ata = await usdcAta(owner, mint.address);
+    if (!exists) tokenAccounts.delete(ata);
+    else
+      tokenAccounts.set(
+        ata,
+        wireAccount(
+          TOKEN_PROGRAM_ADDRESS,
+          getTokenEncoder().encode({
+            mint: mint.address,
+            owner,
+            amount,
+            delegate: null,
+            state: AccountState.Initialized,
+            isNative: null,
+            delegatedAmount: 0n,
+            closeAuthority: null,
+          }),
+        ),
+      );
+  }
+  await Promise.all([
+    setPayoutAccount(seller.address),
+    setPayoutAccount(treasury.address),
+  ]);
+  let sponsorBalance = 500_000_000;
+  let configReads = 0;
+  let historyChecks = 0;
   let height = 100;
   let failBroadcast = false;
   let blockhashValid = true;
@@ -149,7 +178,6 @@ export async function chainRpcFixture() {
   const finalized = new Map<string, { wire: string; err: unknown }>();
   const observed = new Set<string>();
   const owners = new Map<string, Address>();
-  const balances = new Map<string, ReadonlyUint8Array>();
   const reads: string[][] = [];
   let beforeBroadcast: (() => Promise<void>) | undefined;
   const server = Bun.serve({
@@ -161,7 +189,7 @@ export async function chainRpcFixture() {
         method: string;
         params?: [unknown, unknown];
       };
-      const [first] = body.params ?? [];
+      const [first, second] = body.params ?? [];
       const context = { slot: 100 };
       let result: unknown;
       switch (body.method) {
@@ -169,6 +197,7 @@ export async function chainRpcFixture() {
           result = lifetime.blockhash;
           break;
         case "getAccountInfo":
+          if (first === configPda) configReads++;
           result = {
             context,
             value:
@@ -176,10 +205,11 @@ export async function chainRpcFixture() {
                 ? wireAccount(WIKIGEMS_PROGRAM_PROGRAM_ADDRESS, configBytes)
                 : first === mint.address
                   ? wireAccount(TOKEN_PROGRAM_ADDRESS, mintBytes)
-                  : typeof first === "string" && balances.has(first)
-                    ? wireAccount(TOKEN_PROGRAM_ADDRESS, balances.get(first)!)
-                    : null,
+                  : (tokenAccounts.get(String(first)) ?? null),
           };
+          break;
+        case "getBalance":
+          result = { context, value: sponsorBalance };
           break;
         case "getLatestBlockhash":
           result = {
@@ -194,6 +224,9 @@ export async function chainRpcFixture() {
           result = { context, value: blockhashValid };
           break;
         case "getSignatureStatuses":
+          if (JSON.stringify(second) !== '{"searchTransactionHistory":true}')
+            return new Response(null, { status: 400 });
+          historyChecks++;
           result = {
             context,
             value: Array.isArray(first)
@@ -305,6 +338,16 @@ export async function chainRpcFixture() {
     owners,
     reads,
     observed,
+    setPayoutAccount,
+    get configReads() {
+      return configReads;
+    },
+    get historyChecks() {
+      return historyChecks;
+    },
+    setSponsorBalance(lamports: number) {
+      sponsorBalance = lamports;
+    },
     setHeight(value: number) {
       height = value;
     },
@@ -323,21 +366,8 @@ export async function chainRpcFixture() {
       if (!wire) throw new Error("No signed transaction in the test RPC.");
       finalized.set(sig, { wire, err: options.err ?? null });
     },
-    async setBalance(owner: Address, amount: bigint) {
-      balances.set(
-        await usdcAta(owner, mint.address),
-        getTokenEncoder().encode({
-          mint: mint.address,
-          owner,
-          amount,
-          delegate: null,
-          state: AccountState.Initialized,
-          isNative: null,
-          delegatedAmount: 0n,
-          closeAuthority: null,
-        }),
-      );
-    },
+    setBalance: (owner: Address, amount: bigint) =>
+      setPayoutAccount(owner, true, amount),
     async close() {
       await server.stop(true);
     },
@@ -347,6 +377,7 @@ export async function chainRpcFixture() {
 export async function chainFixture() {
   const fixture = await migratedDatabase();
   await fixture.migrate("005_lazy_claims");
+  await fixture.migrate("007_sponsor_safety");
   const rpc = await chainRpcFixture();
   await fixture.addUser("buyer", true, rpc.buyer.address);
   await fixture.addUser("seller", true, rpc.seller.address);
@@ -355,6 +386,12 @@ export async function chainFixture() {
   return {
     ...fixture,
     ...rpc,
+    get configReads() {
+      return rpc.configReads;
+    },
+    get historyChecks() {
+      return rpc.historyChecks;
+    },
     env,
     async close() {
       await rpc.close();

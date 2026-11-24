@@ -1,5 +1,4 @@
 import {
-  address,
   createKeyPairFromBytes,
   getAddressFromPublicKey,
   getBase58Encoder,
@@ -10,8 +9,6 @@ import type { Env } from "../env";
 import { HttpError } from "../http-error";
 import { parseUsdcMinor } from "../../shared/amounts";
 import { WIKIGEMS_PROGRAM_PROGRAM_ADDRESS } from "./generated";
-
-const DEVNET_USDC = address("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 
 export function chainNotConfigured() {
   return new HttpError(503, "Chain not configured.", "CHAIN_NOT_CONFIGURED");
@@ -53,8 +50,7 @@ function integerSetting(value: string, max: number) {
   return number;
 }
 
-export const usdcMintAddress = (env: Env) =>
-  settingAddress(env.USDC_MINT || DEVNET_USDC);
+export const usdcMintAddress = (env: Env) => settingAddress(env.USDC_MINT);
 
 export const marketFeeBps = (env: Env) =>
   integerSetting(env.MARKET_FEE_BPS || "250", 10_000);
@@ -71,11 +67,26 @@ export function claimTerms(env: Env) {
   };
 }
 
+export function minimumPrice(env: Env) {
+  const value = parseUsdcMinor(env.MIN_PRICE_USDC_MINOR ?? "100000");
+  if (value === null) throw chainNotConfigured();
+  return value;
+}
+
+export function sponsorBalanceFloor(env: Env) {
+  const value = parseUsdcMinor(env.SPONSOR_MIN_BALANCE_LAMPORTS ?? "100000000");
+  if (value === null) throw chainNotConfigured();
+  return value;
+}
+
 export async function marketConfig(env: Env) {
   return {
     sponsor: await loadSigner(env.SPONSOR_SECRET_KEY),
     usdcMint: usdcMintAddress(env),
     treasury: settingAddress(env.TREASURY_WALLET),
+    programAddress: settingAddress(
+      env.WIKIGEMS_PROGRAM_ID || WIKIGEMS_PROGRAM_PROGRAM_ADDRESS,
+    ),
     feeBps: marketFeeBps(env),
   };
 }
@@ -91,8 +102,9 @@ export async function claimConfig(env: Env) {
     ...market,
     ...claimTerms(env),
     mintAuthority,
-    programAddress: settingAddress(
-      env.WIKIGEMS_PROGRAM_ID || WIKIGEMS_PROGRAM_PROGRAM_ADDRESS,
+    freeClaimsDailyBudget: integerSetting(
+      env.FREE_CLAIMS_DAILY_BUDGET ?? "50",
+      Number.MAX_SAFE_INTEGER,
     ),
     origin,
   };

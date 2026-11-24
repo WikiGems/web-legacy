@@ -18,6 +18,9 @@ export interface Env {
   USDC_MINT?: string;
   TREASURY_WALLET?: string;
   MARKET_FEE_BPS?: string;
+  MIN_PRICE_USDC_MINOR?: string;
+  SPONSOR_MIN_BALANCE_LAMPORTS?: string;
+  FREE_CLAIMS_DAILY_BUDGET?: string;
   CLAIM_PRICE_USDC_MINOR?: string;
   FREE_CLAIMS_PER_USER?: string;
   PUBLIC_ORIGIN?: string;

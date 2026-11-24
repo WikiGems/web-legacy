@@ -60,10 +60,14 @@ async function challenge(
   signer: typeof first,
   purpose?: VaultProofPurpose,
   cookie = alice.cookie,
+  credentialId?: string,
 ) {
   const query = new URLSearchParams({ wallet: signer.publicKey });
   if (purpose) query.set("purpose", purpose);
-  const response = await fixture.request(`${root}/challenge?${query}`, cookie);
+  if (credentialId) query.set("credentialId", credentialId);
+  const response = await fixture.request(`${root}/challenge?${query}`, cookie, {
+    method: "POST",
+  });
   expect(response.status).toBe(200);
   const { message } = Schema.decodeUnknownSync(WalletChallengeSchema)(
     await response.json(),
@@ -114,6 +118,37 @@ describe("wallet vault routes", () => {
       fixture.auth,
     );
     expect(crossOrigin.status).toBe(403);
+  });
+
+  test("wallet challenge is POST-only and checks the trusted origin and active account", async () => {
+    const path = `${root}/challenge?wallet=${first.publicKey}`;
+    const get = await fixture.request(path, alice.cookie);
+    expect(get.status).toBe(405);
+    expect(get.headers.get("allow")).toBe("POST");
+    const send = (origin: string | undefined, account: string) =>
+      handleApi(
+        new Request("http://localhost:5173" + path, {
+          method: "POST",
+          headers: {
+            cookie: alice.cookie,
+            "x-wikigems-account": account,
+            ...(origin ? { origin } : {}),
+          },
+        }),
+        fixture.env,
+        fixture.auth,
+      );
+    for (const origin of [undefined, "https://different.example"]) {
+      const response = await send(origin, alice.user.id);
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({ code: "UNTRUSTED_ORIGIN" });
+    }
+    const mismatch = await send("http://localhost:5173", bob.user.id);
+    expect(mismatch.status).toBe(409);
+    expect(await mismatch.json()).toMatchObject({
+      code: "ACTIVE_ACCOUNT_CHANGED",
+    });
+    await challenge(first);
   });
 
   test("rejects malformed and oversized wrappers and invalid proofs", async () => {
@@ -188,18 +223,27 @@ describe("wallet vault routes", () => {
           method: "DELETE",
         })
       ).status,
-    ).toBe(404);
+    ).toBe(400);
   });
 
-  test("adds unique wrappers for the same key and saves export status before last removal", async () => {
+  test("wrapper removal requires a fresh proof for the specific credential and keeps the last-wrapper rule", async () => {
     await create();
-    expect(
-      (
-        await fixture.request(`${wrappers}/AQ`, alice.cookie, {
-          method: "DELETE",
-        })
-      ).status,
-    ).toBe(409);
+    const remove = (
+      credentialId: string,
+      proof?: { publicKey: string; signature: string },
+    ) =>
+      fixture.request(`${wrappers}/${credentialId}`, alice.cookie, {
+        ...(proof ? post(proof) : {}),
+        method: "DELETE",
+      });
+    expect((await remove("AQ")).status).toBe(400);
+    const lastProof = await challenge(
+      first,
+      "delete-wrapper",
+      alice.cookie,
+      "AQ",
+    );
+    expect((await remove("AQ", lastProof)).status).toBe(409);
     const wrongKey = await challenge(second, "add-wrapper");
     expect(
       (
@@ -243,28 +287,49 @@ describe("wallet vault routes", () => {
       ).status,
     ).toBe(201);
 
-    const deletions = await Promise.all([
-      fixture.request(`${wrappers}/AQ`, alice.cookie, { method: "DELETE" }),
-      fixture.request(`${wrappers}/Ag`, alice.cookie, { method: "DELETE" }),
-    ]);
-    expect(deletions.map(({ status }) => status).sort()).toEqual([200, 409]);
+    const deletion = await challenge(
+      first,
+      "delete-wrapper",
+      alice.cookie,
+      "AQ",
+    );
+    expect((await remove("AQ")).status).toBe(400);
+    expect((await remove("Ag", deletion)).status).toBe(400);
+    expect((await readVault()).vault?.wrappers).toHaveLength(2);
+    expect(
+      (
+        await remove("AQ", {
+          ...deletion,
+          signature: second.sign("different proof"),
+        })
+      ).status,
+    ).toBe(400);
+    expect((await remove("AQ", deletion)).status).toBe(200);
+    expect((await remove("AQ", deletion)).status).toBe(400);
 
+    expect(
+      (await fixture.request(`${vault}/exported`, alice.cookie, post(deletion)))
+        .status,
+    ).toBe(400);
     const proof = await challenge(first, "export");
     expect(
       (await fixture.request(`${vault}/exported`, alice.cookie, post(proof)))
         .status,
     ).toBe(200);
+    expect(
+      (await fixture.request(`${vault}/exported`, alice.cookie, post(proof)))
+        .status,
+    ).toBe(400);
     const status = await readVault();
     expect(status.vault?.exportedAt).toBeTypeOf("number");
     expect(status.vault?.wrappers).toHaveLength(1);
-    const remaining = status.vault?.wrappers[0]?.credentialId;
-    expect(
-      (
-        await fixture.request(`${wrappers}/${remaining}`, alice.cookie, {
-          method: "DELETE",
-        })
-      ).status,
-    ).toBe(200);
+    const remainingProof = await challenge(
+      first,
+      "delete-wrapper",
+      alice.cookie,
+      "Ag",
+    );
+    expect((await remove("Ag", remainingProof)).status).toBe(200);
     expect(await readVault()).toMatchObject({
       walletAddress: first.publicKey,
       vault: { wrappers: [] },

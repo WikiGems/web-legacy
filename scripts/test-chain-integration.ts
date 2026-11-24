@@ -38,6 +38,7 @@ import {
 import {
   CORE_PROGRAM_ADDRESS,
   buildClaimTransaction,
+  buildPayoutSetupTransaction,
   buildPurchaseTransaction,
   usdcAta,
 } from "../worker/chain/transactions";
@@ -180,8 +181,24 @@ function send(tx: Parameters<LiteSVM["sendTransaction"]>[0]) {
   }
 }
 
-// Exercise both recipient ATA creations, then initialize the WikiGems program
-// against the same treasury ATA for the real paid claim.
+// Treasury is provisioned during deployment. The seller uses sponsored payout setup.
+for (const [owner, ata, id] of [
+  [treasury.address, treasuryAta, "treasury-payout"],
+  [seller.address, sellerAta, "seller-payout"],
+] as const) {
+  assert(!svm.getAccount(ata).exists);
+  const setup = buildPayoutSetupTransaction({
+    ...make,
+    owner,
+    ata,
+    mint: mint.address,
+    id,
+  });
+  assert.deepEqual(Object.keys(setup.signatures), [sponsor.address]);
+  send(await signTransaction([sponsor.keyPair], setup));
+  assert(svm.getAccount(ata).exists);
+}
+
 const { seller: sellerAmount, fee } = splitPrice(1_000_001n, 250);
 await sendPrepared(
   await buildPurchaseTransaction({
@@ -251,5 +268,5 @@ assert.equal(asset.data[0], 1);
 assert.equal(getAddressDecoder().decode(asset.data, 1), seller.address);
 assert.equal(svm.getBalance(buyer.address) ?? 0n, 0n);
 console.log(
-  "LiteSVM executed a sponsored USDC purchase and paid Core claim; balances and asset ownership matched.",
+  "LiteSVM executed sponsor-only payout setup, a transfer-only USDC purchase, and a paid Core claim; balances and asset ownership matched.",
 );

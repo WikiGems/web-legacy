@@ -1,4 +1,8 @@
-import { closeListings, ensureCardsUnlocked } from "./card-locks";
+import {
+  cancelProposedTrades,
+  closeListings,
+  ensureCardsUnlocked,
+} from "./card-locks";
 import type { GameDb } from "./db";
 import { HttpError } from "./http-error";
 
@@ -134,6 +138,7 @@ export async function decideTrade(
       .where("id", "=", tradeId)
       .execute();
     await closeListings(trx, cardIds, now);
+    await cancelProposedTrades(trx, cardIds, now);
     return { ok: true, status: "settled" };
   });
 }

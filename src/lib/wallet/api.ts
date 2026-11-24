@@ -2,9 +2,12 @@ import { Schema } from "effect";
 import { WalletChallengeSchema } from "../../../shared/domain";
 import {
   WalletVaultStatusSchema,
+  encodeBase64,
   type VaultProofPurpose,
   type WalletWrapper,
 } from "../../../shared/wallet-vault";
+import { createWalletCore } from "./core";
+import { browserPasskeys } from "./passkey";
 import { WalletError } from "./error";
 
 const root = "/api/wallet";
@@ -51,13 +54,14 @@ export const walletVaultApi = {
     publicKey: string,
     purpose: VaultProofPurpose,
     signal: AbortSignal,
+    credentialId?: string,
   ) {
+    const query = new URLSearchParams({ wallet: publicKey, purpose });
+    if (credentialId) query.set("credentialId", credentialId);
     return Schema.decodeUnknownSync(WalletChallengeSchema)(
-      await request(
-        `${root}/challenge?${new URLSearchParams({ wallet: publicKey, purpose })}`,
-        userId,
-        signal,
-      ),
+      await request(`${root}/challenge?${query}`, userId, signal, {
+        method: "POST",
+      }),
     ).message;
   },
 
@@ -90,13 +94,49 @@ export const walletVaultApi = {
     userId: string,
     credentialId: string,
     signal: AbortSignal,
-  ) {
-    await request(
-      `${vault}/wrappers/${encodeURIComponent(credentialId)}`,
-      userId,
-      signal,
-      { method: "DELETE" },
-    );
+  ): Promise<void> {
+    // Reuse the wallet's passkey unlock flow for this one proof and discard its signer.
+    signal.throwIfAborted();
+    const proofWallet = createWalletCore({
+      vault: walletVaultApi,
+      passkeys: browserPasskeys,
+      // The passkey removal control already confirmed this credential.
+      confirm: () => true,
+    });
+    const lock = () => proofWallet.request({ kind: "lock" });
+    signal.addEventListener("abort", lock, { once: true });
+    try {
+      const publicKey = await proofWallet.request({ kind: "unlock", userId });
+      const challenge = await walletVaultApi.challenge(
+        userId,
+        publicKey,
+        "delete-wrapper",
+        signal,
+        credentialId,
+      );
+      signal.throwIfAborted();
+      const signature = encodeBase64(
+        await proofWallet.request({
+          kind: "sign",
+          userId,
+          address: publicKey,
+          bytes: new TextEncoder().encode(challenge),
+          confirmation: "Remove this wallet passkey.",
+        }),
+      );
+      await request(
+        `${vault}/wrappers/${encodeURIComponent(credentialId)}`,
+        userId,
+        signal,
+        {
+          method: "DELETE",
+          body: JSON.stringify({ publicKey, signature }),
+        },
+      );
+    } finally {
+      signal.removeEventListener("abort", lock);
+      lock();
+    }
   },
 
   async exported(

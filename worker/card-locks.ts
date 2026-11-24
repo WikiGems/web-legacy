@@ -6,26 +6,6 @@ export const pendingStates = ["prepared", "submitted"] as const;
 export const LOCK_MS = 120_000;
 export type OperationTable = "purchases" | "claims";
 
-async function releaseExpiredCardLocks(
-  db: GameDb,
-  cardIds: string[],
-  now: number,
-) {
-  for (const table of ["purchases", "claims"] as const) {
-    await db
-      .updateTable(table)
-      .set({
-        state: "expired",
-        failureCode: "TRANSACTION_EXPIRED",
-        updatedAt: now,
-      })
-      .where("cardId", "in", cardIds)
-      .where("state", "=", "prepared")
-      .where("expiresAt", "<=", now)
-      .execute();
-  }
-}
-
 export function cardBusy() {
   return new HttpError(
     409,
@@ -39,13 +19,27 @@ export async function ensureCardsUnlocked(
   cardIds: string[],
   now: number,
 ) {
-  await releaseExpiredCardLocks(db, cardIds, now);
+  await db
+    .updateTable("claims")
+    .set({
+      state: "expired",
+      failureCode: "TRANSACTION_EXPIRED",
+      updatedAt: now,
+    })
+    .where("cardId", "in", cardIds)
+    .where("state", "=", "prepared")
+    .where("expiresAt", "<=", now)
+    .execute();
   for (const table of ["purchases", "claims"] as const) {
     const active = await db
       .selectFrom(table)
       .select("id")
       .where("cardId", "in", cardIds)
-      .where("state", "in", pendingStates)
+      .where(
+        "state",
+        "in",
+        table === "purchases" ? ["submitted"] : pendingStates,
+      )
       .executeTakeFirst();
     if (active) throw cardBusy();
   }
@@ -113,7 +107,7 @@ export function marketCardAvailable(db: GameDb, now: number) {
   return sql<SqlBool>`
     not exists (
       select 1 from purchases where purchases.cardId = c.id
-        and (state = 'submitted' or (state = 'prepared' and expiresAt > ${now}))
+        and state = 'submitted'
     )
     and not exists (
       select 1 from claims where claims.cardId = c.id
