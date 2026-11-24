@@ -7,6 +7,7 @@ import type { Env } from "../worker/env";
 import { makeSignature } from "better-auth/crypto";
 import { createAuth } from "../worker/auth";
 import { handleAccount } from "../worker/account";
+import { handleApi } from "../worker/api";
 import { handleAccountAuth } from "../worker/account-auth";
 import type { VerificationEmail } from "../worker/email";
 
@@ -100,6 +101,7 @@ export async function accountFixture(
     if (path.startsWith("/api/account-auth/"))
       return handleAccountAuth(req, auth);
     if (path.startsWith("/api/auth/")) return auth.handler(req);
+    if (path.startsWith("/api/wallet/")) return handleApi(req, env, auth);
     return handleAccount(req, env, auth);
   }
   async function cleanup() {

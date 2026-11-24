@@ -211,7 +211,7 @@ export default function CreateAuction() {
                     <dd class="font-semibold tabular-nums">
                       {previewPrice() === null
                         ? "—"
-                        : `${formatAuctionAmount(previewPrice()!)} USDC`}
+                        : `$${formatAuctionAmount(previewPrice()!)}`}
                     </dd>
                   </div>
                   <div class="flex justify-between gap-3">
@@ -219,7 +219,7 @@ export default function CreateAuction() {
                     <dd class="tabular-nums">
                       {previewIncrement() === null
                         ? "—"
-                        : `${formatAuctionAmount(previewIncrement()!)} USDC`}
+                        : `$${formatAuctionAmount(previewIncrement()!)}`}
                     </dd>
                   </div>
                   <div class="flex justify-between gap-3">
@@ -247,13 +247,13 @@ export default function CreateAuction() {
                   <div>
                     <dt class="text-muted">Starting bid</dt>
                     <dd class="mt-1 text-xl font-semibold tabular-nums">
-                      {formatAuctionAmount(draft().startingBid)} USDC
+                      ${formatAuctionAmount(draft().startingBid)}
                     </dd>
                   </div>
                   <div>
                     <dt class="text-muted">Minimum increment</dt>
                     <dd class="mt-1 tabular-nums">
-                      {formatAuctionAmount(draft().increment)} USDC
+                      ${formatAuctionAmount(draft().increment)}
                     </dd>
                   </div>
                   <div>

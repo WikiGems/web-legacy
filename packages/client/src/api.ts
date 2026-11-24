@@ -10,7 +10,16 @@ import {
   GameStateSchema,
   LeaderboardResponseSchema,
   MarketResponseSchema,
-  MintConfirmSchema,
+  ClaimSchema,
+  ListingResponseSchema,
+  MarketConfigSchema,
+  PurchaseSchema,
+  PayoutSetupSchema,
+  WalletBalanceSchema,
+  type PrepareClaimSchema,
+  type PreparePurchaseSchema,
+  type SetListingSchema,
+  type SubmitSignatureSchema,
   OnboardingRequestSchema,
   OnboardingResponseSchema,
   OpenPackResponseSchema,
@@ -83,6 +92,23 @@ export function createApiClient(options: ApiClientOptions) {
       ),
     );
 
+  const sessionUser = Schema.Struct({
+    user: Schema.Struct({ id: Schema.String }),
+  });
+  const writeAsActiveAccount = (url: string, init: RequestInit) =>
+    Effect.gen(function* () {
+      const session = yield* requestJson("/api/auth/get-session");
+      if (!session)
+        return yield* Effect.fail(
+          new ApiError("Sign in to continue.", 401, "UNAUTHORIZED"),
+        );
+      const { user } = yield* decode(sessionUser, session);
+      return yield* requestJson(url, {
+        ...init,
+        headers: { ...init.headers, "x-wikigems-account": user.id },
+      });
+    });
+
   const fetchGameState = () =>
     Effect.gen(function* () {
       const payload = yield* requestJson("/api/game/state");
@@ -116,7 +142,7 @@ export function createApiClient(options: ApiClientOptions) {
         offeredCardId,
         requestedCardId,
       });
-      return yield* requestJson("/api/trades", {
+      return yield* writeAsActiveAccount("/api/trades", {
         method: "POST",
         body: JSON.stringify(body),
       });
@@ -126,7 +152,7 @@ export function createApiClient(options: ApiClientOptions) {
     tradeId: string,
     action: "accept" | "decline" | "cancel",
   ) =>
-    requestJson(`/api/trades/${tradeId}/${action}`, {
+    writeAsActiveAccount(`/api/trades/${tradeId}/${action}`, {
       method: "POST",
       body: "{}",
     });
@@ -134,25 +160,93 @@ export function createApiClient(options: ApiClientOptions) {
   const toggleCardTrade = (cardId: string, forTrade: boolean) =>
     Effect.gen(function* () {
       const body = yield* decode(ToggleTradeSchema, { forTrade });
-      const payload = yield* requestJson(`/api/cards/${cardId}/trade`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const payload = yield* writeAsActiveAccount(
+        `/api/cards/${cardId}/trade`,
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+      );
       return yield* decode(CardSchema, payload);
     });
 
-  const confirmCardMint = (
-    cardId: string,
-    input: { mintAddress: string; signature: string; walletAddress: string },
+  const read = <S extends Schema.Constraint>(url: string, schema: S) =>
+    requestJson(url).pipe(Effect.flatMap((payload) => decode(schema, payload)));
+
+  const write = <S extends Schema.Constraint>(
+    url: string,
+    schema: S,
+    userId: string | undefined,
+    body?: object,
   ) =>
-    Effect.gen(function* () {
-      const body = yield* decode(MintConfirmSchema, input);
-      const payload = yield* requestJson(`/api/cards/${cardId}/mint-confirm`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      return yield* decode(CardSchema, payload);
-    });
+    userId
+      ? requestJson(url, {
+          method: "POST",
+          body: body && JSON.stringify(body),
+          headers: { "x-wikigems-account": userId },
+        }).pipe(Effect.flatMap((payload) => decode(schema, payload)))
+      : Effect.fail(new ApiError("Sign in to continue.", 401, "UNAUTHORIZED"));
+
+  const fetchMarketConfig = () =>
+    read("/api/market/config", MarketConfigSchema);
+  const fetchWalletBalance = () =>
+    read("/api/wallet/balance", WalletBalanceSchema);
+
+  const setupPayouts = (userId: string | undefined) =>
+    write("/api/wallet/payouts", PayoutSetupSchema, userId);
+
+  const setListing = (
+    cardId: string,
+    input: typeof SetListingSchema.Type,
+    userId: string | undefined,
+  ) =>
+    write(
+      `/api/cards/${encodeURIComponent(cardId)}/listing`,
+      ListingResponseSchema,
+      userId,
+      input,
+    );
+
+  const preparePurchase = (
+    input: typeof PreparePurchaseSchema.Type,
+    userId: string | undefined,
+  ) => write("/api/purchases", PurchaseSchema, userId, input);
+
+  const purchaseStatus = (
+    id: string,
+    userId: string | undefined,
+    input?: typeof SubmitSignatureSchema.Type,
+  ) =>
+    write(
+      `/api/purchases/${encodeURIComponent(id)}${input ? "/sign" : ""}`,
+      PurchaseSchema,
+      userId,
+      input,
+    );
+
+  const prepareClaim = (
+    cardId: string,
+    input: typeof PrepareClaimSchema.Type,
+    userId: string | undefined,
+  ) =>
+    write(
+      `/api/cards/${encodeURIComponent(cardId)}/claim`,
+      ClaimSchema,
+      userId,
+      input,
+    );
+
+  const claimStatus = (
+    id: string,
+    userId: string | undefined,
+    input?: typeof SubmitSignatureSchema.Type,
+  ) =>
+    write(
+      `/api/claims/${encodeURIComponent(id)}${input ? "/sign" : ""}`,
+      ClaimSchema,
+      userId,
+      input,
+    );
 
   const fetchLeaderboard = () =>
     Effect.gen(function* () {
@@ -162,8 +256,9 @@ export function createApiClient(options: ApiClientOptions) {
 
   const requestWalletChallenge = (wallet: string) =>
     Effect.gen(function* () {
-      const payload = yield* requestJson(
+      const payload = yield* writeAsActiveAccount(
         `/api/wallet/challenge?wallet=${encodeURIComponent(wallet)}`,
+        { method: "POST" },
       );
       return yield* decode(WalletChallengeSchema, payload);
     });
@@ -174,7 +269,7 @@ export function createApiClient(options: ApiClientOptions) {
         walletAddress,
         signature,
       });
-      return yield* requestJson("/api/wallet/link", {
+      return yield* writeAsActiveAccount("/api/wallet/link", {
         method: "POST",
         body: JSON.stringify(body),
       });
@@ -246,7 +341,14 @@ export function createApiClient(options: ApiClientOptions) {
     createTradeOffer,
     settleTrade,
     toggleCardTrade,
-    confirmCardMint,
+    fetchMarketConfig,
+    fetchWalletBalance,
+    setupPayouts,
+    setListing,
+    preparePurchase,
+    purchaseStatus,
+    prepareClaim,
+    claimStatus,
     fetchLeaderboard,
     requestWalletChallenge,
     linkWallet,

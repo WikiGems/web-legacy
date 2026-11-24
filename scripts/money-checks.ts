@@ -8,9 +8,9 @@ export async function checkMoneyAmounts(page: Page, touch = false) {
     "0.40",
     "1,000.01",
     "0.00",
-    "-2.50",
+    "0.000001",
     "1.01",
-    "9,007,199,254,740,991.00",
+    "18,446,744,073,709.551615",
   ];
   for (const [index, value] of values.entries()) {
     if (index > 0) {
@@ -21,10 +21,10 @@ export async function checkMoneyAmounts(page: Page, touch = false) {
       if (touch) await button.tap();
       else await button.click();
     }
-    await preview.getByText(`${value} USDC`, { exact: true }).waitFor();
+    await preview.getByText(`$${value}`, { exact: true }).waitFor();
     const accessible = await amount.ariaSnapshot();
     assert(
-      accessible.includes(`${value} USDC`),
+      accessible.includes(`$${value}`),
       "Read the complete amount once, without wheel digits",
     );
     assert(

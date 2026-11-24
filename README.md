@@ -27,9 +27,15 @@ pull requests; see the [development workflow](docs/workflow.md).
 
 ## Current web app
 
-The Solid frontend provides passkey login, account/profile management and Wikipedia article search. Collection, marketplace, action and wallet routes currently display labeled previews. Pack, trade, duel and mint components remain in the codebase; the current routes do not expose the complete game loop described below.
+The Solid frontend supports passkey login, Wikipedia article search, packs,
+collections, card-for-card trades, fixed-price sales, and wallet claims.
+Wallet setup happens when an action needs one. Auction and challenge screens
+show preview content.
 
-Run `bun run test:e2e` for the isolated account, route, search and component browser checks. These checks use disposable data and a virtual passkey. The older `test:mint` and `test:trade` scripts target the earlier pack-based UI and require updating before they can verify the current app or a live provider.
+Run `bun run test:e2e` for account, navigation, search, and component checks.
+Run `bun run test:market` for fixed-price sales and claims, or
+`bun run test:trade` for card-for-card exchange. These browser checks use
+disposable accounts and virtual passkeys.
 
 ## The game
 
@@ -39,7 +45,7 @@ Run `bun run test:e2e` for the isolated account, route, search and component bro
 - **Stats** — attack is driven by readership; defense is driven by the depth of the article.
 - **Duels** — three questions generated from the descriptions of the cards in play.
 - **Exchange** — list unminted cards and swap them with other collectors. Ownership moves instantly.
-- **Mint** — connect Phantom, Solflare, or Backpack and mint an unminted card to your Solana wallet.
+- **Wallet** — move a collected card to a passkey-protected wallet or an existing compatible wallet.
 
 ### Solana ownership model
 
@@ -146,36 +152,12 @@ Use `localhost`, not `127.0.0.1`: the default local passkey RP ID is `localhost`
 The game is fully testable without a wallet. The first account is created passkey-first. A virtual
 authenticator works in Chrome DevTools → **WebAuthn**, or via the included Playwright tests.
 
-### 4. Optional: local Solana validator for minting
+### 4. Test purchases and wallet claims
 
-The mint flow can be tested end-to-end on a local validator with the Metaplex Core program cloned
-from mainnet. Flox installs `solana-test-validator`.
-
-```sh
-solana-test-validator \
-  --reset \
-  --ledger .solana-ledger \
-  --rpc-port 8899 \
-  --clone-upgradeable-program CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d \
-  --url https://api.mainnet-beta.solana.com
-```
-
-The dev server already proxies `/solana-rpc` to `127.0.0.1:8899` and `.env.development` points the
-client at that proxy. Production builds ignore `.env.development` and use
-`https://api.devnet.solana.com`.
-
-The local mint test uses a temporary signing bridge and a generated, locally funded wallet:
-
-```sh
-bun run test:mint
-```
-
-It performs signup, pack opening, album selection, wallet linking, a real Metaplex Core mint, and the
-Worker's transaction verification. A second test exercises the complete two-user exchange:
-
-```sh
-bun run test:trade
-```
+Use `bun run test:market` to run the browser flow with a local RPC fixture.
+Use `bun run test:chain:integration` to execute the Worker's purchase and
+claim messages in LiteSVM. See [architecture](docs/architecture.md) for
+the Worker settings and which parts each test covers.
 
 ### Useful commands
 
@@ -238,7 +220,7 @@ for them, so an old `.env` cannot supply missing credentials.
 
 Wrangler receives only the declared secret names and configured variables from the process
 environment. The dev commands pass an empty env file to ignore both `.env` and `.dev.vars`.
-Vite still reads public `VITE_` settings, including the checked-in `.env.development`.
+Vite reads public `VITE_` settings.
 Never give a secret the `VITE_` prefix. See [the envchain tutorial](docs/envchain.md).
 
 The previous SOPS ciphertext, recipient configuration, and Nix modules remain as a recovery
@@ -253,15 +235,11 @@ Production secrets still need to be configured in Cloudflare.
 | `BETTER_AUTH_URL`    | Optional auth base URL; derived from the request when omitted       |
 | `PASSKEY_RP_ID`      | Optional WebAuthn RP ID; derived from the request host when omitted |
 | `PASSKEY_ORIGIN`     | Optional pinned WebAuthn origin                                     |
-| `SOLANA_RPC_URL`     | Worker-side RPC used to verify mint transactions                    |
+| `SOLANA_RPC_URL`     | Worker-side RPC used for purchases, claims, and balances                    |
 | `SOLANA_CLUSTER`     | `devnet`, `localnet`, or `mainnet-beta`, used for explorer links    |
 
-Client-side configuration:
-
-```sh
-VITE_SOLANA_RPC_URL=/solana-rpc     # dev only; defaults to devnet in production
-VITE_SOLANA_CLUSTER=localnet        # dev only; defaults to devnet in production
-```
+The optional `VITE_DOLLARS_ONRAMP_ENABLED=true` build flag exposes a disabled
+card or Apple Pay control. No payment provider is configured.
 
 ## Database
 
@@ -334,7 +312,7 @@ an independent fan project and is not affiliated with the Wikimedia Foundation.
 src/pages/Landing.tsx        marketing page and card showcase
 src/pages/Play.tsx           Wikipedia search and preview mint controls
 src/components/GameCard.tsx  the card component
-src/components/CardModal.tsx card detail + mint flow
+src/components/CardModal.tsx card details and ownership actions
 src/components/PackOpening.tsx
 src/components/DuelGame.tsx
 src/lib/solana.ts            Phantom/Solflare/Backpack adapter, Umi mint, HTTP confirmation

@@ -11,7 +11,7 @@ import { WebDialog } from "./WebDialog";
 
 export function TradeOfferModal(props: {
   target: Card;
-  cards: Card[];
+  cards: readonly Card[];
   onClose: () => void;
   onSubmitted: () => void;
 }) {
@@ -75,11 +75,11 @@ export function TradeOfferModal(props: {
         when={choices().length}
         fallback={
           <p class="rounded-xl bg-base-200 p-6 text-sm text-muted">
-            You need an unminted card to offer. Open a pack first.
+            Open a pack before proposing a trade.
           </p>
         }
       >
-        <p class="text-sm text-muted">Choose one of your unminted cards.</p>
+        <p class="text-sm text-muted">Choose a card from your collection.</p>
         <div class="grid grid-cols-1 items-start gap-3 min-[400px]:grid-cols-2 sm:grid-cols-3">
           <For each={choices()}>
             {(card) => (
@@ -123,8 +123,7 @@ export function TradeOfferModal(props: {
         </Button>
       </Show>
       <p class="text-xs leading-relaxed text-muted">
-        Trades exchange unminted in-game claims. Minted cards belong to their
-        Solana wallet.
+        Cards in a wallet can be traded outside the game.
       </p>
     </WebDialog>
   );

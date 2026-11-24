@@ -11,7 +11,7 @@ export function AuctionAmountField(props: {
 }) {
   return (
     <TextField
-      label={`${props.label} (USDC)`}
+      label={`${props.label} (dollars)`}
       value={props.value}
       onChange={props.onChange}
       required

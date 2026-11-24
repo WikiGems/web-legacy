@@ -1,121 +1,64 @@
 import { createSignal, Show } from "solid-js";
-import { Effect } from "effect";
 import { Api } from "@wikigems/client";
-import type { Card } from "@wikigems/domain/domain";
-import {
-  explorerAddressUrl,
-  explorerTxUrl,
-} from "@wikigems/domain/card-engine";
-import { haptic } from "../lib/haptics";
-import { SOLANA_CLUSTER } from "../lib/solana-wallets";
-import { showToast, useWalletState } from "../lib/ui";
+import type { Card, MarketConfigSchema } from "@wikigems/domain/domain";
+import { explorerAddressUrl } from "@wikigems/domain/card-engine";
+import { formatDollars } from "../../shared/amounts";
+import { marketError } from "../lib/market-ui";
+import { showToast } from "../lib/ui";
 import { runUi } from "../runtime";
-import { Wallet } from "../services/wallet";
 import { CardArtwork } from "./GameCard";
+import { ClaimEditor } from "./ClaimEditor";
 import { Icon } from "./Icon";
+import { ListingEditor } from "./ListingEditor";
 import { Button } from "./ui/button";
-import { Alert, Chip, Separator, Spinner } from "./ui/feedback";
+import { Chip, Separator } from "./ui/feedback";
 import { WebDialog } from "./WebDialog";
 
 export function CardModal(props: {
   card: Card;
-  owned: boolean;
+  config: typeof MarketConfigSchema.Type;
   linkedWallet: string | null;
   onClose: () => void;
-  onChanged: (card: Card) => void;
-  onProposeTrade?: (card: Card) => void;
-  onOpenWallet: () => void;
+  onChanged: () => void;
+  initialAction?: "price";
 }) {
-  const wallet = useWalletState();
-  const [minting, setMinting] = createSignal(false);
-  const [listing, setListing] = createSignal(false);
-  const [error, setError] = createSignal<string | null>(null);
+  const [busy, setBusy] = createSignal(false);
+  const [action, setAction] = createSignal<"price" | "claim" | null>(
+    props.initialAction ?? null,
+  );
+  const [trading, setTrading] = createSignal(false);
+  const busyDialog = () => busy() || trading();
+  const quote = () =>
+    props.config.freeClaimsRemaining > 0
+      ? "0"
+      : props.config.claimPriceUsdcMinor;
 
-  function mint() {
-    const card = props.card;
-    if (!props.linkedWallet) {
-      props.onOpenWallet();
-      return;
-    }
-    const connected = wallet().wallet;
-    if (!connected || connected.address !== props.linkedWallet) {
-      showToast("Reconnect your wallet", {
-        body: "Your linked wallet needs to be connected to sign the mint.",
-        tone: "info",
-      });
-      props.onOpenWallet();
-      return;
-    }
-    setError(null);
-    setMinting(true);
-    void runUi(
-      Effect.gen(function* () {
-        const result = yield* Wallet.use((service) =>
-          service.mint(card, connected),
-        );
-        const updated = yield* Api.use((api) =>
-          api.confirmCardMint(card.id, {
-            mintAddress: result.mintAddress,
-            signature: result.signature,
-            walletAddress: connected.address,
-          }),
-        );
-        return { result, updated };
-      }),
-      (failure) => {
-        haptic("error");
-        setError(failure.message || "The mint could not be completed.");
-      },
-    ).then((outcome) => {
-      setMinting(false);
-      if (!outcome.ok) return;
-      const minted = outcome.value;
-      props.onChanged(minted.updated);
-      showToast("Minted on Solana", {
-        body: `${minted.result.mintAddress.slice(0, 4)}…${minted.result.mintAddress.slice(-4)} is now in your wallet.`,
-        tone: "success",
-      });
-    });
+  function changed() {
+    setAction(null);
+    props.onChanged();
   }
 
-  function toggleListing() {
-    const card = props.card;
-    setListing(true);
-    void runUi(
-      Api.use((api) => api.toggleCardTrade(card.id, !card.forTrade)),
+  async function toggleTrade() {
+    setTrading(true);
+    const result = await runUi(
+      Api.use((api) =>
+        api.toggleCardTrade(props.card.id, !props.card.forTrade),
+      ),
       (failure) =>
         showToast("Could not update the trade list", {
-          body: failure.message,
+          body: marketError(failure),
           tone: "error",
         }),
-    ).then((outcome) => {
-      setListing(false);
-      if (!outcome.ok) return;
-      const updated = outcome.value;
-      props.onChanged(updated);
+    );
+    setTrading(false);
+    if (result.ok) {
       showToast(
-        updated.forTrade
+        result.value.forTrade
           ? "Card is open to trade"
-          : "Card removed from the market",
+          : "Card is closed to trades",
         { tone: "success" },
       );
-    });
-  }
-
-  async function copyMint() {
-    const address = props.card.mintAddress;
-    if (!address) return;
-    try {
-      await navigator.clipboard.writeText(address);
-      showToast("Mint address copied", { tone: "success" });
-    } catch (cause) {
-      showToast("Could not copy the mint address", {
-        tone: "error",
-        body:
-          cause instanceof Error
-            ? cause.message
-            : "Select the address to copy it manually.",
-      });
+      props.onChanged();
     }
   }
 
@@ -123,7 +66,7 @@ export function CardModal(props: {
     <WebDialog
       onClose={props.onClose}
       labelId="card-title"
-      busy={minting() || listing()}
+      busy={busyDialog()}
       wide
     >
       <div class="flex items-start justify-between gap-4">
@@ -138,12 +81,104 @@ export function CardModal(props: {
           size="sm"
           variant="ghost"
           onClick={props.onClose}
-          disabled={minting() || listing()}
+          disabled={busyDialog()}
           aria-label="Close card"
         >
           <Icon name="close" />
         </Button>
       </div>
+      <Show when={props.card.status === "claimed"}>
+        <div class="space-y-3">
+          <Show when={action() === null}>
+            <div class="flex flex-wrap gap-2">
+              <Button
+                feedback="confirm"
+                disabled={busyDialog()}
+                onClick={() => setAction("claim")}
+              >
+                Own this card
+              </Button>
+              <Button
+                variant="secondary"
+                class="h-auto whitespace-normal"
+                feedback="sell"
+                disabled={busyDialog()}
+                onClick={() => setAction("price")}
+              >
+                {props.card.priceUsdcMinor
+                  ? `Edit price · ${formatDollars(props.card.priceUsdcMinor)}`
+                  : "Set a price"}
+              </Button>
+              <Button
+                variant="secondary"
+                feedback="swap"
+                pending={trading()}
+                disabled={busyDialog()}
+                aria-pressed={props.card.forTrade ? "true" : "false"}
+                onClick={() => void toggleTrade()}
+              >
+                {props.card.forTrade ? "Remove from trades" : "List for trade"}
+              </Button>
+            </div>
+          </Show>
+          <Show when={action() === "price"}>
+            <ListingEditor
+              card={props.card}
+              feeBps={props.config.marketFeeBps}
+              minPriceUsdcMinor={props.config.minPriceUsdcMinor}
+              onChanged={changed}
+              onBusy={setBusy}
+              onCancel={() => setAction(null)}
+            />
+          </Show>
+          <Show when={action() === "claim"}>
+            <ClaimEditor
+              card={props.card}
+              linkedWallet={props.linkedWallet}
+              quotedPrice={quote()}
+              paidPrice={props.config.claimPriceUsdcMinor}
+              onChanged={changed}
+              onBusy={setBusy}
+              onCancel={() => setAction(null)}
+            />
+          </Show>
+        </div>
+      </Show>
+      <Show when={props.card.status === "minted"}>
+        <div class="space-y-3 rounded-xl bg-base-200 p-4">
+          <Chip tone="success">In a wallet</Chip>
+          <details>
+            <summary class="cursor-pointer text-sm font-medium">
+              Advanced details
+            </summary>
+            <Show when={props.card.ownerWallet}>
+              {(address) => (
+                <p class="mt-2 text-sm">
+                  Wallet{" "}
+                  <code title={address()}>
+                    {address().slice(0, 6)}…{address().slice(-4)}
+                  </code>
+                </p>
+              )}
+            </Show>
+            <Show when={props.card.mintAddress}>
+              {(asset) => (
+                <a
+                  class="mt-2 inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                  href={explorerAddressUrl(
+                    encodeURIComponent(asset()),
+                    encodeURIComponent(props.config.cluster),
+                  )}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View in explorer <Icon name="external" size={14} />
+                </a>
+              )}
+            </Show>
+          </details>
+        </div>
+      </Show>
       <CardArtwork card={props.card} class="max-h-72" />
       <div class="space-y-4">
         <p class="font-medium">{props.card.description}</p>
@@ -158,107 +193,6 @@ export function CardModal(props: {
           <Icon name="external" size={14} />
         </a>
       </div>
-      <Show when={props.card.status === "minted" && props.card.mintAddress}>
-        {(mintAddress) => (
-          <div class="space-y-3 rounded-xl bg-base-200 p-4">
-            <Chip tone="success">On Solana · {SOLANA_CLUSTER}</Chip>
-            <Button
-              variant="ghost"
-              onClick={copyMint}
-              aria-label="Copy mint address"
-              class="h-auto w-full justify-between whitespace-normal"
-            >
-              <code class="min-w-0 text-left text-xs break-all">
-                {mintAddress()}
-              </code>
-              <Icon name="copy" size={15} />
-            </Button>
-            <div class="flex flex-wrap gap-4 text-xs text-primary">
-              <a
-                href={explorerAddressUrl(mintAddress(), SOLANA_CLUSTER)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                View asset ↗
-              </a>
-              <Show when={props.card.txSignature}>
-                {(signature) => (
-                  <a
-                    href={explorerTxUrl(signature(), SOLANA_CLUSTER)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View transaction ↗
-                  </a>
-                )}
-              </Show>
-            </div>
-          </div>
-        )}
-      </Show>
-      <Show when={props.owned && props.card.status === "claimed"}>
-        <div class="space-y-4">
-          <div class="flex flex-wrap gap-3">
-            <Button
-              feedback="confirm"
-              onClick={mint}
-              disabled={minting() || listing()}
-            >
-              <Show
-                when={minting()}
-                fallback={
-                  <>
-                    <Icon name="bolt" />
-                    {props.linkedWallet
-                      ? "Mint NFT on Solana"
-                      : "Connect wallet to mint"}
-                  </>
-                }
-              >
-                <Spinner size="sm" />
-                Minting on Solana…
-              </Show>
-            </Button>
-            <Button
-              variant="secondary"
-              feedback="sell"
-              onClick={toggleListing}
-              disabled={listing() || minting()}
-            >
-              <Show when={listing()}>
-                <Spinner size="sm" />
-              </Show>
-              {props.card.forTrade ? "Listed for trade" : "List for trade"}
-            </Button>
-          </div>
-          <Show when={error()}>
-            <Alert status="danger" role="alert">
-              {error()}{" "}
-              <a
-                href="https://faucet.solana.com/"
-                target="_blank"
-                rel="noreferrer"
-                class="underline"
-              >
-                Get devnet SOL ↗
-              </a>
-            </Alert>
-          </Show>
-          <p class="text-xs leading-relaxed text-muted">
-            Unminted claims can be traded in-game. Once minted, ownership lives
-            in your Solana wallet.
-          </p>
-        </div>
-      </Show>
-      <Show when={!props.owned && props.card.forTrade}>
-        <Button
-          feedback="swap"
-          onClick={() => props.onProposeTrade?.(props.card)}
-        >
-          <Icon name="swap" />
-          Propose a trade
-        </Button>
-      </Show>
       <Separator />
       <p class="text-xs leading-relaxed text-muted">
         Article text from Wikipedia, under CC BY-SA 4.0. Images from Wikimedia

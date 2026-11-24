@@ -1,14 +1,16 @@
 import { Effect, Schema } from "effect";
-import bs58 from "bs58";
-import nacl from "tweetnacl";
 import {
   CreateTradeSchema,
   DuelResultSchema,
-  MintConfirmSchema,
+  PrepareClaimSchema,
+  PreparePurchaseSchema,
+  SetListingSchema,
+  SubmitSignatureSchema,
   OnboardingRequestSchema,
   ToggleTradeSchema,
-  WalletLinkSchema,
   type FeaturedArticle,
+  type MarketConfigSchema,
+  type WalletBalanceSchema,
   type Trade,
 } from "../shared/domain";
 import {
@@ -20,7 +22,7 @@ import {
 } from "../shared/card-engine";
 import { featuredArticles } from "../shared/featured";
 import type { WikiGemsAuth } from "./auth";
-import { createDb, type ProfileTable } from "./db";
+import { createDb, type GameDb, type ProfileTable } from "./db";
 import type { Env } from "./env";
 import {
   createOnboardingToken,
@@ -28,23 +30,29 @@ import {
   isValidName,
   normaliseEmail,
 } from "./onboarding";
-import { serializeCard, type CardRow } from "./serialize";
-import { verifyMintTransaction } from "./solana";
+import { serializeCard, serializeListing, type CardRow } from "./serialize";
+import { cardMetadata } from "./card-metadata";
+import { ensureCardsUnlocked, marketCardAvailable } from "./card-locks";
+import {
+  claimTerms,
+  linkedWallet,
+  marketFeeBps,
+  minimumPrice,
+  publicOrigin,
+  usdcMintAddress,
+} from "./chain/config";
+import { connectChain, walletUsdcBalance } from "./chain/rpc";
+import { prepareClaim, claimStatus, freeClaimsRemaining } from "./claims";
+import { HttpError } from "./http-error";
+import { preparePurchase, purchaseStatus, setListing } from "./market";
+import { proposeTrade, decideTrade } from "./trades";
 import { drawArticle } from "./wiki";
+import { authorizeWrite } from "./write-auth";
+import { handleWallet } from "./wallet-vault";
 
-class HttpError extends Error {
-  readonly _tag = "HttpError";
-
-  constructor(
-    readonly status: number,
-    message: string,
-    readonly code?: string,
-  ) {
-    super(message);
-  }
-}
-
-type Session = { user: { id: string; name: string; email: string } };
+type Session = {
+  user: { id: string; name: string; email: string; emailVerified: boolean };
+};
 
 const privateJson = (value: unknown, status = 200) =>
   Response.json(value, {
@@ -104,6 +112,7 @@ const dbOperation = <A>(operation: () => Promise<A>) =>
   Effect.tryPromise({
     try: operation,
     catch: (error) => {
+      if (error instanceof HttpError) return error;
       console.error("Database operation failed", error);
       return new HttpError(
         503,
@@ -112,6 +121,13 @@ const dbOperation = <A>(operation: () => Promise<A>) =>
       );
     },
   });
+
+const requireWriteSession = (auth: WikiGemsAuth, request: Request) =>
+  requireSession(auth, request).pipe(
+    Effect.tap(({ user }) =>
+      dbOperation(() => authorizeWrite(request, auth, user.id)),
+    ),
+  );
 
 function packState(profile: ProfileTable, now: number) {
   let stock = profile.packStock;
@@ -134,8 +150,6 @@ function packState(profile: ProfileTable, now: number) {
     nextPackAt: stock >= MAX_PACKS ? null : lastPackAt + PACK_INTERVAL_MS,
   };
 }
-
-type GameDb = ReturnType<typeof createDb>;
 
 async function ensureProfile(
   db: GameDb,
@@ -364,10 +378,67 @@ export async function handleApi(
 ): Promise<Response> {
   const url = new URL(request.url);
   const db = createDb(env);
+  const balanceRequest =
+    url.pathname === "/api/wallet/balance" && request.method === "GET";
+  if (
+    !balanceRequest &&
+    url.pathname.startsWith("/api/wallet/") &&
+    request.method !== "OPTIONS"
+  ) {
+    try {
+      return await handleWallet(request, env, auth, db, ensureProfile);
+    } finally {
+      await db.destroy();
+    }
+  }
 
   const program = Effect.gen(function* () {
     if (request.method === "OPTIONS")
       return new Response(null, { status: 204 });
+
+    if (balanceRequest) {
+      const { user } = yield* requireSession(auth, request);
+      const balance = yield* dbOperation(async () => {
+        const profile = await db
+          .selectFrom("profiles")
+          .select("walletAddress")
+          .where("userId", "=", user.id)
+          .executeTakeFirst();
+        const walletAddress = linkedWallet(profile?.walletAddress);
+        const mint = usdcMintAddress(env);
+        const balance = await walletUsdcBalance(
+          await connectChain(env),
+          walletAddress,
+          mint,
+        );
+        return {
+          walletAddress,
+          dollarTokenAddress: mint,
+          cluster: env.SOLANA_CLUSTER || "devnet",
+          balanceUsdcMinor: balance.toString(),
+        } satisfies typeof WalletBalanceSchema.Type;
+      });
+      return privateJson(balance);
+    }
+
+    if (url.pathname === "/api/market/config" && request.method === "GET") {
+      const { user } = yield* requireSession(auth, request);
+      const config = yield* dbOperation(async () => {
+        const terms = claimTerms(env);
+        return {
+          marketFeeBps: marketFeeBps(env),
+          minPriceUsdcMinor: minimumPrice(env).toString(),
+          claimPriceUsdcMinor: terms.price.toString(),
+          freeClaimsRemaining: await freeClaimsRemaining(db, user.id, {
+            emailVerified: user.emailVerified,
+            allowance: terms.freeClaimsPerUser,
+            now: Date.now(),
+          }),
+          cluster: env.SOLANA_CLUSTER || "devnet",
+        } satisfies typeof MarketConfigSchema.Type;
+      });
+      return privateJson(config);
+    }
 
     if (url.pathname === "/api/health" && request.method === "GET") {
       return privateJson({
@@ -457,11 +528,23 @@ export async function handleApi(
 
       const rows = yield* dbOperation(() =>
         cardQuery(db)
+          .select((eb) =>
+            eb
+              .selectFrom("listings as l")
+              .select("l.priceUsdcMinor")
+              .whereRef("l.cardId", "=", "c.id")
+              .whereRef("l.sellerUserId", "=", "c.ownerUserId")
+              .where("l.closedAt", "is", null)
+              .as("priceUsdcMinor"),
+          )
           .where("c.ownerUserId", "=", session.user.id)
           .orderBy("c.createdAt", "desc")
           .execute(),
       );
-      const cards = rows.map(serializeCard);
+      const cards = rows.map((row) => ({
+        ...serializeCard(row),
+        ...(row.priceUsdcMinor && { priceUsdcMinor: row.priceUsdcMinor }),
+      }));
       const minted = cards.filter((card) => card.status === "minted").length;
       const tradeable = cards.filter(
         (card) => card.forTrade && card.status === "claimed",
@@ -472,6 +555,7 @@ export async function handleApi(
           .selectFrom("cards")
           .select("ownerUserId")
           .select((expression) => expression.fn.count("id").as("count"))
+          .where("ownerUserId", "is not", null)
           .groupBy("ownerUserId")
           .execute(),
       );
@@ -566,16 +650,127 @@ export async function handleApi(
       });
     }
 
-    if (url.pathname === "/api/market" && request.method === "GET") {
-      const rows = yield* dbOperation(() =>
-        cardQuery(db)
-          .where("c.forTrade", "=", 1)
-          .where("c.status", "=", "claimed")
-          .orderBy("c.createdAt", "desc")
-          .limit(60)
-          .execute(),
+    const chainCardAction = url.pathname.match(
+      /^\/api\/cards\/([^/]+)\/(listing|claim)$/,
+    );
+    const chainOperation = url.pathname.match(
+      /^\/api\/(purchases|claims)\/([^/]+)(\/sign)?$/,
+    );
+    if (
+      (request.method === "POST" &&
+        (chainCardAction ||
+          url.pathname === "/api/purchases" ||
+          chainOperation)) ||
+      (request.method === "GET" && chainOperation && !chainOperation[3])
+    ) {
+      const { user } = yield* request.method === "POST"
+        ? requireWriteSession(auth, request)
+        : requireSession(auth, request);
+
+      const actorUserId = user.id;
+      if (chainCardAction) {
+        const [, cardId, action] = chainCardAction;
+        if (action === "listing") {
+          const body = yield* decodeBody(
+            request,
+            Schema.decodeUnknownSync(SetListingSchema),
+          );
+          return privateJson(
+            yield* dbOperation(() =>
+              setListing(db, env, { actorUserId, cardId: cardId!, ...body }),
+            ),
+          );
+        }
+        const body = yield* decodeBody(
+          request,
+          Schema.decodeUnknownSync(PrepareClaimSchema),
+        );
+        const claim = yield* dbOperation(() =>
+          prepareClaim(db, env, { actorUserId, cardId: cardId!, ...body }),
+        );
+        return privateJson(claim, claim.state === "submitted" ? 202 : 200);
+      }
+
+      if (url.pathname === "/api/purchases") {
+        const body = yield* decodeBody(
+          request,
+          Schema.decodeUnknownSync(PreparePurchaseSchema),
+        );
+        return privateJson(
+          yield* dbOperation(() =>
+            preparePurchase(db, env, { actorUserId, ...body }),
+          ),
+        );
+      }
+
+      const [, operation, id, sign] = chainOperation!;
+      const body = sign
+        ? yield* decodeBody(
+            request,
+            Schema.decodeUnknownSync(SubmitSignatureSchema),
+          )
+        : {};
+      const status = operation === "purchases" ? purchaseStatus : claimStatus;
+      const row = yield* dbOperation(async () =>
+        status(db, env, {
+          actorUserId,
+          id: id!,
+          ...body,
+          readOnly: request.method === "GET",
+        }),
       );
-      return privateJson({ cards: rows.map(serializeCard) });
+      return privateJson(row, sign && row.state === "submitted" ? 202 : 200);
+    }
+
+    if (url.pathname === "/api/market" && request.method === "GET") {
+      const [rows, listings] = yield* Effect.all([
+        dbOperation(() =>
+          cardQuery(db)
+            .where("c.forTrade", "=", 1)
+            .where("c.status", "=", "claimed")
+            .where("c.ownerUserId", "is not", null)
+            .orderBy("c.createdAt", "desc")
+            .limit(60)
+            .execute(),
+        ),
+        dbOperation(() =>
+          cardQuery(db)
+            .innerJoin("listings as l", "l.cardId", "c.id")
+            .innerJoin("profiles as seller", "seller.userId", "l.sellerUserId")
+            .select([
+              "l.id as listingId",
+              "l.priceUsdcMinor",
+              "l.createdAt as listedAt",
+              "l.updatedAt as listingUpdatedAt",
+              "l.sellerUserId",
+            ])
+            .whereRef("c.ownerUserId", "=", "l.sellerUserId")
+            .where("seller.walletAddress", "is not", null)
+            .where("c.status", "=", "claimed")
+            .where("l.closedAt", "is", null)
+            .where(marketCardAvailable(db, Date.now()))
+            .orderBy("l.updatedAt", "desc")
+            .limit(60)
+            .execute(),
+        ),
+      ]);
+      return privateJson({
+        cards: rows.map(serializeCard),
+        listings: listings.map((row) =>
+          serializeListing(
+            {
+              id: row.listingId,
+              cardId: row.id,
+              sellerUserId: row.sellerUserId,
+              priceUsdcMinor: row.priceUsdcMinor,
+              createdAt: row.listedAt,
+              updatedAt: row.listingUpdatedAt,
+              closedAt: null,
+            },
+            row,
+          ),
+        ),
+      });
     }
 
     if (url.pathname === "/api/leaderboard" && request.method === "GET") {
@@ -596,6 +791,7 @@ export async function handleApi(
       );
       const aggregate = new Map<string, { cards: number; minted: number }>();
       for (const card of cards) {
+        if (!card.ownerUserId) continue;
         const current = aggregate.get(card.ownerUserId) ?? {
           cards: 0,
           minted: 0,
@@ -679,172 +875,43 @@ export async function handleApi(
     }
 
     if (url.pathname === "/api/trades" && request.method === "POST") {
-      const session = yield* requireSession(auth, request);
+      const session = yield* requireWriteSession(auth, request);
       const body = yield* decodeBody(
         request,
         Schema.decodeUnknownSync(CreateTradeSchema),
       );
-      if (body.offeredCardId === body.requestedCardId) {
-        return yield* Effect.fail(
-          new HttpError(400, "A card cannot trade for itself."),
-        );
-      }
-      const offered = yield* dbOperation(() =>
-        db
-          .selectFrom("cards")
-          .selectAll()
-          .where("id", "=", body.offeredCardId)
-          .executeTakeFirst(),
+      const trade = yield* dbOperation(() =>
+        proposeTrade(db, { actorUserId: session.user.id, ...body }),
       );
-      const requested = yield* dbOperation(() =>
-        db
-          .selectFrom("cards")
-          .selectAll()
-          .where("id", "=", body.requestedCardId)
-          .executeTakeFirst(),
-      );
-      if (!offered || !requested) {
-        return yield* Effect.fail(
-          new HttpError(404, "One of those cards has left the archive."),
-        );
-      }
-      if (offered.ownerUserId !== session.user.id) {
-        return yield* Effect.fail(
-          new HttpError(403, "You can only offer a card you own."),
-        );
-      }
-      if (requested.ownerUserId === session.user.id || !requested.forTrade) {
-        return yield* Effect.fail(
-          new HttpError(400, "That card is not open to offers."),
-        );
-      }
-      if (offered.status !== "claimed" || requested.status !== "claimed") {
-        return yield* Effect.fail(
-          new HttpError(
-            409,
-            "Minted cards live in a wallet and cannot move in-game.",
-          ),
-        );
-      }
-      const tradeId = crypto.randomUUID();
-      const now = Date.now();
-      yield* dbOperation(() =>
-        db
-          .insertInto("trades")
-          .values({
-            id: tradeId,
-            proposerId: session.user.id,
-            counterpartyId: requested.ownerUserId,
-            offeredCardId: offered.id,
-            requestedCardId: requested.id,
-            status: "proposed",
-            createdAt: now,
-            updatedAt: now,
-          })
-          .execute(),
-      );
-      return privateJson({ id: tradeId, status: "proposed" }, 201);
+      return privateJson(trade, 201);
     }
 
     const tradeAction = url.pathname.match(
       /^\/api\/trades\/([^/]+)\/(accept|decline|cancel)$/,
     );
     if (tradeAction && request.method === "POST") {
-      const session = yield* requireSession(auth, request);
+      const session = yield* requireWriteSession(auth, request);
       const [, tradeId, action] = tradeAction;
-      const trade = yield* dbOperation(() =>
-        db
-          .selectFrom("trades")
-          .selectAll()
-          .where("id", "=", tradeId!)
-          .executeTakeFirst(),
-      );
-      if (!trade)
-        return yield* Effect.fail(
-          new HttpError(404, "That trade has vanished."),
-        );
-      if (trade.status !== "proposed") {
-        return yield* Effect.fail(
-          new HttpError(409, "This trade is already closed."),
-        );
-      }
-
-      if (action === "decline" || action === "cancel") {
-        if (action === "decline" && trade.counterpartyId !== session.user.id) {
-          return yield* Effect.fail(
-            new HttpError(403, "Only the recipient can decline this offer."),
-          );
-        }
-        if (action === "cancel" && trade.proposerId !== session.user.id) {
-          return yield* Effect.fail(
-            new HttpError(403, "Only the proposer can cancel this offer."),
-          );
-        }
-        const status = action === "decline" ? "declined" : "cancelled";
+      return privateJson(
         yield* dbOperation(() =>
-          db
-            .updateTable("trades")
-            .set({ status, updatedAt: Date.now() })
-            .where("id", "=", trade.id)
-            .execute(),
-        );
-        return privateJson({ ok: true, status });
-      }
-
-      if (trade.counterpartyId !== session.user.id) {
-        return yield* Effect.fail(
-          new HttpError(403, "Only the recipient can accept this trade."),
-        );
-      }
-
-      const cards = yield* dbOperation(() =>
-        loadCardsByIds(db, [trade.offeredCardId, trade.requestedCardId]),
+          decideTrade(db, {
+            actorUserId: session.user.id,
+            tradeId: tradeId!,
+            action: action!,
+          }),
+        ),
       );
-      const offered = cards.get(trade.offeredCardId);
-      const requested = cards.get(trade.requestedCardId);
-      if (!offered || !requested) {
-        return yield* Effect.fail(
-          new HttpError(404, "One of the cards is no longer available."),
-        );
-      }
-      if (
-        offered.ownerUserId !== trade.proposerId ||
-        requested.ownerUserId !== trade.counterpartyId ||
-        offered.status !== "claimed" ||
-        requested.status !== "claimed"
-      ) {
-        return yield* Effect.fail(
-          new HttpError(409, "Ownership changed since this offer was made."),
-        );
-      }
-
-      yield* dbOperation(() =>
-        db.transaction().execute(async (trx) => {
-          await trx
-            .updateTable("cards")
-            .set({ ownerUserId: trade.counterpartyId, forTrade: 0 })
-            .where("id", "=", trade.offeredCardId)
-            .execute();
-          await trx
-            .updateTable("cards")
-            .set({ ownerUserId: trade.proposerId, forTrade: 0 })
-            .where("id", "=", trade.requestedCardId)
-            .execute();
-          await trx
-            .updateTable("trades")
-            .set({ status: "settled", updatedAt: Date.now() })
-            .where("id", "=", trade.id)
-            .execute();
-        }),
-      );
-      return privateJson({ ok: true, status: "settled" });
     }
 
     const cardAction = url.pathname.match(
-      /^\/api\/cards\/([^/]+)\/(metadata|art\.svg|mint-confirm|trade)$/,
+      /^\/api\/cards\/([^/]+)\/(metadata|art\.svg|trade)$/,
     );
     if (cardAction) {
       const [, cardId, action] = cardAction;
+      const tradeSession =
+        action === "trade" && request.method === "POST"
+          ? yield* requireWriteSession(auth, request)
+          : null;
       const card = yield* dbOperation(() =>
         db
           .selectFrom("cards")
@@ -858,50 +925,7 @@ export async function handleApi(
         );
 
       if (action === "metadata" && request.method === "GET") {
-        const origin = new URL(request.url).origin;
-        const image = card.imageUrl || `${origin}/api/cards/${card.id}/art.svg`;
-        const metadata = {
-          name: `WikiGems: ${card.title}`.slice(0, 32),
-          symbol: "WIKI",
-          description: `${card.extract}\n\nA 1-of-1 WikiGems card generated from the Wikipedia article "${card.title}". One article. One card. Minted on Solana.`,
-          image,
-          external_url: `${origin}/play?card=${card.id}`,
-          attributes: [
-            { trait_type: "Article", value: card.title },
-            { trait_type: "Article ID", value: card.articleId },
-            { trait_type: "Rarity", value: card.rarity },
-            { trait_type: "Category", value: card.category },
-            {
-              trait_type: "Attack",
-              value: card.attack,
-              display_type: "number",
-            },
-            {
-              trait_type: "Defense",
-              value: card.defense,
-              display_type: "number",
-            },
-            {
-              trait_type: "Pageviews",
-              value: card.pageviews,
-              display_type: "number",
-            },
-            { trait_type: "Edition", value: "1 of 1" },
-            { trait_type: "Wikipedia", value: card.articleUrl },
-          ],
-          properties: {
-            category: "image",
-            files: [
-              {
-                uri: image,
-                type: image.endsWith(".svg") ? "image/svg+xml" : "image/jpeg",
-              },
-            ],
-          },
-        };
-        return Response.json(metadata, {
-          headers: { "cache-control": "public, max-age=3600" },
-        });
+        return cardMetadata(card, publicOrigin(env) ?? url.origin);
       }
 
       if (action === "art.svg" && request.method === "GET") {
@@ -913,8 +937,8 @@ export async function handleApi(
         });
       }
 
-      if (action === "trade" && request.method === "POST") {
-        const session = yield* requireSession(auth, request);
+      if (tradeSession) {
+        const session = tradeSession;
         if (card.ownerUserId !== session.user.id) {
           return yield* Effect.fail(
             new HttpError(403, "You do not own this card."),
@@ -922,7 +946,11 @@ export async function handleApi(
         }
         if (card.status === "minted") {
           return yield* Effect.fail(
-            new HttpError(409, "Minted cards live in your Solana wallet."),
+            new HttpError(
+              409,
+              "This card is already in a wallet.",
+              "CARD_MINTED",
+            ),
           );
         }
         const body = yield* decodeBody(
@@ -930,171 +958,25 @@ export async function handleApi(
           Schema.decodeUnknownSync(ToggleTradeSchema),
         );
         const updated = yield* dbOperation(() =>
-          db
-            .updateTable("cards")
-            .set({ forTrade: body.forTrade ? 1 : 0 })
-            .where("id", "=", card.id)
-            .returningAll()
-            .executeTakeFirstOrThrow(),
+          db.transaction().execute(async (trx) => {
+            await ensureCardsUnlocked(trx, [card.id], Date.now());
+            const updated = await trx
+              .updateTable("cards")
+              .set({ forTrade: body.forTrade ? 1 : 0 })
+              .where("id", "=", card.id)
+              .where("ownerUserId", "=", session.user.id)
+              .where("status", "=", "claimed")
+              .returningAll()
+              .executeTakeFirst();
+            if (!updated)
+              throw new HttpError(409, "Ownership changed. Reload this card.");
+            return updated;
+          }),
         );
         return privateJson(
           serializeCard({ ...updated, ownerName: session.user.name }),
         );
       }
-
-      if (action === "mint-confirm" && request.method === "POST") {
-        const session = yield* requireSession(auth, request);
-        if (card.ownerUserId !== session.user.id) {
-          return yield* Effect.fail(
-            new HttpError(403, "You do not own this card."),
-          );
-        }
-        if (card.status === "minted") {
-          return privateJson(serializeCard(card));
-        }
-        const profile = yield* dbOperation(() =>
-          ensureProfile(db, session.user.id),
-        );
-        const body = yield* decodeBody(
-          request,
-          Schema.decodeUnknownSync(MintConfirmSchema),
-        );
-        if (
-          !profile.walletAddress ||
-          profile.walletAddress !== body.walletAddress
-        ) {
-          return yield* Effect.fail(
-            new HttpError(
-              409,
-              "Link this Solana wallet to your account first.",
-            ),
-          );
-        }
-        const valid = yield* Effect.tryPromise({
-          try: () =>
-            verifyMintTransaction(env, {
-              signature: body.signature,
-              mintAddress: body.mintAddress,
-            }),
-          catch: () =>
-            new HttpError(502, "Could not verify the Solana transaction."),
-        });
-        if (!valid) {
-          return yield* Effect.fail(
-            new HttpError(
-              400,
-              "That Solana transaction could not be verified.",
-              "BAD_MINT",
-            ),
-          );
-        }
-        const updated = yield* dbOperation(() =>
-          db
-            .updateTable("cards")
-            .set({
-              status: "minted",
-              mintAddress: body.mintAddress,
-              txSignature: body.signature,
-              ownerWallet: body.walletAddress,
-              mintedAt: Date.now(),
-            })
-            .where("id", "=", card.id)
-            .returningAll()
-            .executeTakeFirstOrThrow(),
-        );
-        return privateJson(
-          serializeCard({ ...updated, ownerName: session.user.name }),
-        );
-      }
-    }
-
-    if (url.pathname === "/api/wallet/challenge" && request.method === "GET") {
-      const session = yield* requireSession(auth, request);
-      const wallet = url.searchParams.get("wallet") ?? "";
-      try {
-        const decoded = bs58.decode(wallet);
-        if (decoded.length !== 32) throw new Error("bad length");
-      } catch {
-        return yield* Effect.fail(
-          new HttpError(400, "That is not a valid Solana address."),
-        );
-      }
-      const profile = yield* dbOperation(() =>
-        ensureProfile(db, session.user.id),
-      );
-      const nonce = crypto.randomUUID();
-      const expiresAt = Date.now() + 5 * 60 * 1000;
-      const message = `WikiGems wallet link\nAccount: ${session.user.email}\nWallet: ${wallet}\nNonce: ${nonce}`;
-      yield* dbOperation(() =>
-        db
-          .updateTable("profiles")
-          .set({
-            walletNonce: nonce,
-            walletNonceExpiresAt: expiresAt,
-            updatedAt: Date.now(),
-          })
-          .where("userId", "=", session.user.id)
-          .execute(),
-      );
-      return privateJson({
-        message,
-        nonce,
-        expiresAt,
-        previousWallet: profile.walletAddress,
-      });
-    }
-
-    if (url.pathname === "/api/wallet/link" && request.method === "POST") {
-      const session = yield* requireSession(auth, request);
-      const profile = yield* dbOperation(() =>
-        ensureProfile(db, session.user.id),
-      );
-      const body = yield* decodeBody(
-        request,
-        Schema.decodeUnknownSync(WalletLinkSchema),
-      );
-      if (
-        !profile.walletNonce ||
-        !profile.walletNonceExpiresAt ||
-        profile.walletNonceExpiresAt < Date.now()
-      ) {
-        return yield* Effect.fail(
-          new HttpError(400, "The wallet challenge expired. Try again."),
-        );
-      }
-      const message = `WikiGems wallet link\nAccount: ${session.user.email}\nWallet: ${body.walletAddress}\nNonce: ${profile.walletNonce}`;
-      let valid = false;
-      try {
-        valid = nacl.sign.detached.verify(
-          new TextEncoder().encode(message),
-          Uint8Array.from(atob(body.signature), (char) => char.charCodeAt(0)),
-          bs58.decode(body.walletAddress),
-        );
-      } catch {
-        valid = false;
-      }
-      if (!valid) {
-        return yield* Effect.fail(
-          new HttpError(
-            400,
-            "That wallet signature is not valid.",
-            "BAD_SIGNATURE",
-          ),
-        );
-      }
-      yield* dbOperation(() =>
-        db
-          .updateTable("profiles")
-          .set({
-            walletAddress: body.walletAddress,
-            walletNonce: null,
-            walletNonceExpiresAt: null,
-            updatedAt: Date.now(),
-          })
-          .where("userId", "=", session.user.id)
-          .execute(),
-      );
-      return privateJson({ walletAddress: body.walletAddress });
     }
 
     if (url.pathname === "/api/duels/result" && request.method === "POST") {

@@ -31,7 +31,7 @@ export async function checkMobileFrontend(signedInPage: Page) {
       .getByRole("group", { name: "Filter by rarity" })
       .getByRole("button", { name: "Mythic", exact: true })
       .tap();
-    await page.getByText("No sample cards match these filters.").waitFor();
+    await page.getByText("No cards match these filters.").waitFor();
     await page.getByRole("button", { name: "Clear filters" }).tap();
     assert.equal(await details.count(), 8);
     await details.first().tap();

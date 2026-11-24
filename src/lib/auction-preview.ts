@@ -1,3 +1,4 @@
+import { dollarDecimal } from "../../shared/amounts";
 import { showcaseCards } from "./preview";
 
 // Preview amounts use integer micro-USDC, so six-decimal bids stay exact.
@@ -9,11 +10,7 @@ export function parseAuctionAmount(value: string): number | null {
 }
 
 export function formatAuctionAmount(amount: number) {
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 6,
-    useGrouping: false,
-  }).format(amount / 1_000_000);
+  return dollarDecimal(BigInt(amount));
 }
 
 export const auctionCards = showcaseCards().slice(0, 4);

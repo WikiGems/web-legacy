@@ -64,6 +64,7 @@ export type UiResult<A> =
 export function runUi<A, E>(
   effect: Effect.Effect<A, E, AppServices>,
   onFailure?: (error: E) => void,
+  options?: { signal?: AbortSignal },
 ): Promise<UiResult<A>> {
   return runtime
     .runPromise(
@@ -76,9 +77,10 @@ export function runUi<A, E>(
           }),
         ),
       ),
+      options,
     )
     .catch((defect: unknown): UiResult<A> => {
-      console.error(defect);
+      if (!options?.signal?.aborted) console.error(defect);
       return { ok: false };
     });
 }

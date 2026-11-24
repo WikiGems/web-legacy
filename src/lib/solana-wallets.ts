@@ -1,8 +1,4 @@
-import type { Transaction, VersionedTransaction } from "@solana/web3.js";
-
-export const SOLANA_RPC_URL =
-  import.meta.env.VITE_SOLANA_RPC_URL || "https://api.devnet.solana.com";
-export const SOLANA_CLUSTER = import.meta.env.VITE_SOLANA_CLUSTER || "devnet";
+import type { VersionedTransaction } from "@solana/web3.js";
 
 export type InjectedProvider = {
   publicKey?: { toString(): string } | null;
@@ -10,12 +6,9 @@ export type InjectedProvider = {
     onlyIfTrusted?: boolean;
   }) => Promise<{ publicKey?: { toString(): string } } | void>;
   disconnect: () => Promise<void>;
-  signTransaction: <T extends Transaction | VersionedTransaction>(
-    transaction: T,
-  ) => Promise<T>;
-  signAllTransactions?: <T extends Transaction | VersionedTransaction>(
-    transactions: T[],
-  ) => Promise<T[]>;
+  signTransaction: (
+    transaction: VersionedTransaction,
+  ) => Promise<VersionedTransaction>;
   signMessage?: (
     message: Uint8Array,
     display?: string,
@@ -63,18 +56,4 @@ export function installedWallets(): WalletDefinition[] {
   return wallets;
 }
 
-export class WalletError extends Error {
-  readonly code: string;
-
-  constructor(message: string, code = "WALLET_ERROR") {
-    super(message);
-    this.name = "WalletError";
-    this.code = code;
-  }
-}
-
-export function base64FromBytes(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
+export { WalletError } from "./wallet/error";

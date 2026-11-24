@@ -1,12 +1,14 @@
 # On-chain design
 
 How WikiGems cards live on Solana, what the program enforces, and what the
-backend is responsible for. Status as of November 2026: **phase 1 (minting, listings, bids,
-dormancy) is implemented and tested in LiteSVM; nothing is deployed.**
+backend is responsible for. The Anchor program implements minting, listings,
+bids and dormancy. The Worker uses the mint instruction for lazy claiming and
+settles off-chain sales via SPL Token transfers. These paths have local tests.
 
 ## Product constraints
 
-- Every Wikipedia article maps to at most one card: a 1-of-1 NFT.
+- Each Wikipedia article has at most one card. It starts as an off-chain
+  collectible and becomes a 1-of-1 Core asset when its owner claims it.
 - Players see cards and dollars only. They never hold SOL or see network fees.
 - The wallet is embedded and non-custodial. Its private key can be exported.
 - Players must never feel their cards can be taken. WikiGems can reclaim an
@@ -14,19 +16,170 @@ dormancy) is implemented and tested in LiteSVM; nothing is deployed.**
   30-day on-chain notice the owner can cancel, with the whole price paid to the
   owner. The program enforces this; the admin cannot skip it.
 
-## Identity: `gem_id`, not Wikipedia IDs
+## Gem identity
 
-Wikipedia page IDs survive renames, but they change when a page is deleted and
-recreated, merged articles become redirects, and every language edition has its
-own IDs. The canonical identity is therefore WikiGems' own `gem_id`: a sequential
-`u64` in a server-side registry that maps to `wiki` (e.g. `enwiki`), `page_id`,
-Wikidata QID, title and status (`active`/`merged`/`deleted`).
+The `cards` table assigns an immutable, sequential `gemId` when a card is
+created. The unique `articleId` remains the Wikipedia key. Migration 005
+backfills gem IDs in creation order, with card ID as a tiebreaker. SQLite
+`AUTOINCREMENT` retains the sequence across deletions. The database range
+ends at JavaScript's maximum safe integer. The on-chain seed encodes the ID
+as an unsigned, eight-byte little-endian integer.
 
-On-chain, only `gem_id` matters. The asset address is the PDA
-`["gem", gem_id.to_le_bytes()]`, so minting the same gem twice fails on-chain,
-independently of the database. A burned gem leaves a Core tombstone at that
-address, so its ID is retired permanently. To re-issue an article, assign it a
-new `gem_id`.
+The asset address is the PDA `["gem", gem_id.to_le_bytes()]`. The program
+prevents a second mint at that address. A burned Core asset leaves a tombstone
+at the same address and retires the ID. Existing browser-minted cards keep
+their original asset addresses and metadata URLs.
+
+## Lazy claiming
+
+Pack draws put cards into the off-chain ledger with `status = 'claimed'` and
+an `ownerUserId`. They can change hands through card-for-card trades or USDC
+sales. The owner can mint a card once through the claim API.
+
+### Off-chain sales
+
+In **Sell** or **My collection**, set a price and review the marketplace fee
+and payout. The first listing prompts the seller to create or connect a
+payout wallet. **Buy** shows live fixed prices. Confirm the full price to add
+the card to your collection after payment settles. If you need more dollars,
+the checkout links to the deposit address in **Wallet**.
+
+The seller lists a card at an integer USDC price. The minimum listing and
+purchase price is `MIN_PRICE_USDC_MINOR` (default `100000`, or $0.10). Both
+parties need a linked wallet. A positive `MARKET_FEE_BPS` charges the greater
+of one minor unit and `floor(price * MARKET_FEE_BPS / 10_000)`. The seller
+receives the remainder.
+
+The buyer signs checked USDC transfers to the seller and treasury. Each
+recipient needs an initialized USDC associated token account (ATA) before the
+purchase can proceed. The purchase message contains transfers and the purchase
+ID memo. The sponsor pays the transaction fee.
+
+More than one buyer can prepare a purchase. An unsigned purchase expires after
+two minutes or when its blockhash expires. It leaves the seller free to unlist,
+reprice, trade, or claim the card. On signature submission the Worker rechecks
+the listing, price, seller, card status, and card locks in one database
+transaction. The successful submission reserves the card until reconciliation.
+A proposed trade pauses the USDC listing. Purchase, claim, and trade settlement
+close the listings and cancel the remaining proposed trades for cards that
+change hands or mint.
+
+### USDC payout setup
+
+The Worker checks the Anchor Config PDA against the configured `USDC_MINT` and
+the canonical ATA of `TREASURY_WALLET`. The Config stores the treasury token
+account address. The Worker caches a matching configuration for up to one
+minute per isolate. Provision the treasury ATA during deployment.
+
+A listing request starts payout setup if the seller lacks a USDC ATA. The
+sponsor alone signs the idempotent creation transaction. The Worker records
+setup once per account, including when it finds an existing ATA. Wallet
+changes preserve that record. If the ATA disappears after setup, the seller
+must reopen it and keep it available for future payouts.
+
+`POST /api/wallet/payouts` starts setup or checks the recorded operation.
+It takes an empty body and returns
+`{ state, walletAddress, ataAddress, txSignature, failureCode }`.
+A `submitted` response is HTTP 202. A `ready` or `failed` response is HTTP
+200. `txSignature` is null when the Worker finds a pre-existing ATA without a
+sponsored transaction. `failureCode` is null except when setup fails.
+A listing request returns `PAYOUT_SETUP_PENDING` while the setup transaction
+awaits finality. Retry the listing after payout setup reports `ready`.
+If the stored wire fails or its blockhash passes without a visible transaction,
+the seller can open the ATA independently and retry the listing. The Worker
+reuses the same signed wire during setup retries.
+
+### Claims
+
+Choose **Own this card** to move a card from your collection to your wallet.
+The confirmation shows the current price or **Free** when the account has
+an available free claim. **Advanced** accepts another wallet address.
+A card held by the linked wallet stays visible in the collection. Open
+**Advanced details** to see its wallet address and explorer link.
+
+The Worker calls `mint_gem` with the registered gem ID, a name bounded to 32
+UTF-8 bytes, and a URI bounded to 96 bytes. The public URI is
+`${PUBLIC_ORIGIN}/g/<gemId>`, which serves Metaplex-style JSON. The existing
+`/api/cards/:id/metadata` route also serves metadata for older assets.
+
+The sponsor and mint authority sign server-side. By default a paid claim adds
+a 0.25 USDC transfer from the player's linked wallet to the treasury in the
+same transaction. The player signs that payment. The destination may be any
+valid Solana address and does not sign the mint instruction. A verified-email
+account gets one free claim by default. A pending free claim reserves the
+allowance, settlement consumes it, and failure or expiry releases it. The
+Worker signs and submits free claims in the prepare request. A paid claim
+requires the existing treasury ATA and transfers USDC without creating one.
+
+`FREE_CLAIMS_DAILY_BUDGET` defaults to 50 reservations across all accounts
+in a rolling 24-hour window. The database counts unexpired prepares and every
+signed free claim reserved within that window. If the budget is full, the
+Worker returns `FREE_CLAIM_BUDGET_EXHAUSTED` with HTTP 503.
+
+Before signing a purchase, claim or payout setup, the Worker checks
+`SPONSOR_MIN_BALANCE_LAMPORTS` (default `100000000`, or 0.1 SOL). It caches
+sponsor balances for up to one minute. A low balance or an unavailable balance
+check returns `SPONSOR_UNAVAILABLE` with HTTP 503 and records an error in the
+Worker log.
+
+After finality, the ledger records the gem PDA, signature, mint time and owner
+wallet, and closes any off-chain listings and proposed trades on the card. The
+15-minute cron also reads ownership from finalized Core accounts in batches of
+up to 50. It associates a wallet with an in-game owner when one linked profile
+matches. External or ambiguous wallets leave the in-game owner empty.
+
+### Signing and reconciliation
+
+The Worker builds the entire message, stores its exact bytes, and returns
+base64 message bytes with the required addresses. The client returns a base64
+Ed25519 signature from the specified player address. The Worker verifies it
+against the stored bytes and checks the blockhash before co-signing. The
+signed wire and its transaction ID are saved before the first send. The
+Worker can rebroadcast the same wire safely after a timeout.
+
+Purchases and claims start as `prepared` and become `submitted` once the
+signed wire is durable. Each account can hold up to three live prepares and
+make 12 prepare requests per rolling minute across purchases and claims.
+
+`GET /api/purchases/:id` and `GET /api/claims/:id` return stored status.
+Use `POST` on the same path with an empty body to reconcile immediately. The
+cron also reconciles submitted work. The Worker verifies that the finalized
+wire matches the stored wire and message. It delivers the card and records
+`settled` in one database transaction. It records `failed` if the verified
+transaction failed on-chain.
+
+A signed operation becomes `expired` after three unsuccessful history and
+finalized transaction lookups, spaced at least 15 minutes apart over at least
+30 minutes. The finalized block height must exceed `lastValidBlockHeight` by
+more than 32 blocks for each check. An observed signature resets the count.
+RPC failures keep the operation eligible for reconciliation.
+
+The cron rechecks signed `expired` operations for seven days after expiry. If a
+finalized payment appears and the seller still owns the unlocked card, the
+Worker delivers it once. If a claim appears, the same rule applies to the
+claimant. If delivery cannot proceed, the Worker records `refund_required`
+and logs the operation ID and transaction signature. Operators can use this
+query to review the original payment or mint before taking action.
+
+```sql
+select 'purchase' as kind, id, cardId, actorUserId, priceUsdcMinor, txSignature, updatedAt
+from purchases where state = 'refund_required'
+union all
+select 'claim', id, cardId, actorUserId, priceUsdcMinor, txSignature, updatedAt
+from claims where state = 'refund_required'
+order by updatedAt desc;
+```
+
+Apply `migrations/007_sponsor_safety.sql` before deploying this Worker. The
+migration expires unsigned messages built under the old policy. It keeps
+signed messages with their original signatures for reconciliation.
+
+### Costs
+
+A Core claim costs the sponsor roughly 0.0027 SOL, about $0.20 at $75/SOL.
+The default paid claim charges the player $0.25 USDC. Each recipient's first
+USDC ATA adds roughly 0.0015 SOL in rent during setup. Players sign with their
+own wallet and keep custody of their USDC.
 
 ## Accounts
 
@@ -133,25 +286,6 @@ From the LiteSVM tests against mainnet Core, with mainnet rent (5,080 lamports/b
 The test `mint_puts_the_gem_at_its_derived_address_without_the_owner_paying`
 asserts the 0.0015 SOL Core fee, so a Metaplex fee change shows up as a failure.
 
-## Fees without SOL
-
-The sponsor is the fee payer of every transaction and pays all rent. The server
-signs only transactions it built, and re-validates the message (an instruction
-allowlist plus expected accounts) before signing. Otherwise anyone could make
-the sponsor pay for arbitrary transactions.
-
-- **Mints are paid by the player by default, in USDC.** The server adds a USDC
-  transfer to the treasury to the mint transaction; the sponsor still pays the
-  SOL. The price is a server setting, not program state.
-- **Sponsored mints** omit that transfer. Who qualifies is server policy, e.g.
-  sign-ups from the mobile app. The server must not trust a client's claim to
-  be the mobile app: verify it with App Attest (iOS) or Play Integrity
-  (Android), and cap sponsored mints per verified account.
-- Marketplace fees (USDC) cover trading transaction costs. Reclaims carry no
-  fee, so the sponsor absorbs their cost.
-- Core assets need no token accounts, so receiving a card costs nothing. A
-  player's first USDC token account (~0.002 SOL) is sponsored.
-
 ## Inactive players
 
 The goal is economic activity without anyone feeling robbed. A reclaim is a
@@ -187,28 +321,94 @@ Open policy questions:
 
 ## Wallet
 
-An embedded web wallet built in-house; Crossmint was evaluated and rejected, see below.
+The browser creates the embedded wallet on the first wallet setup action.
+Sign-up leaves the vault empty. The Wallet page supports setup, unlock, lock,
+passkey management, and private-key export. An existing browser wallet can still
+link by signing the wallet challenge. The first sale, purchase, claim, or
+deposit prompts for setup when the account has no wallet. The original
+action resumes after setup. The **Add dollars** panel shows the balance and
+the deposit address with a copy button and QR code.
 
-1. At sign-up the browser generates an Ed25519 keypair and wraps it with a key
-   derived (HKDF) from the passkey's WebAuthn PRF output (AES-GCM). The server
-   stores only the ciphertext and so is not a custodian.
-2. Passkeys sync through Apple Passwords and Google Password Manager. On a new
-   device, the passkey unlocks the blob.
-3. Export: Settings → passkey prompt → base58 secret key, importable into Phantom
-   or Solflare as the same wallet.
-4. Wallet code runs on a separate origin in an iframe. The key is held as a
-   non-extractable WebCrypto key for the session, so the main app never sees it.
+### Key protection
 
-Risks:
+The browser generates an Ed25519 keypair. It uses WebCrypto when available and
+`@noble/curves` 2.4.0 otherwise. Wallet passkeys use a separate WebAuthn ceremony
+from Better Auth sign-in. Both use the same RP ID. The Worker resolves it from
+`PASSKEY_RP_ID`, then the hostname in `BETTER_AUTH_URL` or the request URL.
 
-- Deleting every passkey without exporting loses the wallet. Mitigations: allow
-  multiple passkeys, and prompt backup once a player holds value.
-- PRF works with Apple Passwords (iOS 18.4+, macOS 15.4+) and Google Password
-  Manager, but fails with some third-party managers and Microsoft's. Fallback:
-  connect an external wallet.
-- iOS 18.0–18.3 had PRF data-loss bugs: verify an unwrap round-trip before first use.
-- Check whether better-auth's passkey plugin exposes PRF results; otherwise the
-  wallet runs its own WebAuthn ceremony.
+WebAuthn PRF supplies 32 bytes of key material for each passkey. HKDF-SHA256
+derives an AES-256-GCM key using a random salt fixed per wallet and an info
+string that binds the format version, account, and credential. AES-GCM encrypts
+the 32-byte seed with a fresh 12-byte IV and authenticates the public key. The
+browser asks for a fresh PRF assertion and verifies that the recovered seed can
+sign for the expected public key before it uploads a wrapper.
+
+The Worker stores ciphertext and public metadata. The browser keeps the PRF
+output and plaintext seed local. When unlocked, the browser holds a
+non-extractable signing key in memory. The Ed25519 fallback holds a seed in a
+closure and clears that buffer on lock. The wallet locks on logout, account
+change, page exit, or after one minute in a hidden tab.
+
+A compatible synced wallet passkey can open the same wallet on another device.
+A player can save up to ten passkeys for the same seed. Removing a wrapper requires a fresh wallet signature for that credential.
+Removing the last wrapper also requires a prior export confirmation. The Wallet page asks for a fresh
+passkey assertion before it reveals the 64-byte base58 secret key. Phantom or
+Solflare can import the secret key as the same address. The app records the first
+time the player confirms they saved a copy. Losing every wallet passkey and the
+exported key means losing wallet access.
+
+### Worker and frontend interface
+
+Wallet, trade, listing, purchase, and claim writes require the active Better
+Auth session. The Worker checks that `Origin` matches the request origin and
+appears in the configured trusted origins. The `x-wikigems-account` header
+must match the active session's user ID.
+
+| Method and path | Request | Success |
+| --- | --- | --- |
+| `GET /api/wallet/vault` | Session | `{ userId, rpId, walletAddress, vault }` with the caller's wrappers and export timestamp |
+| `POST /api/wallet/challenge` | Query `wallet` and optional `purpose` (`link`, `create`, `add-wrapper`, `export`, or `delete-wrapper`). For `delete-wrapper`, include `credentialId`. Empty body. | `{ message, nonce, expiresAt, previousWallet }` |
+| `POST /api/wallet/vault` | Wrapper, `signature`, optional `replaceExternalAddress` | `201 { walletAddress }` |
+| `POST /api/wallet/vault/wrappers` | Wrapper and `signature` | `201 { credentialId }` |
+| `DELETE /api/wallet/vault/wrappers/:id` | Credential ID in the path and `{ publicKey, signature }` from a bound `delete-wrapper` challenge | `{ credentialId }` |
+| `POST /api/wallet/vault/exported` | `{ publicKey, signature }` from a fresh `export` challenge | `{ exportedAt }` |
+| `POST /api/wallet/link` | `{ walletAddress, signature }` from the external wallet | `{ walletAddress }` |
+
+A v1 wrapper is `{ version: 1, credentialId, prfSalt, iv, ciphertext, publicKey }`.
+The credential ID, salt, IV, and ciphertext use unpadded base64url. The public
+key uses base58. Proof signatures use padded base64. Each purpose-specific
+challenge expires after five minutes and can be consumed once. The Worker
+commits the first wrapper and `profiles.walletAddress` in one transaction.
+Replacing an existing external link requires its current address in
+`replaceExternalAddress`. A saved embedded wallet keeps its address, including
+after the player exports the key and deletes the last wrapper.
+
+UI integrations use the `Wallet` Effect service. Read `embeddedStatus` to
+determine whether to prompt for `createEmbedded()`, `unlockEmbedded`, or an
+external connection. Once the wallet is ready, call `transactionSigner(text)`
+with a description of the payment or claim. The returned signer exposes
+`{ address, signMessageBytes(bytes) }`. Decode the server's base64 transaction
+message before signing and send back the 64-byte signature. The embedded
+wallet shows the description before signing. External wallets sign the
+transaction through their provider.
+
+### Browser support and trust
+
+PRF support depends on the browser and the selected passkey provider. A browser
+or provider that cannot return a usable PRF result prompts the player to try
+another passkey or connect an existing wallet. Chromium's virtual authenticator
+covers the full browser flow. Sync through Apple Passwords and Google Password
+Manager depends on the environment and needs physical-device verification.
+Apple confirmed incorrect PRF output in some cross-device flows on iOS
+18.0–18.3. The creation check catches a mismatch between its assertions.
+Two matching assertions on one setup cannot establish cross-device or
+post-upgrade compatibility.
+[Apple PRF issue](https://developer.apple.com/forums/thread/764730)
+
+V1 runs the wallet core on the app origin. An XSS vulnerability on that
+origin could request signatures or interfere with the confirmation. The
+message interface in `src/lib/wallet/core.ts` provides a boundary for moving
+the core into a separate-origin iframe later.
 
 Crossmint wallets don't fit these requirements. Passkey signers cannot export keys,
 and Solana wallets are smart-account PDAs, so an exported key wouldn't be the
@@ -220,22 +420,15 @@ and it is not available in the US.
 
 ## Backend
 
-The backend runs in the existing Cloudflare Worker (`worker/`), which already
-serves the frontend and `/api/*`. The Effect service boundaries from
-`apps/server` move into the Worker. Clients come from `@solana/kit` plus a
-Codama client generated from `programs/wikigems/idl/wikigems_program.json`.
+The Cloudflare Worker serves the API and public metadata. `worker/chain/`
+contains the Solana Kit builders and RPC adapter. `bun run client:program`
+generates the typed Codama client from the Anchor IDL.
+`bun run test:chain:integration` builds the Anchor program, loads it and the
+pinned Core fixture into LiteSVM, and executes sponsor-only payout setup, a
+transfer-only USDC purchase, and a paid Core claim using the Worker builders.
 
-Responsibilities:
-
-- The gem registry.
-- Mint jobs: prepare, validate, co-sign, submit, confirm, record.
-- Indexing of transfers made outside the app.
-- Listing reconciliation via the existing cron.
-- The inactive-player admin view.
-- The sponsor balance monitor.
-
-The legacy browser-side mint (`src/lib/solana.ts` → `mintCardNft`) must be
-removed before the new mint path goes live, so only one mint authority exists.
+Operation setup and HTTP contracts are in [architecture.md](architecture.md).
+The browser uses the prepare, sign, and status flow for purchases and claims.
 
 ## Roadmap
 
@@ -244,10 +437,12 @@ removed before the new mint path goes live, so only one mint authority exists.
   `cancel_listing` / `buy`; single best-bid `place_bid` / `cancel_bid` /
   `accept_bid`; `post_notice` / `cancel_notice` / `reclaim` / notice-gated
   `admin_burn`. 48 LiteSVM tests.
-- **Backend (next):** gem registry, Worker mint service with USDC mint price
-  and attested sponsorship, transaction builder and signing allowlist, event
-  indexer (listings, bids, notices, transfers outside the app), inactivity
-  tracker and notifications, admin view, Codama client, embedded wallet.
+- **Backend:** gem registry, off-chain USDC listings, lazy claims, durable
+  signing and reconciliation, and Core owner refresh.
+- **Wallet:** lazily created passkey-protected embedded wallet with export.
+- **Web app:** fixed-price sales, card-for-card trades, claims, and wallet deposits.
+- **Next:** transaction building for the program's marketplace, bids, and
+  dormancy tools.
 - **2:** trades and auctions.
 - **Before mainnet:**
   - Admin and upgrade authority moved to multisigs; upgrades time-locked.

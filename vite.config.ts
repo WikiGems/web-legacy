@@ -48,14 +48,13 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
         navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/api(?:\/|$)/, /^\/solana-rpc(?:\/|$)/],
+        navigateFallbackDenylist: [/^\/api(?:\/|$)/, /^\/g(?:\/|$)/],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: false,
         runtimeCaching: [
           {
-            urlPattern: ({ url }) =>
-              /^\/(?:api|solana-rpc)(?:\/|$)/.test(url.pathname),
+            urlPattern: ({ url }) => /^\/(?:api|g)(?:\/|$)/.test(url.pathname),
             handler: "NetworkOnly",
           },
         ],
@@ -71,14 +70,9 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      "/api": {
+      "^/(?:api|g)(?:/|$)": {
         target: "http://127.0.0.1:8787",
         changeOrigin: false,
-      },
-      "/solana-rpc": {
-        target: "http://127.0.0.1:8899",
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/solana-rpc/, ""),
       },
     },
   },

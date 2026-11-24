@@ -16,14 +16,21 @@ const cards = showcaseCards();
 const card = cards[0];
 if (!card) throw new Error("A fixture card is required");
 const fixtureCard = card;
-const amounts = [0.4, 1000.01, 0, -2.5, 1.005, Number.MAX_SAFE_INTEGER];
+const amounts = [
+  "400000",
+  "1000010000",
+  "0",
+  "1",
+  "1010000",
+  "18446744073709551615",
+];
 
 function MoneyPreview() {
   const [index, setIndex] = createSignal(0);
   return (
     <section class="p-4" aria-label="Money preview">
       <div data-testid="money-preview">
-        <MoneyAmount amount={amounts[index()] ?? 0} currency="USDC" />
+        <MoneyAmount minorUnits={amounts[index()] ?? "0"} />
       </div>
       <Button
         onClick={() => setIndex((current) => (current + 1) % amounts.length)}
@@ -108,11 +115,16 @@ function Harness() {
       <Show when={dialog() === "card"}>
         <CardModal
           card={fixtureCard}
-          owned={false}
+          config={{
+            marketFeeBps: 250,
+            minPriceUsdcMinor: "100000",
+            claimPriceUsdcMinor: "250000",
+            freeClaimsRemaining: 0,
+            cluster: "devnet",
+          }}
           linkedWallet={null}
           onClose={close}
           onChanged={() => {}}
-          onOpenWallet={openWalletModal}
         />
       </Show>
       <Show when={dialog() === "pack"}>

@@ -67,15 +67,13 @@ export async function checkHaptics(signedInPage: Page) {
       [12, 30, 28],
       [32, 35, 12],
     ]);
+    await (await sectionLink(page, "Action", true)).tap();
+    const disabled = page.getByRole("button", { name: /Alexandria$/ });
+    assert(await disabled.isDisabled());
     await page.evaluate(() => {
       window.__wikigemsHapticCalls = [];
     });
-    const disabled = page.getByRole("button", {
-      name: "List a card",
-      exact: true,
-    });
-    assert(await disabled.isDisabled());
-    // Native disabled clicks and HeroUI both suppress the action and its feedback.
+    // A disabled action must leave the haptics queue empty.
     await disabled.evaluate((element) => {
       if (element instanceof HTMLButtonElement) element.click();
     });

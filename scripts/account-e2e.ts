@@ -1,6 +1,7 @@
 import { checkHaptics } from "./haptics-checks";
 import { checkNavigationGlass } from "./navigation-glass-checks";
 import { checkSettings } from "./settings-checks";
+import { checkWallet, testSignerPath } from "./wallet-checks";
 import { checkListingGlass } from "./listing-glass-checks";
 import { checkAuctions } from "./auction-checks";
 import { checkRouteLoading } from "./route-loading-checks";
@@ -15,17 +16,50 @@ import { chromium } from "playwright-core";
 import { accountFixture } from "../tests/account-fixture";
 import { handleAccount } from "../worker/account";
 import { handleApi } from "../worker/api";
+import { chainRpcFixture } from "../tests/chain-fixture";
+import { handleGemMetadata } from "../worker/card-metadata";
+import {
+  seedCollectorCards,
+  seedPublicListings,
+  checkMarket,
+  checkTrade,
+} from "./market-checks";
 import { handleAccountAuth } from "../worker/account-auth";
 
 // User data lives in disposable SQLite; pictures use an isolated Miniflare R2 bucket.
 const baseURL = "http://localhost:5199";
+const walletTest = process.argv.includes("--wallet");
+const marketTest = process.argv.includes("--market");
+const tradeTest = process.argv.includes("--trade");
+const chain = marketTest ? await chainRpcFixture() : undefined;
+const signerBundle = walletTest
+  ? (
+      await Bun.build({
+        target: "browser",
+        entrypoints: ["scripts/wallet-test-signer.ts"],
+      })
+    ).outputs[0]
+  : undefined;
+if (walletTest) assert(signerBundle);
 const verificationEmails: VerificationEmail[] = [];
 const fixture = await accountFixture(baseURL, async (message) => {
   verificationEmails.push(message);
 });
+const env = chain
+  ? {
+      ...chain.env,
+      ...fixture.env,
+      PUBLIC_ORIGIN: baseURL,
+      FREE_CLAIMS_PER_USER: "2",
+      FREE_CLAIMS_DAILY_BUDGET: "1",
+    }
+  : fixture.env;
 const root = resolve("dist/client");
 const assetHeaders = new Headers();
 if (
+  walletTest ||
+  marketTest ||
+  tradeTest ||
   process.argv.includes("--navigation-glass") ||
   process.argv.includes("--settings") ||
   process.argv.includes("--listing-glass") ||
@@ -44,13 +78,18 @@ const server = Bun.serve({
     headers.set("cf-connecting-ip", "127.0.0.1");
     request = new Request(request, { headers });
     const path = new URL(request.url).pathname;
+    if (signerBundle && path === testSignerPath)
+      return new Response(signerBundle, {
+        headers: { "content-type": "text/javascript" },
+      });
     if (path.startsWith("/api/account-auth/"))
       return handleAccountAuth(request, fixture.auth);
     if (path.startsWith("/api/auth/")) return fixture.auth.handler(request);
     if (path === "/api/profile" || path.startsWith("/api/profile/"))
-      return handleAccount(request, fixture.env, fixture.auth);
-    if (path.startsWith("/api/"))
-      return handleApi(request, fixture.env, fixture.auth);
+      return handleAccount(request, env, fixture.auth);
+    if (path.startsWith("/api/")) return handleApi(request, env, fixture.auth);
+    if (path.startsWith("/g/"))
+      return handleGemMetadata(request, new URL(request.url), env);
     const absolute =
       path === "/" ? resolve(root, "index.html") : resolve(root, `.${path}`);
     if (!absolute.startsWith(`${root}${sep}`))
@@ -71,6 +110,7 @@ try {
     headless: true,
   });
   const context = await browser.newContext({
+    baseURL,
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: "block",
     ...(process.argv.includes("--email-verification")
@@ -90,6 +130,7 @@ try {
         ctap2Version: "ctap2_1",
         transport: "internal",
         hasResidentKey: true,
+        hasPrf: walletTest || marketTest,
         hasUserVerification: true,
         isUserVerified: true,
         automaticPresenceSimulation: true,
@@ -135,13 +176,28 @@ try {
   await signupToast
     .getByRole("button", { name: "Dismiss", exact: true })
     .click();
-  if (process.argv.includes("--route-loading")) {
+  if (marketTest) {
+    assert(chain);
+    await checkMarket(page, fixture.client, chain);
+    assert.deepEqual(errors, []);
+  } else if (tradeTest) {
+    await checkTrade(page, fixture.client);
+    assert.deepEqual(errors, []);
+  } else if (walletTest) {
+    await checkWallet(page);
+    assert.deepEqual(errors, []);
+    console.log(
+      "Wallet browser checks passed: lazy creation, reload, unlock, approved signing, export, lock, and removal with a fresh passkey.",
+    );
+  } else if (process.argv.includes("--route-loading")) {
     await checkRouteLoading(page);
     assert.deepEqual(errors, []);
   } else if (process.argv.includes("--auctions")) {
     await checkAuctions(page);
     assert.deepEqual(errors, []);
   } else if (process.argv.includes("--listing-glass")) {
+    const { user } = await fixture.addUser("Listing Seller");
+    await seedPublicListings(fixture.client, user.id);
     await checkListingGlass(page);
     assert.deepEqual(errors, []);
   } else if (process.argv.includes("--settings")) {
@@ -157,6 +213,7 @@ try {
     await checkHaptics(page);
   } else {
     if (!process.argv.includes("--account")) {
+      await seedCollectorCards(fixture.client, page);
       await checkRouteLoading(page);
       await checkFrontend(page);
       await checkMobileFrontend(page);
@@ -345,7 +402,7 @@ try {
   }
 } catch (error) {
   const page = browser?.contexts()[0]?.pages()[0];
-  if (page) {
+  if (page && !walletTest) {
     await page.screenshot({
       path: ".artifacts/account-failure.png",
       fullPage: true,
@@ -361,4 +418,5 @@ try {
   await browser?.close();
   server.stop(true);
   await fixture.cleanup();
+  await chain?.close();
 }

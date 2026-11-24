@@ -18,12 +18,11 @@ export const AppLayer = Layer.mergeAll(
     baseURL: window.location.origin,
     fetch: globalThis.fetch.bind(globalThis),
   }),
-  Auth.layer,
   Avatars.layer,
   LiquidUi.layer,
   PwaInstall.layer,
   Toasts.layer,
-  Wallet.layer,
+  Wallet.layer.pipe(Layer.provideMerge(Auth.layer)),
 ).pipe(Layer.provideMerge(Haptics.layer));
 
 export type AppServices = Layer.Success<typeof AppLayer>;

@@ -21,7 +21,7 @@ export async function checkListingGlass(page: Page) {
     for (const action of await page.locator(".listing-action").all()) {
       const purchase = action.getByRole("button");
       if (await purchase.count()) {
-        assert(await purchase.isDisabled(), "Sample purchases stay disabled");
+        assert(await purchase.isEnabled(), "Live listings open checkout");
       } else {
         assert.match(
           (await action.getByRole("link").getAttribute("href")) ?? "",
@@ -160,9 +160,9 @@ export async function checkListingGlass(page: Page) {
     await fallback.evaluate((el) => getComputedStyle(el).backdropFilter),
     "blur(8px) saturate(1.4)",
   );
-  assert(await fallback.getByRole("button").isDisabled());
+  assert(await fallback.getByRole("button", { name: "Buy now" }).isEnabled());
   assert.equal(await page.locator(".listing-action > svg filter").count(), 0);
   console.log(
-    "Listing glass checks passed: image placement at 320/390/1440px, six refracting pills, auction links, light/dark themes, live settings, disabled purchases, route cleanup and frosted fallback.",
+    "Listing glass checks passed: image placement at 320/390/1440px, six refracting pills, auction links, light/dark themes, live settings, enabled checkout, route cleanup and frosted fallback.",
   );
 }

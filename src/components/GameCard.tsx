@@ -50,6 +50,7 @@ export function GameCard(props: {
   card: ArticleCard;
   size?: CardSize;
   onClick?: (card: ArticleCard) => void;
+  action?: string;
   class?: string;
 }) {
   return (
@@ -62,7 +63,9 @@ export function GameCard(props: {
           <RarityBadge rarity={props.card.rarity} />
           <Show when={props.card.status === "minted" || props.card.forTrade}>
             <span class="text-xs text-muted">
-              {props.card.status === "minted" ? "On Solana" : "Open to trades"}
+              {props.card.status === "minted"
+                ? "In a wallet"
+                : "Open to trades"}
             </span>
           </Show>
         </div>
@@ -82,10 +85,10 @@ export function GameCard(props: {
               variant="secondary"
               size="sm"
               class="w-full"
-              aria-label={`View details for ${props.card.title}`}
+              aria-label={`${props.action ?? "View details"} for ${props.card.title}`}
               onClick={() => onClick()(props.card)}
             >
-              View details
+              {props.action ?? "View details"}
               <Icon name="arrow-up-right" size={14} />
             </Button>
           </CardFooter>

@@ -43,14 +43,14 @@ export async function checkAuctions(page: Page) {
       .getAttribute("aria-current"),
     "page",
   );
-  const amount = page.getByLabel("Your bid (USDC)", { exact: true });
+  const amount = page.getByLabel("Your bid (dollars)", { exact: true });
   assert.equal(await amount.inputValue(), minimum);
   for (const invalid of ["", "0", "0.01", "1e3", "0.3500001"]) {
     await amount.fill(invalid);
     await page.getByRole("button", { name: "Review bid", exact: true }).click();
     await page
       .getByRole("alert")
-      .filter({ hasText: `Enter at least ${minimum}` })
+      .filter({ hasText: `Enter at least $${minimum}` })
       .waitFor();
     assert.equal(await page.getByRole("dialog").count(), 0);
   }
@@ -61,9 +61,7 @@ export async function checkAuctions(page: Page) {
     exact: true,
   });
   await bidReview.waitFor();
-  assert(
-    await bidReview.getByText("0.350001 USDC", { exact: true }).isVisible(),
-  );
+  assert(await bidReview.getByText("$0.350001", { exact: true }).isVisible());
   assert(
     await bidReview
       .getByRole("button", { name: "Place bid", exact: true })
@@ -78,7 +76,7 @@ export async function checkAuctions(page: Page) {
   await page.getByRole("button", { name: "Minimum bid", exact: true }).click();
   assert.equal(await amount.inputValue(), minimum);
   await page
-    .getByRole("button", { name: "Minimum + 0.10 USDC", exact: true })
+    .getByRole("button", { name: "Minimum + $0.10", exact: true })
     .click();
   assert.equal(await amount.inputValue(), "0.45");
 
@@ -104,8 +102,8 @@ export async function checkAuctions(page: Page) {
   await page
     .getByLabel("Sample card", { exact: true })
     .selectOption(lastCard.id);
-  const starting = page.getByLabel("Starting bid (USDC)", { exact: true });
-  const increment = page.getByLabel("Minimum increment (USDC)", {
+  const starting = page.getByLabel("Starting bid (dollars)", { exact: true });
+  const increment = page.getByLabel("Minimum increment (dollars)", {
     exact: true,
   });
   await starting.fill("-1");
@@ -122,8 +120,8 @@ export async function checkAuctions(page: Page) {
   await page.getByRole("button", { name: "7 days", exact: true }).click();
   const preview = page.getByLabel("Auction preview", { exact: true });
   await preview.getByText(lastCard.title, { exact: true }).waitFor();
-  assert(await preview.getByText("1.234567 USDC", { exact: true }).isVisible());
-  assert(await preview.getByText("0.000001 USDC", { exact: true }).isVisible());
+  assert(await preview.getByText("$1.234567", { exact: true }).isVisible());
+  assert(await preview.getByText("$0.000001", { exact: true }).isVisible());
   assert(await preview.getByText("7 days", { exact: true }).isVisible());
   await page
     .getByRole("button", { name: "Review auction", exact: true })
@@ -137,7 +135,7 @@ export async function checkAuctions(page: Page) {
     await listingReview.getByText(lastCard.title, { exact: true }).isVisible(),
   );
   assert(
-    await listingReview.getByText("1.234567 USDC", { exact: true }).isVisible(),
+    await listingReview.getByText("$1.234567", { exact: true }).isVisible(),
   );
   assert(
     await listingReview
@@ -253,7 +251,7 @@ export async function checkAuctions(page: Page) {
       .selectOption(lastCard.id);
     await mobile.getByRole("button", { name: "7 days", exact: true }).tap();
     await mobile
-      .getByLabel("Starting bid (USDC)", { exact: true })
+      .getByLabel("Starting bid (dollars)", { exact: true })
       .fill("2.50");
     await mobile
       .getByRole("button", { name: "Review auction", exact: true })
@@ -263,7 +261,7 @@ export async function checkAuctions(page: Page) {
       exact: true,
     });
     await dialog.waitFor();
-    assert(await dialog.getByText("2.50 USDC", { exact: true }).isVisible());
+    assert(await dialog.getByText("$2.50", { exact: true }).isVisible());
     assert(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth));
     await dialog
       .getByRole("button", { name: "Back to editing", exact: true })
@@ -275,14 +273,14 @@ export async function checkAuctions(page: Page) {
       .getByRole("link", { name: "Place a bid", exact: true })
       .first()
       .tap();
-    await mobile.getByLabel("Your bid (USDC)", { exact: true }).fill("1.00");
+    await mobile.getByLabel("Your bid (dollars)", { exact: true }).fill("1.00");
     await mobile.getByRole("button", { name: "Review bid", exact: true }).tap();
     const bidDialog = mobile.getByRole("dialog", {
       name: "Review your bid",
       exact: true,
     });
     await bidDialog.waitFor();
-    assert(await bidDialog.getByText("1.00 USDC", { exact: true }).isVisible());
+    assert(await bidDialog.getByText("$1.00", { exact: true }).isVisible());
     await mobile.screenshot({ path: ".artifacts/auction-review-touch.png" });
     await bidDialog
       .getByRole("button", { name: "Back to editing", exact: true })

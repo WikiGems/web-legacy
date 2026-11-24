@@ -18,7 +18,7 @@ const server = Bun.serve({
   port: 0,
   async fetch(request) {
     const path = new URL(request.url).pathname;
-    if (path.startsWith("/api/") || path.startsWith("/solana-rpc"))
+    if (path.startsWith("/api/") || path.startsWith("/g/"))
       return Response.json(
         path === "/api/auth/get-session"
           ? null
@@ -287,7 +287,7 @@ try {
 
   await page.evaluate(async () => {
     await fetch("/api/profile");
-    await fetch("/solana-rpc");
+    await fetch("/g/1");
   });
   await context.setOffline(true);
   await page.reload();
@@ -316,9 +316,7 @@ try {
   });
   assert(cached.includes("/index.html"));
   assert(
-    !cached.some(
-      (path) => path.startsWith("/api/") || path.startsWith("/solana-rpc"),
-    ),
+    !cached.some((path) => path.startsWith("/api/") || path.startsWith("/g/")),
   );
   assert.deepEqual(errors, []);
   console.log(
