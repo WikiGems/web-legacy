@@ -9,6 +9,8 @@ import {
   OnboardingRequestSchema,
   ToggleTradeSchema,
   type FeaturedArticle,
+  type MarketConfigSchema,
+  type WalletBalanceSchema,
   type Trade,
 } from "../shared/domain";
 import {
@@ -31,15 +33,24 @@ import {
 import { serializeCard, serializeListing, type CardRow } from "./serialize";
 import { cardMetadata } from "./card-metadata";
 import { ensureCardsUnlocked, marketCardAvailable } from "./card-locks";
-import { publicOrigin } from "./chain/config";
-import { prepareClaim, claimStatus } from "./claims";
+import {
+  claimTerms,
+  linkedWallet,
+  marketFeeBps,
+  publicOrigin,
+  usdcMintAddress,
+} from "./chain/config";
+import { connectChain, walletUsdcBalance } from "./chain/rpc";
+import { prepareClaim, claimStatus, freeClaimsRemaining } from "./claims";
 import { HttpError } from "./http-error";
 import { preparePurchase, purchaseStatus, setListing } from "./market";
 import { proposeTrade, decideTrade } from "./trades";
 import { drawArticle } from "./wiki";
 import { handleWallet } from "./wallet-vault";
 
-type Session = { user: { id: string; name: string; email: string } };
+type Session = {
+  user: { id: string; name: string; email: string; emailVerified: boolean };
+};
 
 const privateJson = (value: unknown, status = 200) =>
   Response.json(value, {
@@ -358,7 +369,13 @@ export async function handleApi(
 ): Promise<Response> {
   const url = new URL(request.url);
   const db = createDb(env);
-  if (url.pathname.startsWith("/api/wallet/") && request.method !== "OPTIONS") {
+  const balanceRequest =
+    url.pathname === "/api/wallet/balance" && request.method === "GET";
+  if (
+    !balanceRequest &&
+    url.pathname.startsWith("/api/wallet/") &&
+    request.method !== "OPTIONS"
+  ) {
     try {
       return await handleWallet(request, env, auth, db, ensureProfile);
     } finally {
@@ -369,6 +386,49 @@ export async function handleApi(
   const program = Effect.gen(function* () {
     if (request.method === "OPTIONS")
       return new Response(null, { status: 204 });
+
+    if (balanceRequest) {
+      const { user } = yield* requireSession(auth, request);
+      const balance = yield* dbOperation(async () => {
+        const profile = await db
+          .selectFrom("profiles")
+          .select("walletAddress")
+          .where("userId", "=", user.id)
+          .executeTakeFirst();
+        const walletAddress = linkedWallet(profile?.walletAddress);
+        const mint = usdcMintAddress(env);
+        const balance = await walletUsdcBalance(
+          await connectChain(env),
+          walletAddress,
+          mint,
+        );
+        return {
+          walletAddress,
+          dollarTokenAddress: mint,
+          cluster: env.SOLANA_CLUSTER || "devnet",
+          balanceUsdcMinor: balance.toString(),
+        } satisfies typeof WalletBalanceSchema.Type;
+      });
+      return privateJson(balance);
+    }
+
+    if (url.pathname === "/api/market/config" && request.method === "GET") {
+      const { user } = yield* requireSession(auth, request);
+      const config = yield* dbOperation(async () => {
+        const terms = claimTerms(env);
+        return {
+          marketFeeBps: marketFeeBps(env),
+          claimPriceUsdcMinor: terms.price.toString(),
+          freeClaimsRemaining: await freeClaimsRemaining(db, user.id, {
+            emailVerified: user.emailVerified,
+            allowance: terms.freeClaimsPerUser,
+            now: Date.now(),
+          }),
+          cluster: env.SOLANA_CLUSTER || "devnet",
+        } satisfies typeof MarketConfigSchema.Type;
+      });
+      return privateJson(config);
+    }
 
     if (url.pathname === "/api/health" && request.method === "GET") {
       return privateJson({
@@ -458,11 +518,23 @@ export async function handleApi(
 
       const rows = yield* dbOperation(() =>
         cardQuery(db)
+          .select((eb) =>
+            eb
+              .selectFrom("listings as l")
+              .select("l.priceUsdcMinor")
+              .whereRef("l.cardId", "=", "c.id")
+              .whereRef("l.sellerUserId", "=", "c.ownerUserId")
+              .where("l.closedAt", "is", null)
+              .as("priceUsdcMinor"),
+          )
           .where("c.ownerUserId", "=", session.user.id)
           .orderBy("c.createdAt", "desc")
           .execute(),
       );
-      const cards = rows.map(serializeCard);
+      const cards = rows.map((row) => ({
+        ...serializeCard(row),
+        ...(row.priceUsdcMinor && { priceUsdcMinor: row.priceUsdcMinor }),
+      }));
       const minted = cards.filter((card) => card.status === "minted").length;
       const tradeable = cards.filter(
         (card) => card.forTrade && card.status === "claimed",
@@ -866,7 +938,11 @@ export async function handleApi(
         }
         if (card.status === "minted") {
           return yield* Effect.fail(
-            new HttpError(409, "Minted cards live in your Solana wallet."),
+            new HttpError(
+              409,
+              "This card is already in a wallet.",
+              "CARD_MINTED",
+            ),
           );
         }
         const body = yield* decodeBody(

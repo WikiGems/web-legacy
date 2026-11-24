@@ -10,7 +10,11 @@ import {
   type Address,
   type Base64EncodedWireTransaction,
 } from "@solana/kit";
-import { TOKEN_PROGRAM_ADDRESS, getMintDecoder } from "@solana-program/token";
+import {
+  TOKEN_PROGRAM_ADDRESS,
+  getMintDecoder,
+  getTokenDecoder,
+} from "@solana-program/token";
 import type { ChainOperationTable } from "../db";
 import type { Env } from "../env";
 import { HttpError } from "../http-error";
@@ -102,6 +106,30 @@ export async function verifyUsdcMint(chain: Chain, mint: Address) {
     throw chainNotConfigured();
   const { decimals, isInitialized } = getMintDecoder().decode(account.data);
   if (!isInitialized || decimals !== USDC_DECIMALS) throw chainNotConfigured();
+}
+
+export async function walletUsdcBalance(
+  chain: Chain,
+  owner: Address,
+  mint: Address,
+): Promise<bigint> {
+  const ata = await usdcAta(owner, mint);
+  const account = await chainRequest(() =>
+    fetchEncodedAccount(chain.rpc, ata, {
+      commitment: "confirmed",
+      ...rpcOptions(),
+    }),
+  );
+  if (!account.exists) return 0n;
+  const decoder = getTokenDecoder();
+  if (
+    account.programAddress !== TOKEN_PROGRAM_ADDRESS ||
+    account.data.length !== decoder.fixedSize
+  )
+    throw chainUnavailable();
+  const token = decoder.decode(account.data);
+  if (token.owner !== owner || token.mint !== mint) throw chainUnavailable();
+  return token.amount;
 }
 
 export async function readMintCollection(

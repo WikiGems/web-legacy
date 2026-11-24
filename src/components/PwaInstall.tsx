@@ -66,7 +66,7 @@ export function InstallAppButton() {
           </p>
           <p class="text-xs text-muted">
             The app opens in its own window. Sign-in, card syncing, trading, and
-            minting need an internet connection.
+            wallet payments need an internet connection.
           </p>
           <Button onClick={() => setInstructions(false)}>Got it</Button>
         </WebDialog>

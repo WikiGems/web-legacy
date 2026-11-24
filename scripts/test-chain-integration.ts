@@ -42,7 +42,7 @@ import {
   usdcAta,
 } from "../worker/chain/transactions";
 import { preparedOperation } from "../worker/chain/operations";
-import { splitPrice } from "../worker/chain/amounts";
+import { splitPrice } from "../shared/amounts";
 
 async function key() {
   const keyPair = await generateKeyPair();

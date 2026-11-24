@@ -13,7 +13,12 @@ import {
   type Address,
   type ReadonlyUint8Array,
 } from "@solana/kit";
-import { getMintEncoder, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
+import {
+  AccountState,
+  getMintEncoder,
+  getTokenEncoder,
+  TOKEN_PROGRAM_ADDRESS,
+} from "@solana-program/token";
 import { createDb } from "../worker/db";
 import type { Env } from "../worker/env";
 import {
@@ -102,10 +107,7 @@ function wireAccount(owner: string, data: ReadonlyUint8Array) {
   };
 }
 
-export async function chainFixture() {
-  const fixture = await migratedDatabase();
-  await fixture.migrate("005_lazy_claims");
-
+export async function chainRpcFixture() {
   const [sponsor, mintAuthority, mint, treasury, buyer, seller, other] =
     await Promise.all([
       testKey(),
@@ -116,9 +118,6 @@ export async function chainFixture() {
       testKey(),
       testKey(),
     ]);
-  await fixture.addUser("buyer", true, buyer.address);
-  await fixture.addUser("seller", true, seller.address);
-  await fixture.addUser("other", false, other.address);
   const [configPda, configBump] = await findConfigPda();
   const treasuryAta = await usdcAta(treasury.address, mint.address);
   const configBytes = getConfigEncoder().encode({
@@ -150,6 +149,7 @@ export async function chainFixture() {
   const finalized = new Map<string, { wire: string; err: unknown }>();
   const observed = new Set<string>();
   const owners = new Map<string, Address>();
+  const balances = new Map<string, ReadonlyUint8Array>();
   const reads: string[][] = [];
   let beforeBroadcast: (() => Promise<void>) | undefined;
   const server = Bun.serve({
@@ -176,7 +176,9 @@ export async function chainFixture() {
                 ? wireAccount(WIKIGEMS_PROGRAM_PROGRAM_ADDRESS, configBytes)
                 : first === mint.address
                   ? wireAccount(TOKEN_PROGRAM_ADDRESS, mintBytes)
-                  : null,
+                  : typeof first === "string" && balances.has(first)
+                    ? wireAccount(TOKEN_PROGRAM_ADDRESS, balances.get(first)!)
+                    : null,
           };
           break;
         case "getLatestBlockhash":
@@ -272,8 +274,7 @@ export async function chainFixture() {
       new Uint8Array([...pkcs8.slice(-32), ...publicKey]),
     );
   };
-  const env: Env = {
-    TURSO_DATABASE_URL: fixture.url,
+  const env = {
     BETTER_AUTH_SECRET: "chain-fixture-passkey-secret-0123456789",
     ASSETS: {
       fetch: async () => new Response(null, { status: 404 }),
@@ -292,7 +293,6 @@ export async function chainFixture() {
   };
 
   return {
-    ...fixture,
     env,
     sponsor,
     mintAuthority,
@@ -311,6 +311,9 @@ export async function chainFixture() {
     invalidateBlockhash() {
       blockhashValid = false;
     },
+    restoreBlockhash() {
+      blockhashValid = true;
+    },
     failBroadcast(check: () => Promise<void>) {
       failBroadcast = true;
       beforeBroadcast = check;
@@ -320,8 +323,41 @@ export async function chainFixture() {
       if (!wire) throw new Error("No signed transaction in the test RPC.");
       finalized.set(sig, { wire, err: options.err ?? null });
     },
+    async setBalance(owner: Address, amount: bigint) {
+      balances.set(
+        await usdcAta(owner, mint.address),
+        getTokenEncoder().encode({
+          mint: mint.address,
+          owner,
+          amount,
+          delegate: null,
+          state: AccountState.Initialized,
+          isNative: null,
+          delegatedAmount: 0n,
+          closeAuthority: null,
+        }),
+      );
+    },
     async close() {
       await server.stop(true);
+    },
+  };
+}
+
+export async function chainFixture() {
+  const fixture = await migratedDatabase();
+  await fixture.migrate("005_lazy_claims");
+  const rpc = await chainRpcFixture();
+  await fixture.addUser("buyer", true, rpc.buyer.address);
+  await fixture.addUser("seller", true, rpc.seller.address);
+  await fixture.addUser("other", false, rpc.other.address);
+  const env: Env = { ...rpc.env, TURSO_DATABASE_URL: fixture.url };
+  return {
+    ...fixture,
+    ...rpc,
+    env,
+    async close() {
+      await rpc.close();
       await fixture.close();
     },
   };

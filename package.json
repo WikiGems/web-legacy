@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "version": "0.1.0",
-  "description": "WikiGems — the Wikipedia trading card game. One article, one 1-of-1 card, minted on Solana.",
+  "description": "WikiGems \u2014 the Wikipedia trading card game. One article, one 1-of-1 card, minted on Solana.",
   "scripts": {
     "dev": "bun --no-env-file scripts/with-env.ts run bun --no-env-file scripts/dev.ts",
     "dev:web": "bun --no-env-file scripts/with-env.ts run vite --port 5173",
@@ -22,8 +22,7 @@
     "test:account": "bun --bun vitest run tests/account.test.ts tests/avatars.test.ts tests/avatar-migration.test.ts && bun run build && bun run scripts/account-e2e.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun --bun vitest run",
-    "test:mint": "bun run scripts/mint-e2e.ts",
-    "test:trade": "bun run scripts/trade-e2e.ts",
+    "test:trade": "bun run build && bun --no-env-file scripts/account-e2e.ts --trade",
     "dev:server": "bun run --cwd apps/server dev",
     "check:workspaces": "bun run --cwd shared typecheck && bun run --cwd packages/client typecheck && bun run --cwd packages/contracts typecheck && bun run --cwd apps/server typecheck",
     "test:server": "bun --bun vitest run apps/server packages/contracts",
@@ -49,7 +48,8 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run check:workspaces && bun run test",
-    "prepare": "test -e .git && lefthook install || true"
+    "prepare": "test -e .git && lefthook install || true",
+    "test:market": "bun run build && bun --no-env-file scripts/account-e2e.ts --market"
   },
   "dependencies": {
     "@better-auth/passkey": "1.7.10",
@@ -58,10 +58,6 @@
     "@fontsource-variable/outfit": "5.3.0",
     "@libsql/client": "0.18.0",
     "@libsql/kysely-libsql": "0.4.1",
-    "@metaplex-foundation/mpl-core": "1.10.0",
-    "@metaplex-foundation/umi": "1.6.0",
-    "@metaplex-foundation/umi-bundle-defaults": "1.6.0",
-    "@metaplex-foundation/umi-signer-wallet-adapters": "1.6.0",
     "@noble/curves": "2.4.0",
     "@solana-program/memo": "0.16.0",
     "@solana-program/token": "0.18.0",
@@ -77,8 +73,8 @@
     "effect": "4.0.5",
     "kysely": "0.29.6",
     "lucide": "^1.75.0",
+    "qrcode-generator": "2.0.4",
     "solid-js": "2.0.1",
-    "tweetnacl": "1.0.3",
     "web-haptics": "^0.0.6"
   },
   "devDependencies": {

@@ -1,6 +1,7 @@
 import { createEffect, createSignal, For, onSettled, Show } from "solid-js";
 import type { Effect } from "effect";
 import { Link } from "@tanstack/solid-router";
+import { AddDollars } from "../components/AddDollars";
 import { Page } from "../components/Page";
 import { WebDialog } from "../components/WebDialog";
 import { Button, buttonClass } from "../components/ui/button";
@@ -149,146 +150,149 @@ function WalletSettings() {
         }
       >
         {(current) => (
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {current().walletAddress
-                  ? "Wallet address"
-                  : "Set up your wallet"}
-              </CardTitle>
-              <CardDescription>
-                {current().walletAddress
-                  ? "Use your wallet to hold your cards and dollars."
-                  : "Protect your wallet with a passkey, or connect a wallet you already use."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-5">
-              <Show when={current().walletAddress}>
-                <code class="block rounded-xl bg-base-200 p-4 text-sm break-all">
-                  {current().walletAddress}
-                </code>
-              </Show>
-              <Show
-                when={current().vault}
-                fallback={
-                  <Button pending={busy()} onClick={createWallet}>
-                    {current().walletAddress
-                      ? "Replace linked wallet"
-                      : "Create wallet"}
-                  </Button>
-                }
-              >
-                {(vault) => (
-                  <Show
-                    when={vault().wrappers.length}
-                    fallback={
-                      <p class="text-sm text-muted">
-                        Connect the wallet where you imported your private key.
-                      </p>
-                    }
-                  >
-                    <div class="flex flex-wrap gap-2">
-                      <Show
-                        when={state().wallet?.kind === "embedded"}
-                        fallback={
+          <>
+            <Show when={current().walletAddress} keyed>
+              {(address) => <AddDollars address={address} />}
+            </Show>
+            <Card id={current().walletAddress ? undefined : "add-dollars"}>
+              <CardHeader>
+                <CardTitle>
+                  {current().walletAddress
+                    ? "Wallet access"
+                    : "Set up your wallet"}
+                </CardTitle>
+                <CardDescription>
+                  {current().walletAddress
+                    ? "Use your wallet to hold your cards and dollars."
+                    : "Protect your wallet with a passkey, or connect a wallet you already use."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent class="space-y-5">
+                <Show
+                  when={current().vault}
+                  fallback={
+                    <Button pending={busy()} onClick={createWallet}>
+                      {current().walletAddress
+                        ? "Replace linked wallet"
+                        : "Create wallet"}
+                    </Button>
+                  }
+                >
+                  {(vault) => (
+                    <Show
+                      when={vault().wrappers.length}
+                      fallback={
+                        <p class="text-sm text-muted">
+                          Connect the wallet where you imported your private
+                          key.
+                        </p>
+                      }
+                    >
+                      <div class="flex flex-wrap gap-2">
+                        <Show
+                          when={state().wallet?.kind === "embedded"}
+                          fallback={
+                            <Button
+                              pending={busy()}
+                              onClick={() =>
+                                void perform(
+                                  wallets.unlockEmbedded,
+                                  undefined,
+                                  false,
+                                )
+                              }
+                            >
+                              Unlock wallet
+                            </Button>
+                          }
+                        >
                           <Button
-                            pending={busy()}
-                            onClick={() =>
-                              void perform(
-                                wallets.unlockEmbedded,
-                                undefined,
-                                false,
-                              )
-                            }
+                            variant="secondary"
+                            disabled={busy()}
+                            onClick={() => void runUi(wallets.lockEmbedded)}
                           >
-                            Unlock wallet
+                            Lock wallet
                           </Button>
-                        }
-                      >
+                        </Show>
                         <Button
                           variant="secondary"
                           disabled={busy()}
-                          onClick={() => void runUi(wallets.lockEmbedded)}
+                          onClick={() => {
+                            setError("");
+                            setExportOpen(true);
+                          }}
                         >
-                          Lock wallet
+                          Export private key
                         </Button>
-                      </Show>
-                      <Button
-                        variant="secondary"
-                        disabled={busy()}
-                        onClick={() => {
-                          setError("");
-                          setExportOpen(true);
-                        }}
-                      >
-                        Export private key
-                      </Button>
-                    </div>
-                    <div class="space-y-3">
-                      <h3 class="font-semibold">Wallet passkeys</h3>
-                      <ul class="space-y-2">
-                        <For each={vault().wrappers}>
-                          {(wrapper, index) => (
-                            <li class="flex flex-wrap items-center justify-between gap-2">
-                              <span class="text-sm">
-                                Passkey {index() + 1} ·{" "}
-                                {new Date(
-                                  wrapper.createdAt,
-                                ).toLocaleDateString()}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                aria-label={`Remove passkey ${index() + 1}`}
-                                disabled={
-                                  busy() ||
-                                  (vault().wrappers.length === 1 &&
-                                    !vault().exportedAt)
-                                }
-                                onClick={() => {
-                                  const warning =
-                                    vault().wrappers.length === 1
-                                      ? "Remove your last wallet passkey? You will need your saved private key to access your cards and dollars."
-                                      : "Remove this wallet passkey?";
-                                  if (window.confirm(warning))
-                                    void perform(
-                                      wallets.removeEmbeddedPasskey(
-                                        wrapper.credentialId,
-                                      ),
-                                    );
-                                }}
-                              >
-                                Remove
-                              </Button>
-                            </li>
-                          )}
-                        </For>
-                      </ul>
-                      <Button
-                        variant="secondary"
-                        disabled={
-                          busy() ||
-                          vault().wrappers.length >= MAX_WALLET_WRAPPERS
-                        }
-                        onClick={() => void perform(wallets.addEmbeddedPasskey)}
-                      >
-                        Add a wallet passkey
-                      </Button>
-                    </div>
-                  </Show>
-                )}
-              </Show>
-              <div>
-                <Button
-                  variant="ghost"
-                  disabled={busy()}
-                  onClick={openWalletModal}
-                >
-                  Connect an existing wallet
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                      </div>
+                      <div class="space-y-3">
+                        <h3 class="font-semibold">Wallet passkeys</h3>
+                        <ul class="space-y-2">
+                          <For each={vault().wrappers}>
+                            {(wrapper, index) => (
+                              <li class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="text-sm">
+                                  Passkey {index() + 1} ·{" "}
+                                  {new Date(
+                                    wrapper.createdAt,
+                                  ).toLocaleDateString()}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  aria-label={`Remove passkey ${index() + 1}`}
+                                  disabled={
+                                    busy() ||
+                                    (vault().wrappers.length === 1 &&
+                                      !vault().exportedAt)
+                                  }
+                                  onClick={() => {
+                                    const warning =
+                                      vault().wrappers.length === 1
+                                        ? "Remove your last wallet passkey? You will need your saved private key to access your cards and dollars."
+                                        : "Remove this wallet passkey?";
+                                    if (window.confirm(warning))
+                                      void perform(
+                                        wallets.removeEmbeddedPasskey(
+                                          wrapper.credentialId,
+                                        ),
+                                      );
+                                  }}
+                                >
+                                  Remove
+                                </Button>
+                              </li>
+                            )}
+                          </For>
+                        </ul>
+                        <Button
+                          variant="secondary"
+                          disabled={
+                            busy() ||
+                            vault().wrappers.length >= MAX_WALLET_WRAPPERS
+                          }
+                          onClick={() =>
+                            void perform(wallets.addEmbeddedPasskey)
+                          }
+                        >
+                          Add a wallet passkey
+                        </Button>
+                      </div>
+                    </Show>
+                  )}
+                </Show>
+                <div>
+                  <Button
+                    variant="ghost"
+                    disabled={busy()}
+                    onClick={openWalletModal}
+                  >
+                    Connect an existing wallet
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </>
         )}
       </Show>
       <Show when={exportOpen()}>

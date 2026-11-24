@@ -180,7 +180,7 @@ export async function checkFrontend(page: Page) {
   );
   assert(
     await page
-      .getByRole("button", { name: "mint this article" })
+      .getByRole("button", { name: "Collect this article" })
       .first()
       .isDisabled(),
   );
@@ -209,6 +209,6 @@ export async function checkFrontend(page: Page) {
   await page.unroute("https://en.wikipedia.org/w/api.php?**");
   await page.setViewportSize({ width: 1440, height: 1000 });
   console.log(
-    "Frontend browser checks passed: desktop/mobile routes, active navigation, deep links, 404, search results/empty/error/recovery, preview mint disabled.",
+    "Frontend browser checks passed: desktop/mobile routes, active navigation, deep links, 404, search results/empty/error/recovery, preview collection disabled.",
   );
 }

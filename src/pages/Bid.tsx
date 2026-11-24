@@ -66,7 +66,7 @@ function BidAuction(props: { auction: PreviewAuction }) {
     const parsed = parseAuctionAmount(amount());
     if (parsed === null || parsed < minimum) {
       setError(
-        `Enter at least ${formatAuctionAmount(minimum)} USDC, using up to 6 decimal places.`,
+        `Enter at least $${formatAuctionAmount(minimum)}, using up to 6 decimal places.`,
       );
       haptic("error");
       return;
@@ -126,8 +126,7 @@ function BidAuction(props: { auction: PreviewAuction }) {
               <div>
                 <dt class="text-xs text-muted">Current example bid</dt>
                 <dd class="mt-1 text-2xl font-semibold tabular-nums">
-                  {formatAuctionAmount(props.auction.currentBid)}{" "}
-                  <span class="text-sm font-normal">USDC</span>
+                  ${formatAuctionAmount(props.auction.currentBid)}
                 </dd>
               </div>
               <div>
@@ -148,9 +147,9 @@ function BidAuction(props: { auction: PreviewAuction }) {
                 }}
               />
               <p class="text-xs leading-relaxed text-muted">
-                Minimum next bid: {formatAuctionAmount(minimum)} USDC. Each new
-                bid must be at least{" "}
-                {formatAuctionAmount(props.auction.increment)} USDC higher.
+                Minimum next bid: ${formatAuctionAmount(minimum)}. Each new bid
+                must be at least ${formatAuctionAmount(props.auction.increment)}{" "}
+                higher.
               </p>
               <div class="flex flex-wrap gap-2">
                 <Button
@@ -171,7 +170,7 @@ function BidAuction(props: { auction: PreviewAuction }) {
                     setError("");
                   }}
                 >
-                  Minimum + 0.10 USDC
+                  Minimum + $0.10
                 </Button>
               </div>
               <Show when={error()}>
@@ -213,7 +212,7 @@ function BidAuction(props: { auction: PreviewAuction }) {
                     <p class="mt-1 text-xs text-muted">{bid.time}</p>
                   </div>
                   <span class="font-semibold tabular-nums">
-                    {formatAuctionAmount(bid.amount)} USDC
+                    ${formatAuctionAmount(bid.amount)}
                   </span>
                 </li>
               )}
@@ -236,7 +235,7 @@ function BidAuction(props: { auction: PreviewAuction }) {
               <div>
                 <dt class="text-muted">Your proposed bid</dt>
                 <dd class="mt-1 text-xl font-semibold tabular-nums">
-                  {formatAuctionAmount(proposed())} USDC
+                  ${formatAuctionAmount(proposed())}
                 </dd>
               </div>
               <div>

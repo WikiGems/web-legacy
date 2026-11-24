@@ -115,9 +115,7 @@ try {
     .waitFor();
   assert.equal(trades.length, 1);
   await page.getByRole("button", { name: "Open wallet", exact: true }).click();
-  await page
-    .getByRole("heading", { name: "No Solana wallet found." })
-    .waitFor();
+  await page.getByRole("heading", { name: "No wallet found." }).waitFor();
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   // All answers contribute points; the callback must include the final round.
@@ -194,7 +192,7 @@ try {
       "Toast checks passed: success/error/info, stack, timed expiry, pause on hover, keyboard/touch dismissal and reduced motion.",
     );
     console.log(
-      "Money counters passed: desktop, 320px mobile, reduced motion, decimals, rounding, sign changes and large-value fallback.",
+      "Money counters passed: desktop, 320px mobile, reduced motion, exact cents, six decimals and large-value fallback.",
     );
   } finally {
     await mobileContext.close();

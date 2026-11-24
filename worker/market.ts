@@ -1,7 +1,7 @@
 import type { PurchaseTable, GameDb } from "./db";
 import type { Env } from "./env";
 import { HttpError } from "./http-error";
-import { parseUsdcMinor, splitPrice } from "./chain/amounts";
+import { parseUsdcMinor, splitPrice } from "../shared/amounts";
 import { linkedWallet, loadSigner, marketConfig } from "./chain/config";
 import {
   checkSponsor,

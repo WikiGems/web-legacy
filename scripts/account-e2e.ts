@@ -16,11 +16,22 @@ import { chromium } from "playwright-core";
 import { accountFixture } from "../tests/account-fixture";
 import { handleAccount } from "../worker/account";
 import { handleApi } from "../worker/api";
+import { chainRpcFixture } from "../tests/chain-fixture";
+import { handleGemMetadata } from "../worker/card-metadata";
+import {
+  seedCollectorCards,
+  seedPublicListings,
+  checkMarket,
+  checkTrade,
+} from "./market-checks";
 import { handleAccountAuth } from "../worker/account-auth";
 
 // User data lives in disposable SQLite; pictures use an isolated Miniflare R2 bucket.
 const baseURL = "http://localhost:5199";
 const walletTest = process.argv.includes("--wallet");
+const marketTest = process.argv.includes("--market");
+const tradeTest = process.argv.includes("--trade");
+const chain = marketTest ? await chainRpcFixture() : undefined;
 const signerBundle = walletTest
   ? (
       await Bun.build({
@@ -34,10 +45,15 @@ const verificationEmails: VerificationEmail[] = [];
 const fixture = await accountFixture(baseURL, async (message) => {
   verificationEmails.push(message);
 });
+const env = chain
+  ? { ...chain.env, ...fixture.env, PUBLIC_ORIGIN: baseURL }
+  : fixture.env;
 const root = resolve("dist/client");
 const assetHeaders = new Headers();
 if (
   walletTest ||
+  marketTest ||
+  tradeTest ||
   process.argv.includes("--navigation-glass") ||
   process.argv.includes("--settings") ||
   process.argv.includes("--listing-glass") ||
@@ -64,9 +80,10 @@ const server = Bun.serve({
       return handleAccountAuth(request, fixture.auth);
     if (path.startsWith("/api/auth/")) return fixture.auth.handler(request);
     if (path === "/api/profile" || path.startsWith("/api/profile/"))
-      return handleAccount(request, fixture.env, fixture.auth);
-    if (path.startsWith("/api/"))
-      return handleApi(request, fixture.env, fixture.auth);
+      return handleAccount(request, env, fixture.auth);
+    if (path.startsWith("/api/")) return handleApi(request, env, fixture.auth);
+    if (path.startsWith("/g/"))
+      return handleGemMetadata(request, new URL(request.url), env);
     const absolute =
       path === "/" ? resolve(root, "index.html") : resolve(root, `.${path}`);
     if (!absolute.startsWith(`${root}${sep}`))
@@ -107,7 +124,7 @@ try {
         ctap2Version: "ctap2_1",
         transport: "internal",
         hasResidentKey: true,
-        hasPrf: walletTest,
+        hasPrf: walletTest || marketTest,
         hasUserVerification: true,
         isUserVerified: true,
         automaticPresenceSimulation: true,
@@ -153,7 +170,14 @@ try {
   await signupToast
     .getByRole("button", { name: "Dismiss", exact: true })
     .click();
-  if (walletTest) {
+  if (marketTest) {
+    assert(chain);
+    await checkMarket(page, fixture.client, chain);
+    assert.deepEqual(errors, []);
+  } else if (tradeTest) {
+    await checkTrade(page, fixture.client);
+    assert.deepEqual(errors, []);
+  } else if (walletTest) {
     await checkWallet(page);
     assert.deepEqual(errors, []);
     console.log(
@@ -166,6 +190,8 @@ try {
     await checkAuctions(page);
     assert.deepEqual(errors, []);
   } else if (process.argv.includes("--listing-glass")) {
+    const { user } = await fixture.addUser("Listing Seller");
+    await seedPublicListings(fixture.client, user.id);
     await checkListingGlass(page);
     assert.deepEqual(errors, []);
   } else if (process.argv.includes("--settings")) {
@@ -181,6 +207,7 @@ try {
     await checkHaptics(page);
   } else {
     if (!process.argv.includes("--account")) {
+      await seedCollectorCards(fixture.client, page);
       await checkRouteLoading(page);
       await checkFrontend(page);
       await checkMobileFrontend(page);
@@ -385,4 +412,5 @@ try {
   await browser?.close();
   server.stop(true);
   await fixture.cleanup();
+  await chain?.close();
 }

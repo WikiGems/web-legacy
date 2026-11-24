@@ -42,6 +42,28 @@ function checkDestination(prior: ClaimTable, destination: string | undefined) {
     throw cardBusy();
 }
 
+export async function freeClaimsRemaining(
+  db: GameDb,
+  actorUserId: string,
+  options: { emailVerified: boolean; allowance: number; now: number },
+) {
+  const { emailVerified, allowance, now } = options;
+  if (!emailVerified || allowance === 0) return 0;
+  const used = await db
+    .selectFrom("claims")
+    .select((eb) => eb.fn.countAll().as("count"))
+    .where("actorUserId", "=", actorUserId)
+    .where("usesFreeClaim", "=", 1)
+    .where((eb) =>
+      eb.or([
+        eb("state", "in", ["submitted", "settled"]),
+        eb.and([eb("state", "=", "prepared"), eb("expiresAt", ">", now)]),
+      ]),
+    )
+    .executeTakeFirstOrThrow();
+  return Math.max(0, allowance - Number(used.count));
+}
+
 export async function prepareClaim(
   db: GameDb,
   env: Env,
@@ -126,21 +148,12 @@ export async function prepareClaim(
         .executeTakeFirstOrThrow();
       const owner = destination ?? linkedWallet(player.walletAddress);
 
-      const used = await trx
-        .selectFrom("claims")
-        .select((eb) => eb.fn.countAll().as("count"))
-        .where("actorUserId", "=", actorUserId)
-        .where("usesFreeClaim", "=", 1)
-        .where((eb) =>
-          eb.or([
-            eb("state", "in", ["submitted", "settled"]),
-            eb.and([eb("state", "=", "prepared"), eb("expiresAt", ">", now)]),
-          ]),
-        )
-        .executeTakeFirstOrThrow();
       const usesFreeClaim =
-        Boolean(player.emailVerified) &&
-        Number(used.count) < config.freeClaimsPerUser;
+        (await freeClaimsRemaining(trx, actorUserId, {
+          emailVerified: Boolean(player.emailVerified),
+          allowance: config.freeClaimsPerUser,
+          now,
+        })) > 0;
       const price = usesFreeClaim ? 0n : config.price;
       const buyer = price === 0n ? null : linkedWallet(player.walletAddress);
       const id = crypto.randomUUID();

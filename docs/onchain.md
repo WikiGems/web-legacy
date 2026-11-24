@@ -38,6 +38,12 @@ sales. The owner can mint a card once through the claim API.
 
 ### Off-chain sales
 
+In **Sell** or **My collection**, set a price and review the marketplace fee
+and payout. The first listing prompts the seller to create or connect a
+payout wallet. **Buy** shows live fixed prices. Confirm the full price to add
+the card to your collection after payment settles. If you need more dollars,
+the checkout links to the deposit address in **Wallet**.
+
 The seller lists a card at a USDC price in integer minor units. Preparing a
 purchase reserves the listing for one buyer for up to two minutes, subject to
 the transaction's blockhash lifetime. Both parties need a linked wallet. The
@@ -53,6 +59,12 @@ finalizes. A proposed trade pauses the USDC listing. While a claim or purchase
 is pending, the same card cannot be traded, bought again, or repriced.
 
 ### Claims
+
+Choose **Own this card** to move a card from your collection to your wallet.
+The confirmation shows the current price or **Free** when the account has
+an available free claim. **Advanced** accepts another wallet address.
+A card held by the linked wallet stays visible in the collection. Open
+**Advanced details** to see its wallet address and explorer link.
 
 The Worker calls `mint_gem` with the registered gem ID, a name bounded to 32
 UTF-8 bytes, and a URI bounded to 96 bytes. The public URI is
@@ -242,7 +254,10 @@ Open policy questions:
 The browser creates the embedded wallet on the first wallet setup action.
 Sign-up leaves the vault empty. The Wallet page supports setup, unlock, lock,
 passkey management, and private-key export. An existing browser wallet can still
-link by signing the wallet challenge.
+link by signing the wallet challenge. The first sale, purchase, claim, or
+deposit prompts for setup when the account has no wallet. The original
+action resumes after setup. The **Add dollars** panel shows the balance and
+the deposit address with a copy button and QR code.
 
 ### Key protection
 
@@ -341,8 +356,7 @@ pinned Core fixture into LiteSVM, and executes actual USDC purchase and claim
 messages from the Worker builders.
 
 Operation setup and HTTP contracts are in [architecture.md](architecture.md).
-The UI migration replaces the old `mintCardNft` client with the prepare,
-sign and status flow. The legacy mint confirmation endpoint has been removed.
+The browser uses the prepare, sign, and status flow for purchases and claims.
 
 ## Roadmap
 
@@ -354,8 +368,9 @@ sign and status flow. The legacy mint confirmation endpoint has been removed.
 - **Backend:** gem registry, off-chain USDC listings, lazy claims, durable
   signing and reconciliation, and Core owner refresh.
 - **Wallet:** lazily created passkey-protected embedded wallet with export.
-- **Next:** UI integration. Transaction building for the
-  program's marketplace, bids and dormancy tools remains future work.
+- **Web app:** fixed-price sales, card-for-card trades, claims, and wallet deposits.
+- **Next:** transaction building for the program's marketplace, bids, and
+  dormancy tools.
 - **2:** trades and auctions.
 - **Before mainnet:**
   - Admin and upgrade authority moved to multisigs; upgrades time-locked.

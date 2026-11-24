@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { parseUsdcMinor } from "./amounts";
 
 export const RaritySchema = Schema.Literals([
   "common",
@@ -13,6 +14,10 @@ export type Rarity = typeof RaritySchema.Type;
 
 export const CardStatusSchema = Schema.Literals(["claimed", "minted"]);
 export type CardStatus = typeof CardStatusSchema.Type;
+
+const PriceSchema = Schema.String.check(
+  Schema.makeFilter((amount) => parseUsdcMinor(amount) !== null),
+);
 
 export const CardSchema = Schema.Struct({
   id: Schema.String,
@@ -33,6 +38,7 @@ export const CardSchema = Schema.Struct({
   mintAddress: Schema.NullOr(Schema.String),
   txSignature: Schema.NullOr(Schema.String),
   forTrade: Schema.Boolean,
+  priceUsdcMinor: Schema.optionalKey(PriceSchema),
   ownerName: Schema.optionalKey(Schema.String),
   createdAt: Schema.Number,
   mintedAt: Schema.NullOr(Schema.Number),
@@ -78,7 +84,7 @@ export type OpenPackResponse = typeof OpenPackResponseSchema.Type;
 export const ListingSchema = Schema.Struct({
   id: Schema.String,
   card: CardSchema,
-  priceUsdcMinor: Schema.String,
+  priceUsdcMinor: PriceSchema,
   createdAt: Schema.Number,
   updatedAt: Schema.Number,
 });
@@ -91,6 +97,24 @@ export const MarketResponseSchema = Schema.Struct({
 });
 
 export type MarketResponse = typeof MarketResponseSchema.Type;
+
+export const ListingResponseSchema = Schema.Struct({
+  listing: Schema.NullOr(ListingSchema),
+});
+
+export const MarketConfigSchema = Schema.Struct({
+  marketFeeBps: Schema.Number,
+  claimPriceUsdcMinor: PriceSchema,
+  freeClaimsRemaining: Schema.Number,
+  cluster: Schema.String,
+});
+
+export const WalletBalanceSchema = Schema.Struct({
+  walletAddress: Schema.String,
+  dollarTokenAddress: Schema.String,
+  cluster: Schema.String,
+  balanceUsdcMinor: Schema.Union([Schema.Literal("0"), PriceSchema]),
+});
 
 export const SetListingSchema = Schema.Struct({
   priceUsdcMinor: Schema.NullOr(Schema.String),
@@ -119,18 +143,20 @@ export const ChainOperationStateSchema = Schema.Literals([
 
 export type ChainOperationState = typeof ChainOperationStateSchema.Type;
 
-const PreparedMessageSchema = Schema.Struct({
+export const PreparedMessageSchema = Schema.Struct({
   message: Schema.String,
   requiredSigners: Schema.Array(Schema.String),
   signerAddress: Schema.String,
   lastValidBlockHeight: Schema.String,
 });
 
+export type PreparedMessage = typeof PreparedMessageSchema.Type;
+
 const chainOperationFields = {
   id: Schema.String,
   cardId: Schema.String,
   state: ChainOperationStateSchema,
-  priceUsdcMinor: Schema.String,
+  priceUsdcMinor: Schema.Union([Schema.Literal("0"), PriceSchema]),
   txSignature: Schema.NullOr(Schema.String),
   failureCode: Schema.NullOr(Schema.String),
   expiresAt: Schema.Number,
@@ -198,12 +224,6 @@ export type WalletChallenge = typeof WalletChallengeSchema.Type;
 export const WalletLinkSchema = Schema.Struct({
   walletAddress: Schema.String,
   signature: Schema.String,
-});
-
-export const MintConfirmSchema = Schema.Struct({
-  mintAddress: Schema.String,
-  signature: Schema.String,
-  walletAddress: Schema.String,
 });
 
 export const ToggleTradeSchema = Schema.Struct({

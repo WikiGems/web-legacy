@@ -13,7 +13,8 @@ import { Separator } from "./ui/feedback";
 
 export function ListingCard(props: {
   card: ArticleCard;
-  price: number;
+  priceUsdcMinor: string;
+  onAction?: () => void;
   owner: string;
   action?: string;
   actionPlacement?: "image" | "footer";
@@ -29,7 +30,8 @@ export function ListingCard(props: {
       fallback={
         <Button
           feedback={props.feedback ?? "buy"}
-          disabled
+          disabled={!props.onAction}
+          onClick={props.onAction}
           class={placement() === "image" ? "listing-action-button" : "w-full"}
           variant={placement() === "image" ? "ghost" : "secondary"}
         >
@@ -66,17 +68,17 @@ export function ListingCard(props: {
       <CardContent class="space-y-3 pt-4">
         <RarityBadge rarity={props.card.rarity} />
         <CardTitle class="text-lg">{props.card.title}</CardTitle>
-        <p class="text-xs text-muted">@{props.owner}</p>
+        <p class="text-xs text-muted">
+          {props.auctionId ? `@${props.owner}` : props.owner}
+        </p>
         <p class="line-clamp-2 text-sm text-muted">{props.card.description}</p>
         <Separator />
-        <div class="flex items-center justify-between gap-3">
-          <span class="text-xs text-muted">Example price</span>
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <span class="text-xs text-muted">
+            {props.auctionId ? "Example bid" : "Price"}
+          </span>
           <p class="font-semibold tabular-nums">
-            <MoneyAmount
-              amount={props.price}
-              currency="USDC"
-              unitClass="text-xs font-normal text-muted"
-            />
+            <MoneyAmount minorUnits={props.priceUsdcMinor} />
           </p>
         </div>
         <Show when={props.detail}>

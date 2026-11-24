@@ -74,6 +74,8 @@ is `"1000000"`. Requests that mutate state need a session and trusted
 | Method and route | Request | Response |
 | --- | --- | --- |
 | `POST /api/cards/:id/listing` | `{ priceUsdcMinor: string \| null }` | `{ listing: Listing \| null }`. Pass `null` to clear the price. |
+| `GET /api/market/config` | Session | `{ marketFeeBps, claimPriceUsdcMinor, freeClaimsRemaining, cluster }`. |
+| `GET /api/wallet/balance` | Session | `{ walletAddress, balanceUsdcMinor, dollarTokenAddress, cluster }`. An absent associated token account has balance `"0"`. |
 | `GET /api/market` | None | `{ cards, listings }` with the existing card-for-card feed and the available USDC listings. |
 | `POST /api/purchases` | `{ listingId, expectedPriceUsdcMinor }` | `Purchase` with a prepared message or the same account's existing operation. |
 | `POST /api/purchases/:id/sign` | `{ signature }` as base64 | Current `Purchase`. |
@@ -102,6 +104,15 @@ Errors use `{ error, code }`. Wallet setup is signaled by `WALLET_REQUIRED`
 or `SELLER_WALLET_REQUIRED`. The prepare route can reject stale prices
 (`PRICE_CHANGED`), cards in proposed trades (`TRADE_PENDING`), and locked
 cards (`CARD_LOCKED`). Handle `TRANSACTION_EXPIRED` by preparing again.
+
+Buy, Sell, Collection, Trade, and Wallet read the Worker through the shared
+`Api` Effect service. The game state includes an optional `priceUsdcMinor`
+on the owner's actively listed cards, including when the public feed hides a
+locked listing. Purchase and claim dialogs keep their draft when setting up
+or unlocking a wallet, then poll with backoff until the Worker reports a
+terminal state. The Add dollars panel encodes the linked address locally in
+a QR code. The optional `VITE_DOLLARS_ONRAMP_ENABLED` build flag exposes a
+disabled control where a provider can be added.
 
 ### Worker chain configuration
 
@@ -153,6 +164,20 @@ ignored `programs/wikigems/tests/fixtures/` and pins it by SHA-256, so an upstre
 upgrade fails loudly. The program keypair that `cargo build-sbf` generates stays in
 ignored `target/deploy/`. It defines the devnet program ID in `declare_id!` and
 `Anchor.toml`. Generate and store a separate mainnet keypair before mainnet.
+
+## Browser market checks
+
+Build the client, then run the account harness with `--market` or use
+`bun run test:market`. The harness runs the built Solid app in Chromium with
+independent virtual PRF authenticators. The fixture seeds owned cards and a
+verified email to exercise the free claim. The Worker routes, wallet vault,
+SQLite ownership, signing, and settlement checks are real. A local HTTP RPC
+fixture supplies token account data and blockhashes, records signed wires,
+and finalizes those wires when the test advances. This covers delivery and
+claim reconciliation without contacting a public chain. The fixture does
+not execute transfers or program instructions. The LiteSVM integration
+check executes the Worker-built messages against the compiled programs.
+The `--trade` flag tests the card-for-card exchange without RPC.
 
 ## Checks
 

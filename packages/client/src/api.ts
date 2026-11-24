@@ -10,7 +10,15 @@ import {
   GameStateSchema,
   LeaderboardResponseSchema,
   MarketResponseSchema,
-  MintConfirmSchema,
+  ClaimSchema,
+  ListingResponseSchema,
+  MarketConfigSchema,
+  PurchaseSchema,
+  WalletBalanceSchema,
+  type PrepareClaimSchema,
+  type PreparePurchaseSchema,
+  type SetListingSchema,
+  type SubmitSignatureSchema,
   OnboardingRequestSchema,
   OnboardingResponseSchema,
   OpenPackResponseSchema,
@@ -141,18 +149,53 @@ export function createApiClient(options: ApiClientOptions) {
       return yield* decode(CardSchema, payload);
     });
 
-  const confirmCardMint = (
-    cardId: string,
-    input: { mintAddress: string; signature: string; walletAddress: string },
+  const read = <S extends Schema.Constraint>(
+    url: string,
+    schema: S,
+    body?: object,
   ) =>
-    Effect.gen(function* () {
-      const body = yield* decode(MintConfirmSchema, input);
-      const payload = yield* requestJson(`/api/cards/${cardId}/mint-confirm`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      return yield* decode(CardSchema, payload);
-    });
+    requestJson(
+      url,
+      body && { method: "POST", body: JSON.stringify(body) },
+    ).pipe(Effect.flatMap((payload) => decode(schema, payload)));
+
+  const fetchMarketConfig = () =>
+    read("/api/market/config", MarketConfigSchema);
+  const fetchWalletBalance = () =>
+    read("/api/wallet/balance", WalletBalanceSchema);
+
+  const setListing = (cardId: string, input: typeof SetListingSchema.Type) =>
+    read(
+      `/api/cards/${encodeURIComponent(cardId)}/listing`,
+      ListingResponseSchema,
+      input,
+    );
+
+  const preparePurchase = (input: typeof PreparePurchaseSchema.Type) =>
+    read("/api/purchases", PurchaseSchema, input);
+
+  const purchaseStatus = (
+    id: string,
+    input?: typeof SubmitSignatureSchema.Type,
+  ) =>
+    read(
+      `/api/purchases/${encodeURIComponent(id)}${input ? "/sign" : ""}`,
+      PurchaseSchema,
+      input,
+    );
+
+  const prepareClaim = (
+    cardId: string,
+    input: typeof PrepareClaimSchema.Type,
+  ) =>
+    read(`/api/cards/${encodeURIComponent(cardId)}/claim`, ClaimSchema, input);
+
+  const claimStatus = (id: string, input?: typeof SubmitSignatureSchema.Type) =>
+    read(
+      `/api/claims/${encodeURIComponent(id)}${input ? "/sign" : ""}`,
+      ClaimSchema,
+      input,
+    );
 
   const fetchLeaderboard = () =>
     Effect.gen(function* () {
@@ -246,7 +289,13 @@ export function createApiClient(options: ApiClientOptions) {
     createTradeOffer,
     settleTrade,
     toggleCardTrade,
-    confirmCardMint,
+    fetchMarketConfig,
+    fetchWalletBalance,
+    setListing,
+    preparePurchase,
+    purchaseStatus,
+    prepareClaim,
+    claimStatus,
     fetchLeaderboard,
     requestWalletChallenge,
     linkWallet,

@@ -71,9 +71,9 @@ function ArticleCard(props: { article: Article }) {
         </CardDescription>
       </CardContent>
       <CardFooter class="flex-wrap justify-between gap-3">
-        <span class="text-xs text-muted">Minting preview</span>
+        <span class="text-xs text-muted">Collection preview</span>
         <Button disabled size="sm" variant="secondary">
-          mint this article
+          Collect this article
         </Button>
       </CardFooter>
     </Card>

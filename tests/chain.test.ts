@@ -24,7 +24,12 @@ import { handleApi } from "../worker/api";
 import { createAuth } from "../worker/auth";
 import { handleGemMetadata } from "../worker/card-metadata";
 import { reconcileChain } from "../worker/chain/cron";
-import { parseUsdcMinor, splitPrice } from "../worker/chain/amounts";
+import {
+  formatDollars,
+  parseDollars,
+  parseUsdcMinor,
+  splitPrice,
+} from "../shared/amounts";
 import {
   WIKIGEMS_PROGRAM_PROGRAM_ADDRESS as programAddress,
   parseMintGemInstruction,
@@ -170,6 +175,18 @@ test("USDC prices are canonical u64 strings and fees round down without overflow
     fee: 461168601842738790n,
     seller: 17985575471866812825n,
   });
+});
+
+test("dollar input and display preserve six decimals across the u64 range", () => {
+  expect(parseDollars(".000001")).toBe("1");
+  expect(parseDollars(" 000000000000001.50 ")).toBe("1500000");
+  expect(parseDollars("18446744073709.551615")).toBe("18446744073709551615");
+  expect(formatDollars("18446744073709551615")).toBe(
+    "$18,446,744,073,709.551615",
+  );
+  expect(formatDollars("1500000")).toBe("$1.50");
+  for (const input of ["0", "-2", "1e3", "1.0000001", "18446744073709.551616"])
+    expect(parseDollars(input)).toBeNull();
 });
 
 test("purchase message has canonical ATAs, checked USDC amounts and a memo", async () => {

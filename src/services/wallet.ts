@@ -1,5 +1,4 @@
 import { Context, Effect, Layer, Stream, SubscriptionRef } from "effect";
-import type { Card } from "@wikigems/domain/domain";
 import {
   encodeBase64,
   type WalletVaultStatus,
@@ -78,10 +77,6 @@ export class Wallet extends Context.Service<
     readonly transactionSigner: (
       confirmation: string,
     ) => Effect.Effect<TransactionWalletSigner, WalletError>;
-    readonly mint: (
-      card: Card,
-      wallet: ConnectedWallet,
-    ) => Effect.Effect<{ mintAddress: string; signature: string }, WalletError>;
     readonly embeddedStatus: Effect.Effect<WalletVaultStatus, WalletError>;
     readonly createEmbedded: (options?: {
       replaceExternalAddress?: string;
@@ -310,13 +305,6 @@ export class Wallet extends Context.Service<
               signMessageBytes: (bytes: Uint8Array) =>
                 wallet.signMessageBytes(bytes, confirmation),
             };
-          }),
-        mint: (card, wallet) =>
-          walletEffect(async () => {
-            if (wallet.kind !== "external")
-              throw new WalletError("This claim needs an existing wallet.");
-            const { mintCardNft } = await import("../lib/solana");
-            return mintCardNft(card, wallet.adapter);
           }),
         embeddedStatus: walletEffect((signal) =>
           walletVaultApi.read(account().userId, signal),

@@ -8,7 +8,7 @@ import {
 } from "@solana/kit";
 import type { Env } from "../env";
 import { HttpError } from "../http-error";
-import { parseUsdcMinor } from "./amounts";
+import { parseUsdcMinor } from "../../shared/amounts";
 import { WIKIGEMS_PROGRAM_PROGRAM_ADDRESS } from "./generated";
 
 const DEVNET_USDC = address("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
@@ -53,12 +53,30 @@ function integerSetting(value: string, max: number) {
   return number;
 }
 
+export const usdcMintAddress = (env: Env) =>
+  settingAddress(env.USDC_MINT || DEVNET_USDC);
+
+export const marketFeeBps = (env: Env) =>
+  integerSetting(env.MARKET_FEE_BPS || "250", 10_000);
+
+export function claimTerms(env: Env) {
+  const price = parseUsdcMinor(env.CLAIM_PRICE_USDC_MINOR || "250000");
+  if (price === null) throw chainNotConfigured();
+  return {
+    price,
+    freeClaimsPerUser: integerSetting(
+      env.FREE_CLAIMS_PER_USER || "1",
+      Number.MAX_SAFE_INTEGER,
+    ),
+  };
+}
+
 export async function marketConfig(env: Env) {
   return {
     sponsor: await loadSigner(env.SPONSOR_SECRET_KEY),
-    usdcMint: settingAddress(env.USDC_MINT || DEVNET_USDC),
+    usdcMint: usdcMintAddress(env),
     treasury: settingAddress(env.TREASURY_WALLET),
-    feeBps: integerSetting(env.MARKET_FEE_BPS || "250", 10_000),
+    feeBps: marketFeeBps(env),
   };
 }
 
@@ -67,20 +85,15 @@ export async function claimConfig(env: Env) {
     marketConfig(env),
     loadSigner(env.MINT_AUTHORITY_SECRET_KEY),
   ]);
-  const price = parseUsdcMinor(env.CLAIM_PRICE_USDC_MINOR || "250000");
   const origin = publicOrigin(env);
-  if (price === null || !origin) throw chainNotConfigured();
+  if (!origin) throw chainNotConfigured();
   return {
     ...market,
+    ...claimTerms(env),
     mintAuthority,
     programAddress: settingAddress(
       env.WIKIGEMS_PROGRAM_ID || WIKIGEMS_PROGRAM_PROGRAM_ADDRESS,
     ),
-    freeClaimsPerUser: integerSetting(
-      env.FREE_CLAIMS_PER_USER || "1",
-      Number.MAX_SAFE_INTEGER,
-    ),
-    price,
     origin,
   };
 }

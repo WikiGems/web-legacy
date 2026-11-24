@@ -1,24 +1,10 @@
-import { For } from "solid-js";
+import { For, Show } from "solid-js";
 import { Link } from "@tanstack/solid-router";
-import { Icon } from "../components/Icon";
+import { GameCard } from "../components/GameCard";
 import { ListingCard } from "../components/ListingCard";
-import { MoneyAmount } from "../components/MoneyAmount";
-import { Page, PageHeader, PreviewNotice, StatCard } from "../components/Page";
-import { Button, buttonClass } from "../components/ui/button";
-import { showcaseCards } from "../lib/preview";
-
-const listings = showcaseCards()
-  .slice(0, 4)
-  .map((card, index) => ({
-    card,
-    price: [0.25, 0.4, 0.65, 0.3][index] ?? 0.25,
-    detail: [
-      "Listed 2 hours ago",
-      "Listed yesterday",
-      "Listed 2 days ago",
-      "Listed 3 days ago",
-    ][index],
-  }));
+import { OwnedCards } from "../components/OwnedCards";
+import { Page, PageHeader } from "../components/Page";
+import { buttonClass } from "../components/ui/button";
 
 export default function Sell() {
   return (
@@ -26,55 +12,61 @@ export default function Sell() {
       <PageHeader
         eyebrow="Your storefront"
         title="Your cards for sale."
-        description="Make room for your next discovery. Keep your listings together in one place."
+        description="Set prices for cards in your collection."
         action={
-          <div class="flex flex-wrap gap-3">
-            <Link to="/auctions/new" class={buttonClass("secondary")}>
-              List a card for bidding
-            </Link>
-            <Button feedback="sell" disabled>
-              <Icon name="plus" />
-              List a card
-            </Button>
-          </div>
+          <Link to="/auctions/new" class={buttonClass("secondary")}>
+            List a card for bidding
+          </Link>
         }
       />
-      <PreviewNotice>
-        These are example listings, not your actual collection. Listing and
-        price controls will become available when the marketplace launches.
-      </PreviewNotice>
-      <div class="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Example listings" value="4" icon="cards" />
-        <StatCard
-          label="Example asking total"
-          value={
-            <MoneyAmount
-              amount={1.6}
-              currency="USDC"
-              unitClass="text-sm font-normal text-muted"
-            />
-          }
-          icon="coin"
-        />
-        <StatCard label="Example sales" value="0" icon="swap" />
-      </div>
-      <section class="space-y-5">
-        <h2 class="text-xl font-semibold">Listed for sale</h2>
-        <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <For each={listings}>
-            {(listing) => (
-              <ListingCard
-                feedback="sell"
-                card={listing.card}
-                price={listing.price}
-                detail={listing.detail}
-                owner="you"
-                action="Edit listing"
-              />
-            )}
-          </For>
-        </div>
-      </section>
+      <OwnedCards initialAction="price">
+        {({ cards, open }) => {
+          const eligible = () =>
+            cards().filter((card) => card.status === "claimed");
+          return (
+            <section class="space-y-5">
+              <h2 class="text-xl font-semibold">Manage prices</h2>
+              <Show
+                when={eligible().length}
+                fallback={
+                  <p class="text-sm text-muted">
+                    Cards in your collection can be listed before moving them to
+                    a wallet.
+                  </p>
+                }
+              >
+                <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <For each={eligible()}>
+                    {(card) => (
+                      <Show
+                        when={card.priceUsdcMinor}
+                        fallback={
+                          <GameCard
+                            card={card}
+                            onClick={open}
+                            action="Set a price"
+                          />
+                        }
+                      >
+                        {(price) => (
+                          <ListingCard
+                            card={card}
+                            priceUsdcMinor={price()}
+                            owner="You"
+                            feedback="sell"
+                            action="Edit price"
+                            onAction={() => open(card)}
+                          />
+                        )}
+                      </Show>
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </section>
+          );
+        }}
+      </OwnedCards>
     </Page>
   );
 }
