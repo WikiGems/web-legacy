@@ -4,7 +4,9 @@ import { defineConfig } from "vitest/config";
 // under the Bun runtime: `bun run test` invokes `bun --bun vitest`.
 export default defineConfig({
   test: {
-    include: ["{apps,packages,scripts,shared,src,tests,worker}/**/*.test.ts"],
+    include: [
+      "{apps,infra,packages,scripts,shared,src,tests,worker}/**/*.test.ts",
+    ],
     exclude: ["**/node_modules/**", "**/target/**", "**/dist/**"],
     environment: "node",
     testTimeout: 30_000,

@@ -58,6 +58,31 @@ jobs:
       - run: bun run typecheck
       - run: bun run check:workspaces
 
+  build:
+    name: Build & Architecture
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - run: bun install --frozen-lockfile
+      - run: bun run check:architecture
+      - run: bun run build
+
+  migrations:
+    name: Database Migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - run: bun install --frozen-lockfile
+      - run: bun run db:check
+
   test:
     name: Test (vitest)
     runs-on: ubuntu-latest
@@ -70,6 +95,33 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test
 
+  secrets:
+    name: Secret Scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install gitleaks CLI
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Scan repository for leaked secrets
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gitleaks detect --source . --no-git --config .gitleaks.toml --redact --verbose
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_BASE" ] && [ -n "$PR_HEAD" ]; then
+            gitleaks detect --source . --log-opts="${PR_BASE}..${PR_HEAD}" --config .gitleaks.toml --redact --verbose
+          fi
+
   # The single required status check. Branch protection points at this job, so jobs can be
   # added, renamed or split above without touching repository settings. `always()` makes it
   # run (and fail) when an upstream job fails or is cancelled instead of being skipped,
@@ -77,7 +129,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [format, lint, typecheck, test]
+    needs: [format, lint, typecheck, build, migrations, test, secrets]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

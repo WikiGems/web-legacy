@@ -1,0 +1,8 @@
+# Default owner for the repository and sensitive paths.
+* @osbyrne
+
+# Infrastructure, CI/CD, and release workflows.
+/infra/ @osbyrne
+/.github/ @osbyrne
+/migrations/ @osbyrne
+/programs/ @osbyrne

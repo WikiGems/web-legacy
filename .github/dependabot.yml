@@ -5,6 +5,36 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
+
+  # Bun / npm workspace dependencies with a 7-day supply-chain cooldown.
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      effect-and-alchemy:
+        patterns: ["effect", "@effect/*", "alchemy", "@alchemy.run/*"]
+      dev-tooling:
+        dependency-type: development
+        update-types: ["minor", "patch"]
+      runtime-minor-patch:
+        dependency-type: production
+        update-types: ["minor", "patch"]
+
+  # Rust / Solana workspace crates.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      cargo-minor-patch:
+        update-types: ["minor", "patch"]

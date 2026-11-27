@@ -38,3 +38,13 @@ pre-push:
       run: bun run typecheck && bun run check:workspaces
     - name: vitest
       run: bun run test
+
+# Automatic local branch garbage collection after pulling main.
+post-merge:
+  jobs:
+    - name: prune merged branches
+      run: |
+        branch="$(git symbolic-ref --quiet --short HEAD || true)"
+        if [ "$branch" = "main" ]; then
+          bun scripts/git-prune.ts --no-fetch
+        fi
