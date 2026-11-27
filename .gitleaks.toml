@@ -13,5 +13,6 @@ paths = [
   '''^flake\.lock$''',
   '''^secrets/development\.env$''',
   '''^tests/.*\.test\.ts$''',
+  '''^tests/.*-fixture\.ts$''',
   '''^infra/tests/.*\.test\.ts$''',
 ]
