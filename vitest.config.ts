@@ -10,6 +10,7 @@ export default defineConfig({
     exclude: ["**/node_modules/**", "**/target/**", "**/dist/**"],
     environment: "node",
     testTimeout: 30_000,
+    hookTimeout: 30_000,
     // The suites share disposable databases and child processes; keep files isolated.
     pool: "threads",
   },
