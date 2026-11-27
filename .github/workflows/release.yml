@@ -1,0 +1,188 @@
+name: Production Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Release tag (e.g. v0.2.0) to deploy"
+        required: true
+        type: string
+      dry_run:
+        description: "Plan only (do not deploy)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+# Never run two production deploys concurrently.
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+env:
+  LEFTHOOK: "0"
+  STAGE: prod
+
+jobs:
+  release:
+    name: Release to Production
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.prod-url.outputs.url }}
+    timeout-minutes: 25
+    steps:
+      - name: Resolve release ref
+        id: meta
+        env:
+          INPUT_REF: ${{ github.event.inputs.ref }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="$INPUT_REF"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.meta.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify release commit is on main
+        run: |
+          git fetch origin main --quiet
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::Release ref ${{ steps.meta.outputs.tag }} ($(git rev-parse --short HEAD)) is not an ancestor of origin/main."
+            exit 1
+          fi
+          echo "Verified $(git rev-parse --short HEAD) is on origin/main."
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Install, verify, and build
+        run: |
+          bun install --frozen-lockfile
+          bun run check
+          bun run check:architecture
+          bun run db:check
+          bun run build
+
+      - name: Plan production infrastructure (Alchemy)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+          TURSO_ORG: ${{ vars.TURSO_ORG }}
+          TURSO_GROUP: ${{ vars.TURSO_GROUP || 'default' }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SPONSOR_SECRET_KEY: ${{ secrets.SPONSOR_SECRET_KEY }}
+          MINT_AUTHORITY_SECRET_KEY: ${{ secrets.MINT_AUTHORITY_SECRET_KEY }}
+          WIKIGEMS_CUSTOM_DOMAIN: ${{ vars.WIKIGEMS_CUSTOM_DOMAIN }}
+          PUBLIC_ORIGIN: ${{ vars.PUBLIC_ORIGIN }}
+          BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL }}
+          PASSKEY_RP_ID: ${{ vars.PASSKEY_RP_ID }}
+          PASSKEY_ORIGIN: ${{ vars.PASSKEY_ORIGIN }}
+          TRUSTED_ORIGINS: ${{ vars.TRUSTED_ORIGINS }}
+          SOLANA_RPC_URL: ${{ vars.SOLANA_RPC_URL || 'https://api.devnet.solana.com' }}
+          SOLANA_CLUSTER: ${{ vars.SOLANA_CLUSTER || 'devnet' }}
+          WIKIGEMS_PROGRAM_ID: ${{ vars.WIKIGEMS_PROGRAM_ID || '3KBQ1Y9YZbKmYKhnXM1u8fcEBHEtizgW3hcBZSYnuUjL' }}
+          USDC_MINT: ${{ vars.USDC_MINT || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU' }}
+          TREASURY_WALLET: ${{ vars.TREASURY_WALLET }}
+          EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+          WIKIGEMS_RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          WIKIGEMS_RELEASE_MESSAGE: "Release ${{ steps.meta.outputs.tag }}"
+        run: bun run --cwd infra alchemy plan --stage "$STAGE" --no-input --detailed
+
+      - name: Deploy production stack (Alchemy)
+        if: ${{ inputs.dry_run != true }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+          TURSO_ORG: ${{ vars.TURSO_ORG }}
+          TURSO_GROUP: ${{ vars.TURSO_GROUP || 'default' }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SPONSOR_SECRET_KEY: ${{ secrets.SPONSOR_SECRET_KEY }}
+          MINT_AUTHORITY_SECRET_KEY: ${{ secrets.MINT_AUTHORITY_SECRET_KEY }}
+          WIKIGEMS_CUSTOM_DOMAIN: ${{ vars.WIKIGEMS_CUSTOM_DOMAIN }}
+          PUBLIC_ORIGIN: ${{ vars.PUBLIC_ORIGIN }}
+          BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL }}
+          PASSKEY_RP_ID: ${{ vars.PASSKEY_RP_ID }}
+          PASSKEY_ORIGIN: ${{ vars.PASSKEY_ORIGIN }}
+          TRUSTED_ORIGINS: ${{ vars.TRUSTED_ORIGINS }}
+          SOLANA_RPC_URL: ${{ vars.SOLANA_RPC_URL || 'https://api.devnet.solana.com' }}
+          SOLANA_CLUSTER: ${{ vars.SOLANA_CLUSTER || 'devnet' }}
+          WIKIGEMS_PROGRAM_ID: ${{ vars.WIKIGEMS_PROGRAM_ID || '3KBQ1Y9YZbKmYKhnXM1u8fcEBHEtizgW3hcBZSYnuUjL' }}
+          USDC_MINT: ${{ vars.USDC_MINT || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU' }}
+          TREASURY_WALLET: ${{ vars.TREASURY_WALLET }}
+          EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+          WIKIGEMS_RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          WIKIGEMS_RELEASE_MESSAGE: "Release ${{ steps.meta.outputs.tag }}"
+        run: bun run --cwd infra alchemy deploy --stage "$STAGE" --yes --no-input
+
+      - name: Apply forward-only production migrations
+        if: ${{ inputs.dry_run != true }}
+        env:
+          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+          TURSO_ORG: ${{ vars.TURSO_ORG }}
+        run: bun run db:migrate:stage -- --stage="$STAGE"
+
+      - name: Resolve production URL
+        id: prod-url
+        if: ${{ inputs.dry_run != true }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WIKIGEMS_CUSTOM_DOMAIN: ${{ vars.WIKIGEMS_CUSTOM_DOMAIN }}
+        run: |
+          url="$(bun infra/scripts/worker-url.ts --stage="$STAGE")"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Post-deploy smoke test (auto-rollback on failure)
+        if: ${{ inputs.dry_run != true }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if ! bun run smoke "${{ steps.prod-url.outputs.url }}"; then
+            echo "::error::Production smoke test failed — rolling back to previous healthy Worker version!"
+            bun infra/scripts/rollback-worker.ts \
+              --stage="$STAGE" \
+              --reason="Auto-rollback after failed smoke check on ${{ steps.meta.outputs.tag }}"
+            exit 1
+          fi
+
+      - name: Publish GitHub Release
+        if: ${{ github.event_name == 'push' && inputs.dry_run != true }}
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          PROD_URL: ${{ steps.prod-url.outputs.url }}
+        with:
+          script: |
+            const tag = process.env.RELEASE_TAG;
+            try {
+              await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag,
+              });
+            } catch {
+              await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                name: tag,
+                generate_release_notes: true,
+                body: `Deployed to production: ${process.env.PROD_URL}`,
+              });
+            }

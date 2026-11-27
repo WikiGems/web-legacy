@@ -1,0 +1,18 @@
+title = "WikiGems gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ignore example templates, lockfiles, and SOPS-encrypted ciphertext"
+paths = [
+  '''^\.env\.example$''',
+  '''^\.dev\.vars\.example$''',
+  '''^bun\.lock$''',
+  '''^Cargo\.lock$''',
+  '''^flake\.lock$''',
+  '''^secrets/development\.env$''',
+  '''^tests/.*\.test\.ts$''',
+  '''^tests/.*-fixture\.ts$''',
+  '''^infra/tests/.*\.test\.ts$''',
+]

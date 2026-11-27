@@ -1,0 +1,115 @@
+name: Production Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Rollback strategy"
+        required: true
+        default: "instant"
+        type: choice
+        options:
+          - instant
+          - redeploy-tag
+      target_tag:
+        description: "Release tag to roll back to (e.g. v0.1.0). Optional for instant mode (defaults to previous version)."
+        required: false
+        type: string
+      target_version_id:
+        description: "Explicit Cloudflare Worker version UUID (instant mode only)"
+        required: false
+        type: string
+      reason:
+        description: "Incident / rollback reason recorded in Cloudflare deployment annotations"
+        required: true
+        default: "Manual emergency rollback"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+env:
+  LEFTHOOK: "0"
+  STAGE: prod
+
+jobs:
+  rollback:
+    name: Roll Back Production
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.prod-url.outputs.url }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.mode == 'redeploy-tag' && inputs.target_tag || 'main' }}
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Instant Cloudflare Worker version rollback
+        if: inputs.mode == 'instant'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ROLLBACK_REASON: ${{ inputs.reason }}
+        run: |
+          args=("--stage=$STAGE")
+          [ -n "${{ inputs.target_version_id }}" ] && args+=("--version-id=${{ inputs.target_version_id }}")
+          [ -n "${{ inputs.target_tag }}" ] && args+=("--tag=${{ inputs.target_tag }}")
+          bun infra/scripts/rollback-worker.ts "${args[@]}"
+
+      - name: Full Alchemy redeploy of known-good tag
+        if: inputs.mode == 'redeploy-tag'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+          TURSO_ORG: ${{ vars.TURSO_ORG }}
+          TURSO_GROUP: ${{ vars.TURSO_GROUP || 'default' }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SPONSOR_SECRET_KEY: ${{ secrets.SPONSOR_SECRET_KEY }}
+          MINT_AUTHORITY_SECRET_KEY: ${{ secrets.MINT_AUTHORITY_SECRET_KEY }}
+          WIKIGEMS_CUSTOM_DOMAIN: ${{ vars.WIKIGEMS_CUSTOM_DOMAIN }}
+          PUBLIC_ORIGIN: ${{ vars.PUBLIC_ORIGIN }}
+          BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL }}
+          PASSKEY_RP_ID: ${{ vars.PASSKEY_RP_ID }}
+          PASSKEY_ORIGIN: ${{ vars.PASSKEY_ORIGIN }}
+          TRUSTED_ORIGINS: ${{ vars.TRUSTED_ORIGINS }}
+          SOLANA_RPC_URL: ${{ vars.SOLANA_RPC_URL || 'https://api.devnet.solana.com' }}
+          SOLANA_CLUSTER: ${{ vars.SOLANA_CLUSTER || 'devnet' }}
+          WIKIGEMS_PROGRAM_ID: ${{ vars.WIKIGEMS_PROGRAM_ID || '3KBQ1Y9YZbKmYKhnXM1u8fcEBHEtizgW3hcBZSYnuUjL' }}
+          USDC_MINT: ${{ vars.USDC_MINT || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU' }}
+          TREASURY_WALLET: ${{ vars.TREASURY_WALLET }}
+          EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+          WIKIGEMS_RELEASE_TAG: ${{ inputs.target_tag }}
+          WIKIGEMS_RELEASE_MESSAGE: "Rollback to ${{ inputs.target_tag }}: ${{ inputs.reason }}"
+        run: |
+          if [ -z "${{ inputs.target_tag }}" ]; then
+            echo "::error::target_tag is required when mode is redeploy-tag."
+            exit 1
+          fi
+          bun run build
+          bun run --cwd infra alchemy deploy --stage "$STAGE" --yes --no-input
+
+      - name: Resolve production URL
+        id: prod-url
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WIKIGEMS_CUSTOM_DOMAIN: ${{ vars.WIKIGEMS_CUSTOM_DOMAIN }}
+        run: |
+          url="$(bun infra/scripts/worker-url.ts --stage="$STAGE")"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Verify production health after rollback
+        run: bun run smoke "${{ steps.prod-url.outputs.url }}"

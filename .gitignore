@@ -21,6 +21,8 @@ secrets/.encrypted.*
 .flox/log/
 .wrangler-home/
 .wrangler/
+.alchemy/
+infra/.alchemy/
 .artifacts/
 .secrets/
 .turso-config/

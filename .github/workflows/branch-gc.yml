@@ -1,0 +1,128 @@
+name: Branch Garbage Collection
+
+on:
+  schedule:
+    # Weekly on Sundays at 04:00 UTC.
+    - cron: "0 4 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report merged remote branches without deleting them"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  prune-remote-branches:
+    name: Prune Merged Remote Branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Detect and prune merged / squash-merged remote branches
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        with:
+          script: |
+            const { execFileSync } = require("node:child_process");
+            const dryRun = process.env.DRY_RUN === "true";
+
+            const git = (args) => {
+              try {
+                return {
+                  ok: true,
+                  out: execFileSync("git", args, { encoding: "utf8" }).trim(),
+                };
+              } catch {
+                return { ok: false, out: "" };
+              }
+            };
+
+            const openPrs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 100,
+            });
+            const openBranches = new Set(openPrs.map((pr) => pr.head.ref));
+
+            const branches = await github.paginate(github.rest.repos.listBranches, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+
+            const baseRef = "origin/main";
+            const baseTree = git(["rev-parse", `${baseRef}^{tree}`]).out;
+            const pruned = [];
+            const kept = [];
+
+            for (const branch of branches) {
+              const name = branch.name;
+              if (
+                name === "main" ||
+                name === "master" ||
+                name.startsWith("release/") ||
+                branch.protected ||
+                openBranches.has(name)
+              ) {
+                continue;
+              }
+
+              const ref = `origin/${name}`;
+              const isAncestor = git(["merge-base", "--is-ancestor", ref, baseRef]).ok;
+              let reason = isAncestor ? "merged" : null;
+
+              if (!reason) {
+                const branchTree = git(["rev-parse", `${ref}^{tree}`]).out;
+                if (branchTree && branchTree === baseTree) {
+                  reason = "squash-merged";
+                } else {
+                  const mergeBase = git(["merge-base", baseRef, ref]).out;
+                  const synthetic = mergeBase && branchTree
+                    ? git(["commit-tree", branchTree, "-p", mergeBase, "-m", "_"]).out
+                    : "";
+                  const cherry = synthetic
+                    ? git(["cherry", baseRef, synthetic]).out
+                    : "";
+                  if (cherry.startsWith("-")) {
+                    reason = "squash-merged";
+                  }
+                }
+              }
+
+              if (!reason) {
+                kept.push(name);
+                continue;
+              }
+
+              if (!dryRun) {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `heads/${name}`,
+                });
+              }
+              pruned.push(`${name} (${reason})`);
+            }
+
+            const summary = [
+              `### Remote Branch Garbage Collection (${dryRun ? "dry-run" : "live"})`,
+              "",
+              pruned.length === 0
+                ? "No merged remote branches to prune."
+                : `${dryRun ? "Would prune" : "Pruned"}:\n${pruned.map((b) => `- \`${b}\``).join("\n")}`,
+              "",
+              kept.length > 0
+                ? `Kept unmerged: ${kept.map((b) => `\`${b}\``).join(", ")}`
+                : "",
+            ].join("\n");
+            await core.summary.addRaw(summary).write();
